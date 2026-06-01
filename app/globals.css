@@ -15,7 +15,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
 }
 .page-container {
   padding: 20px;
@@ -25,4 +25,84 @@ body {
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 20px;
+}
+
+.login-card {
+  max-width: 33.6rem;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+}
+
+.login-field-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+}
+
+.brand-surface {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(226 232 240);
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 48%, #0369a1 100%);
+  color: white;
+}
+
+.brand-shell-surface {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(30 41 59 / 0.08);
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 48%, #0369a1 100%);
+  color: white;
+}
+
+.brand-accent-orb {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  background: radial-gradient(circle at 30% 30%, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0.08));
+  animation: brandFloat 8s ease-in-out infinite;
+}
+
+.brand-button {
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 48%, #0369a1 100%);
+  color: white;
+  box-shadow: 0 12px 24px rgb(15 23 42 / 0.16);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.brand-button:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 16px 30px rgb(15 23 42 / 0.22);
+  transform: translateY(-1px);
+}
+
+.brand-button:disabled {
+  filter: saturate(0.7);
+  box-shadow: none;
+  transform: none;
+}
+
+.brand-outline-button {
+  border: 1px solid rgb(148 163 184);
+  color: rgb(15 23 42);
+  background: white;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.brand-outline-button:hover {
+  border-color: rgb(14 116 144);
+  background: rgb(248 250 252);
+  color: rgb(8 47 73);
+}
+
+@keyframes brandFloat {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(-8px, 10px, 0) scale(1.06);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
 }

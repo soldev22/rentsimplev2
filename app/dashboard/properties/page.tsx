@@ -1,20 +1,30 @@
-export default function PropertiesPage() {
-  const properties = [
-    { id: 1, address: "10 High Street", type: "House" },
-    { id: 2, address: "Flat 2, City Road", type: "Flat" }
-  ]
+import { redirect } from "next/navigation"
+
+import PropertyManager from "@/components/properties/PropertyManager"
+import { canManageProperties, getUserRole, isPendingApproval } from "@/lib/auth"
+import { listPropertiesForUser } from "@/lib/server/properties"
+import { getSessionUser } from "@/lib/server/session"
+
+export const dynamic = "force-dynamic"
+
+export default async function PropertiesPage() {
+  const user = await getSessionUser()
+
+  if (!user) {
+    redirect("/login")
+  }
+
+  if (isPendingApproval(user)) {
+    redirect("/waiting")
+  }
+
+  const properties = await listPropertiesForUser(user)
 
   return (
-    <div className="p-5">
-      <h1 className="text-xl font-bold mb-5">Properties</h1>
-
-      <ul className="space-y-2">
-        {properties.map((p) => (
-          <li key={p.id} className="border p-2 rounded">
-            {p.address} - {p.type}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <PropertyManager
+      initialProperties={properties}
+      canManage={canManageProperties(user)}
+      isAdmin={getUserRole(user) === "admin"}
+    />
   )
 }
