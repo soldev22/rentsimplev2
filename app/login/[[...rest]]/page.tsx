@@ -12,6 +12,10 @@ import { hasClerkPublishableKey } from "@/lib/clerk-env"
 
 type AuthMode = "login" | "register"
 
+type LoginStep = "credentials" | "secondFactor"
+
+type SupportedSecondFactorStrategy = "email_code" | "phone_code" | "totp" | "backup_code"
+
 type FormState = {
   firstName: string
   lastName: string
@@ -38,6 +42,23 @@ function getSignalErrorMessage(error: { message?: string } | null | undefined) {
   return error?.message || "Something went wrong. Please try again."
 }
 
+function getPreferredSecondFactor(signIn: NonNullable<ReturnType<typeof useSignIn>["signIn"]>) {
+  const supportedFactors = signIn.supportedSecondFactors ?? []
+
+  for (const strategy of ["email_code", "phone_code", "totp", "backup_code"] as const) {
+    const factor = supportedFactors.find((candidate) => candidate.strategy === strategy)
+
+    if (factor) {
+      return {
+        factor,
+        strategy,
+      }
+    }
+  }
+
+  return null
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -57,6 +78,8 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [infoMessage, setInfoMessage] = useState<string | null>(null)
   const [requiresVerification, setRequiresVerification] = useState(false)
+  const [loginStep, setLoginStep] = useState<LoginStep>("credentials")
+  const [secondFactorStrategy, setSecondFactorStrategy] = useState<SupportedSecondFactorStrategy | null>(null)
 
   const isLoaded = clerk.loaded && (mode === "login" ? signInFetchStatus === "idle" : signUpFetchStatus === "idle")
 
@@ -95,6 +118,142 @@ export default function LoginPage() {
     router.refresh()
   }
 
+  async function finalizeLogin() {
+    if (!signIn) {
+      return false
+    }
+
+    if ((signIn.status as string) !== "complete") {
+      return false
+    }
+
+    await signIn.finalize({
+      navigate: async () => {
+        router.push(await getPostAuthRedirectPath())
+        router.refresh()
+      },
+    })
+
+    return true
+  }
+
+  async function prepareSecondFactor() {
+    if (!signIn) {
+      return false
+    }
+
+    const nextFactor = getPreferredSecondFactor(signIn)
+
+    if (!nextFactor) {
+      setErrorMessage("This account requires a second factor that this custom form does not support yet.")
+      return false
+    }
+
+    setLoginStep("secondFactor")
+    setSecondFactorStrategy(nextFactor.strategy)
+    setFormState((current) => ({
+      ...current,
+      verificationCode: "",
+    }))
+
+    if (nextFactor.strategy === "email_code") {
+      const result = await signIn.mfa.sendEmailCode()
+
+      if (result.error) {
+        setErrorMessage(getSignalErrorMessage(result.error))
+        return false
+      }
+
+      const safeIdentifier = "safeIdentifier" in nextFactor.factor ? nextFactor.factor.safeIdentifier : null
+      setInfoMessage(
+        safeIdentifier
+          ? `Enter the code we sent to ${safeIdentifier} to finish signing in.`
+          : "Enter the email verification code to finish signing in.",
+      )
+      return true
+    }
+
+    if (nextFactor.strategy === "phone_code") {
+      const result = await signIn.mfa.sendPhoneCode()
+
+      if (result.error) {
+        setErrorMessage(getSignalErrorMessage(result.error))
+        return false
+      }
+
+      const safeIdentifier = "safeIdentifier" in nextFactor.factor ? nextFactor.factor.safeIdentifier : null
+      setInfoMessage(
+        safeIdentifier
+          ? `Enter the code we sent to ${safeIdentifier} to finish signing in.`
+          : "Enter the text message code to finish signing in.",
+      )
+      return true
+    }
+
+    if (nextFactor.strategy === "totp") {
+      setInfoMessage("Enter the authenticator app code to finish signing in.")
+      return true
+    }
+
+    setInfoMessage("Enter one of your backup codes to finish signing in.")
+    return true
+  }
+
+  async function handleSecondFactorSubmit() {
+    if (!signIn || !secondFactorStrategy) {
+      return
+    }
+
+    if (!formState.verificationCode.trim()) {
+      setErrorMessage("Enter the verification code to continue.")
+      return
+    }
+
+    if (secondFactorStrategy === "email_code") {
+      const result = await signIn.mfa.verifyEmailCode({
+        code: formState.verificationCode.trim(),
+      })
+
+      if (result.error) {
+        setErrorMessage(getSignalErrorMessage(result.error))
+        return
+      }
+    } else if (secondFactorStrategy === "phone_code") {
+      const result = await signIn.mfa.verifyPhoneCode({
+        code: formState.verificationCode.trim(),
+      })
+
+      if (result.error) {
+        setErrorMessage(getSignalErrorMessage(result.error))
+        return
+      }
+    } else if (secondFactorStrategy === "totp") {
+      const result = await signIn.mfa.verifyTOTP({
+        code: formState.verificationCode.trim(),
+      })
+
+      if (result.error) {
+        setErrorMessage(getSignalErrorMessage(result.error))
+        return
+      }
+    } else {
+      const result = await signIn.mfa.verifyBackupCode({
+        code: formState.verificationCode.trim(),
+      })
+
+      if (result.error) {
+        setErrorMessage(getSignalErrorMessage(result.error))
+        return
+      }
+    }
+
+    if (await finalizeLogin()) {
+      return
+    }
+
+    setErrorMessage("We could not complete second-factor verification. Try again.")
+  }
+
   async function handleLoginSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -107,6 +266,11 @@ export default function LoginPage() {
     setInfoMessage(null)
 
     try {
+      if (loginStep === "secondFactor") {
+        await handleSecondFactorSubmit()
+        return
+      }
+
       const createResult = await signIn.create({
         identifier: formState.email,
         password: formState.password,
@@ -129,13 +293,7 @@ export default function LoginPage() {
         }
       }
 
-      if ((signIn.status as string) === "complete") {
-        await signIn.finalize({
-          navigate: async () => {
-            router.push(await getPostAuthRedirectPath())
-            router.refresh()
-          },
-        })
+      if (await finalizeLogin()) {
         return
       }
 
@@ -146,8 +304,13 @@ export default function LoginPage() {
         return
       }
 
-      if (signIn.status === "needs_second_factor" || signIn.status === "needs_new_password") {
-        setErrorMessage("This account requires an additional sign-in step that this custom form does not handle yet.")
+      if (signIn.status === "needs_second_factor") {
+        await prepareSecondFactor()
+        return
+      }
+
+      if (signIn.status === "needs_new_password") {
+        setErrorMessage("This account requires a password reset before sign-in can continue.")
         return
       }
 
@@ -293,7 +456,7 @@ export default function LoginPage() {
                     </div>
                   ) : null}
 
-                  {!requiresVerification ? (
+                  {!requiresVerification && (!isRegistrationMode ? loginStep === "credentials" : true) ? (
                     <>
                       <label className="block text-sm font-medium text-slate-700">
                         Email address
@@ -335,15 +498,15 @@ export default function LoginPage() {
                     </>
                   ) : (
                     <label className="block text-sm font-medium text-slate-700">
-                      Verification code
+                      {isRegistrationMode ? "Verification code" : secondFactorStrategy === "backup_code" ? "Backup code" : "Verification code"}
                       <input
                         className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 focus:border-sky-500"
-                          type="text"
+                        type="text"
                         name="verificationCode"
                         value={formState.verificationCode}
                         onChange={handleInputChange}
-                        inputMode="numeric"
-                        pattern="[0-9]*"
+                        inputMode={secondFactorStrategy === "backup_code" ? "text" : "numeric"}
+                        pattern={secondFactorStrategy === "backup_code" ? undefined : "[0-9]*"}
                         autoComplete="one-time-code"
                         required
                       />
@@ -359,6 +522,8 @@ export default function LoginPage() {
                       ? "Working..."
                       : requiresVerification
                         ? "Verify and continue"
+                        : !isRegistrationMode && loginStep === "secondFactor"
+                          ? "Verify sign in"
                         : isRegistrationMode
                           ? "Create account"
                           : "Sign in"}

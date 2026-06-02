@@ -117,6 +117,13 @@ Recommended sign-in methods for the current implementation:
 
 - Email + Password
 
+The custom `/login` form also handles Clerk second-factor prompts for:
+
+- Email code
+- Phone code
+- Authenticator app TOTP
+- Backup code
+
 Recommended profile fields for sign-up:
 
 - First name

@@ -1,7 +1,7 @@
 import "./globals.css";
 
-import Link from "next/link";
 import { ClerkProvider, Show, UserButton } from "@clerk/nextjs";
+import Link from "next/link";
 
 import AppChrome from "@/components/layout/AppChrome";
 import { hasClerkPublishableKey } from "@/lib/clerk-env";
