@@ -10,8 +10,6 @@ type StoredUser = AuthUser & {
   passwordHash?: string
   sessionTokenHash?: string
   sessionExpiresAt?: string
-  auth_provider?: "local" | "clerk"
-  clerk_user_id?: string
 }
 
 function isNotFoundError(error: unknown) {
@@ -43,51 +41,6 @@ async function writeStoredUser(user: StoredUser) {
   const container = await getUsersContainer()
   await container.items.upsert(user)
   return user
-}
-
-export async function ensureClerkUser(input: {
-  clerkUserId: string
-  email: string
-  firstName?: string | null
-  lastName?: string | null
-  mobile?: string | null
-}) {
-  const normalizedEmail = normalizeEmail(input.email)
-  const existingUser = await readStoredUser(normalizedEmail)
-  const timestamp = new Date().toISOString()
-
-  if (existingUser) {
-    const updatedUser: StoredUser = {
-      ...existingUser,
-      email: normalizedEmail,
-      first_name: input.firstName?.trim() || existingUser.first_name,
-      last_name: input.lastName?.trim() || existingUser.last_name,
-      mobile: input.mobile?.trim() || existingUser.mobile,
-      auth_provider: "clerk",
-      clerk_user_id: input.clerkUserId,
-      updatedAt: timestamp,
-    }
-
-    await writeStoredUser(updatedUser)
-    return sanitizeUser(updatedUser)
-  }
-
-  const storedUser: StoredUser = {
-    id: normalizedEmail,
-    email: normalizedEmail,
-    first_name: input.firstName?.trim() || "",
-    last_name: input.lastName?.trim() || "",
-    mobile: input.mobile?.trim() || "",
-    role: "unallocated",
-    approval_status: "pending_approval",
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    auth_provider: "clerk",
-    clerk_user_id: input.clerkUserId,
-  }
-
-  await writeStoredUser(storedUser)
-  return sanitizeUser(storedUser)
 }
 
 export async function createUser(input: {

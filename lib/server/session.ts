@@ -1,46 +1,81 @@
 import "server-only"
 
-import { auth, currentUser } from "@clerk/nextjs/server"
+import { createHash, randomBytes } from "node:crypto"
+import { cookies } from "next/headers"
 
-import { isClerkConfigured } from "@/lib/clerk-env"
-import { ensureClerkUser } from "@/lib/server/users"
+import { normalizeEmail } from "@/lib/auth"
+import { clearUserSession, getUserBySession, setUserSession } from "@/lib/server/users"
+
+const SESSION_COOKIE_NAME = "rentsimple_session"
+const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30
+
+function createSessionToken() {
+  return randomBytes(32).toString("hex")
+}
+
+function hashSessionToken(token: string) {
+  return createHash("sha256").update(token).digest("hex")
+}
+
+function parseSessionCookieValue(value: string | undefined) {
+  if (!value) {
+    return null
+  }
+
+  const separatorIndex = value.indexOf("|")
+
+  if (separatorIndex <= 0 || separatorIndex >= value.length - 1) {
+    return null
+  }
+
+  return {
+    email: value.slice(0, separatorIndex),
+    token: value.slice(separatorIndex + 1),
+  }
+}
 
 export async function createSession(email: string) {
-  void email
+  const normalizedEmail = normalizeEmail(email)
+  const token = createSessionToken()
+  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS)
+
+  await setUserSession(normalizedEmail, hashSessionToken(token), expiresAt.toISOString())
+
+  const cookieStore = await cookies()
+  cookieStore.set(SESSION_COOKIE_NAME, `${normalizedEmail}|${token}`, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    expires: expiresAt,
+    path: "/",
+  })
 }
 
 export async function destroySession() {
-  return
+  const cookieStore = await cookies()
+  const session = parseSessionCookieValue(cookieStore.get(SESSION_COOKIE_NAME)?.value)
+
+  if (session) {
+    await clearUserSession(session.email)
+  }
+
+  cookieStore.delete(SESSION_COOKIE_NAME)
 }
 
 export async function getSessionUser() {
-  if (!isClerkConfigured()) {
+  const cookieStore = await cookies()
+  const session = parseSessionCookieValue(cookieStore.get(SESSION_COOKIE_NAME)?.value)
+
+  if (!session) {
     return null
   }
 
-  const { userId } = await auth()
+  const user = await getUserBySession(session.email, hashSessionToken(session.token))
 
-  if (!userId) {
+  if (!user) {
+    cookieStore.delete(SESSION_COOKIE_NAME)
     return null
   }
 
-  const clerkUser = await currentUser()
-
-  if (!clerkUser) {
-    return null
-  }
-
-  const email = clerkUser.primaryEmailAddress?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress
-
-  if (!email) {
-    return null
-  }
-
-  return ensureClerkUser({
-    clerkUserId: clerkUser.id,
-    email,
-    firstName: clerkUser.firstName,
-    lastName: clerkUser.lastName,
-    mobile: clerkUser.primaryPhoneNumber?.phoneNumber ?? null,
-  })
+  return user
 }

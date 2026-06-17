@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
 
+import { destroySession } from "@/lib/server/session"
+
 export async function POST() {
-  return NextResponse.json({ error: "Use Clerk sign-out instead of the legacy logout endpoint." }, { status: 410 })
+  await destroySession()
+  return NextResponse.json({ success: true })
 }

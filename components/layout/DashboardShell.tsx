@@ -1,19 +1,16 @@
 "use client";
 
-import { UserButton, useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { type AuthUser, getDisplayName, getUserRole, isPendingApproval } from "@/lib/auth";
-import { hasClerkPublishableKey } from "@/lib/clerk-env";
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
-  const isClerkAvailable = hasClerkPublishableKey();
-  const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [displayName, setDisplayName] = useState("User");
   const [displayRole, setDisplayRole] = useState("Pending");
 
@@ -27,22 +24,6 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   useEffect(() => {
     let isActive = true;
     const controller = new AbortController();
-
-    if (isClerkAvailable && !isAuthLoaded) {
-      return () => {
-        isActive = false;
-        controller.abort();
-      };
-    }
-
-    if (isClerkAvailable && !isSignedIn) {
-      router.replace("/login");
-
-      return () => {
-        isActive = false;
-        controller.abort();
-      };
-    }
 
     async function loadSession() {
       try {
@@ -92,7 +73,20 @@ export default function DashboardShell({ children }: { children: React.ReactNode
       isActive = false;
       controller.abort();
     };
-  }, [isAuthLoaded, isClerkAvailable, isSignedIn, router]);
+  }, [router]);
+
+  async function handleLogout() {
+    setIsSigningOut(true);
+
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+      });
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
+  }
 
   if (isCheckingAccess) {
     return (
@@ -149,15 +143,14 @@ export default function DashboardShell({ children }: { children: React.ReactNode
               <div>Logged in as: {displayName}</div>
               <div className="text-xs uppercase tracking-[0.2em] text-cyan-200">{displayRole}</div>
             </div>
-            {isClerkAvailable ? (
-              <UserButton
-                appearance={{
-                  elements: {
-                    userButtonAvatarBox: "h-10 w-10",
-                  },
-                }}
-              />
-            ) : null}
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={isSigningOut}
+              className="rounded border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSigningOut ? "Signing out..." : "Logout"}
+            </button>
           </div>
         </header>
 
