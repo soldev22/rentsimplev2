@@ -1,5 +1,3 @@
-import Link from "next/link"
-
 export default function HomePage() {
   return (
     <div className="bg-slate-50 text-gray-900">
