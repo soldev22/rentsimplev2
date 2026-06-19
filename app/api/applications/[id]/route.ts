@@ -51,6 +51,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "The tenancy agreement has not been sent for signature yet." }, { status: 400 })
     }
 
+    if (error instanceof Error && error.message === "RequiredTenancyDocumentsNotIssued") {
+      return NextResponse.json(
+        { error: "The offer letter, lease, and supporting legal documents must all be issued before applicant sign-off can be recorded." },
+        { status: 400 },
+      )
+    }
+
     if (error instanceof Error && error.message === "AgreementSignatureRequired") {
       return NextResponse.json({ error: "Confirm that you have completed the tenancy agreement signing step before submitting sign-off." }, { status: 400 })
     }

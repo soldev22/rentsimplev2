@@ -1,10 +1,5 @@
-// app/dashboard/applicant/page.tsx
+import { redirect } from "next/navigation"
 
-export default function ApplicantDashboard() {
-  return (
-    <div className="p-5">
-      <h1 className="text-xl font-bold">Builder Dashboard</h1>
-      <p>View applications and onboarding</p>
-    </div>
-  )
+export default function BuilderDashboardPage() {
+  redirect("/dashboard/maintenance")
 }

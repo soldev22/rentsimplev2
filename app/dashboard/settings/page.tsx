@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 
 import ApplicantProfileSettingsForm from "@/components/forms/ApplicantProfileSettingsForm"
+import BuilderProfileSettingsForm from "@/components/forms/BuilderProfileSettingsForm"
 import { getUserRole, isPendingApproval } from "@/lib/auth"
 import { getSessionUser } from "@/lib/server/session"
 
@@ -19,6 +20,10 @@ export default async function SettingsPage() {
 
   if (getUserRole(user) === "applicant") {
     return <ApplicantProfileSettingsForm initialApplicantProfile={user.applicantProfile} />
+  }
+
+  if (getUserRole(user) === "builder") {
+    return <BuilderProfileSettingsForm initialBuilderProfile={user.builderProfile} />
   }
 
   return (

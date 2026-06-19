@@ -45,14 +45,25 @@ function isApplicantApprovalReady(application: TenancyApplicationRecord) {
   return application.approvalDecision.outcome === "approved" || application.approvalDecision.outcome === "approved_with_guarantor"
 }
 
+function areRequiredTenancyDocumentsIssued(application: TenancyApplicationRecord) {
+  return (
+    application.tenancyAgreement.offerLetter.sent &&
+    application.tenancyAgreement.leaseDocument.sent &&
+    application.tenancyAgreement.supportingLegalDocuments.sent
+  )
+}
+
 export default function ApplicantTenancyChecklist({ initialApplication }: ApplicantTenancyChecklistProps) {
   const [application, setApplication] = useState(initialApplication)
   const [formState, setFormState] = useState<SignOffFormState>(() => createSignOffFormState(initialApplication))
   const [feedback, setFeedback] = useState<FeedbackState>(null)
+  const [isOverviewOpen, setIsOverviewOpen] = useState(true)
+  const [isChecklistOpen, setIsChecklistOpen] = useState(true)
+  const [isSignOffOpen, setIsSignOffOpen] = useState(true)
   const [isPending, startTransition] = useTransition()
 
   const canAccessSignOff = isApplicantApprovalReady(application)
-  const canSubmitSignOff = canAccessSignOff && application.tenancyAgreement.agreementSentForSignature
+  const canSubmitSignOff = canAccessSignOff && areRequiredTenancyDocumentsIssued(application) && application.tenancyAgreement.agreementSentForSignature
   const workflowChecklist = useMemo(
     () => [
       {
@@ -66,18 +77,32 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
               : "Waiting for the landlord or reviewer to approve the tenancy.",
       },
       {
-        label: "Agreement sent for signing",
-        complete: application.tenancyAgreement.agreementSentForSignature,
-        detail: application.tenancyAgreement.agreementSentAt
-          ? `Sent ${new Date(application.tenancyAgreement.agreementSentAt).toLocaleString()}.`
-          : "The tenancy agreement has not been sent yet.",
+        label: "Offer letter issued",
+        complete: application.tenancyAgreement.offerLetter.sent,
+        detail: application.tenancyAgreement.offerLetter.sentAt
+          ? `Issued ${new Date(application.tenancyAgreement.offerLetter.sentAt).toLocaleString()}.`
+          : "The letter of offer has not been issued yet.",
       },
       {
-        label: "Agreement signed",
-        complete: application.tenancyAgreement.agreementSigned,
-        detail: application.tenancyAgreement.agreementSignedAt
-          ? `Signed ${new Date(application.tenancyAgreement.agreementSignedAt).toLocaleString()}.`
-          : "Awaiting applicant sign-off.",
+        label: "Lease sent for signature",
+        complete: application.tenancyAgreement.leaseDocument.sent,
+        detail: application.tenancyAgreement.leaseDocument.sentAt
+          ? `Issued ${new Date(application.tenancyAgreement.leaseDocument.sentAt).toLocaleString()}.`
+          : "The lease has not been sent yet.",
+      },
+      {
+        label: "Supporting legal documents issued",
+        complete: application.tenancyAgreement.supportingLegalDocuments.sent,
+        detail: application.tenancyAgreement.supportingLegalDocuments.sentAt
+          ? `Issued ${new Date(application.tenancyAgreement.supportingLegalDocuments.sentAt).toLocaleString()}.`
+          : "Supporting legal documents have not been issued yet.",
+      },
+      {
+        label: "Signed lease returned",
+        complete: application.tenancyAgreement.leaseDocument.signedCopyReceived,
+        detail: application.tenancyAgreement.leaseDocument.signedCopyReceivedAt
+          ? `Signed copy received ${new Date(application.tenancyAgreement.leaseDocument.signedCopyReceivedAt).toLocaleString()}.`
+          : "Awaiting the signed lease copy.",
       },
       {
         label: "Pre-move-in documents issued",
@@ -168,7 +193,7 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -188,9 +213,17 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
             <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
               {application.currentStage.replaceAll("_", " ")}
             </span>
+            <button
+              type="button"
+              className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700"
+              onClick={() => setIsOverviewOpen((current) => !current)}
+            >
+              {isOverviewOpen ? "Collapse" : "Expand"}
+            </button>
           </div>
         </div>
 
+        {isOverviewOpen ? (
         <div className="mt-6 grid gap-4 md:grid-cols-3">
           <div className="rounded-xl bg-slate-50 p-4">
             <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Property</div>
@@ -200,7 +233,7 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
           <div className="rounded-xl bg-slate-50 p-4">
             <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Agreement</div>
             <div className="mt-2 text-sm font-semibold text-slate-900">
-              {application.tenancyAgreement.agreementSentForSignature ? "Issued for signing" : "Not issued yet"}
+              {application.tenancyAgreement.leaseDocument.sent ? "Lease issued" : "Not issued yet"}
             </div>
             <div className="mt-1 text-sm text-slate-600">
               {application.tenancyAgreement.agreementProvider || "Provider not set yet"}
@@ -218,14 +251,28 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
             </div>
           </div>
         </div>
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold text-slate-900">Checklist status</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          This page gives you a defensible record of what is still outstanding before move-in.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">Checklist status</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              This page gives you a defensible record of what is still outstanding before move-in.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+            onClick={() => setIsChecklistOpen((current) => !current)}
+          >
+            {isChecklistOpen ? "Collapse" : "Expand"}
+          </button>
+        </div>
 
+        {isChecklistOpen ? (
+        <>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           {workflowChecklist.map((item) => (
             <div
@@ -243,9 +290,22 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
           ))}
         </div>
 
-        {application.tenancyAgreement.agreementSentForSignature ? (
+        {areRequiredTenancyDocumentsIssued(application) ? (
           <div className="mt-6 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-            <div className="font-semibold">Tenancy agreement</div>
+            <div className="font-semibold">Issued tenancy documents</div>
+            <p className="mt-2">
+              Offer letter: {application.tenancyAgreement.offerLetter.reference || "Reference not specified"}
+            </p>
+            {application.tenancyAgreement.offerLetter.url ? (
+              <a
+                href={application.tenancyAgreement.offerLetter.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-900"
+              >
+                Open offer letter
+              </a>
+            ) : null}
             <p className="mt-2">
               Provider: {application.tenancyAgreement.agreementProvider || "Not specified"}
               {application.tenancyAgreement.agreementReference ? ` · Reference: ${application.tenancyAgreement.agreementReference}` : ""}
@@ -262,15 +322,51 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
             ) : (
               <p className="mt-2">Your landlord or agent has marked the agreement as issued, but no signing link has been attached yet.</p>
             )}
+            {application.tenancyAgreement.leaseDocument.url ? (
+              <a
+                href={application.tenancyAgreement.leaseDocument.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 ml-3 inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-900"
+              >
+                Open lease copy
+              </a>
+            ) : null}
+            {application.tenancyAgreement.supportingLegalDocuments.url ? (
+              <a
+                href={application.tenancyAgreement.supportingLegalDocuments.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 ml-3 inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-900"
+              >
+                Open legal documents
+              </a>
+            ) : null}
+            {application.tenancyAgreement.supportingLegalDocuments.summary ? (
+              <p className="mt-3">Supporting legal documents: {application.tenancyAgreement.supportingLegalDocuments.summary}</p>
+            ) : null}
           </div>
+        ) : null}
+        </>
         ) : null}
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold text-slate-900">Applicant sign-off</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Complete this after approval and after the tenancy agreement has been issued for signature.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">Applicant sign-off</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Complete this after approval and once the offer letter, lease, and supporting legal documents have all been issued.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+            onClick={() => setIsSignOffOpen((current) => !current)}
+          >
+            {isSignOffOpen ? "Collapse" : "Expand"}
+          </button>
+        </div>
 
         {feedback ? (
           <div
@@ -288,12 +384,17 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Applicant sign-off becomes available once the landlord or agent approves this application.
           </div>
+        ) : !areRequiredTenancyDocumentsIssued(application) ? (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Your offer letter, lease, and supporting legal documents must all be issued before final sign-off becomes available.
+          </div>
         ) : !application.tenancyAgreement.agreementSentForSignature ? (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             The agreement has not been sent for signature yet, so your final sign-off is still locked.
           </div>
         ) : null}
 
+        {isSignOffOpen ? (
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <input
@@ -377,6 +478,7 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
             </button>
           </div>
         </form>
+        ) : null}
       </section>
     </div>
   )

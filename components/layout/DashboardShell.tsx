@@ -25,12 +25,18 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
           { name: "My Applications", href: "/dashboard/applicant" },
           { name: "Settings", href: "/dashboard/settings" },
         ]
+      : displayRole === "tenant" || displayRole === "builder"
+        ? [
+            { name: "Maintenance", href: "/dashboard/maintenance" },
+            { name: "Settings", href: "/dashboard/settings" },
+          ]
       : [
           { name: "Properties", href: "/dashboard/properties" },
           ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
             ? [{ name: "Applications", href: "/dashboard/bookings" }]
             : []),
           { name: "Tenants", href: "/dashboard/tenants" },
+          { name: "Maintenance", href: "/dashboard/maintenance" },
           { name: "Settings", href: "/dashboard/settings" },
           ...(displayRole === "admin" ? [{ name: "Users", href: "/dashboard/users" }] : []),
         ];
@@ -137,6 +143,11 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
               <Link href="/dashboard/settings" className="hover:text-white">
                 Settings
               </Link>
+              {(displayRole === "tenant" || displayRole === "builder" || displayRole === "admin" || displayRole === "agent" || displayRole === "landlord") ? (
+                <Link href="/dashboard/maintenance" className="hover:text-white">
+                  Maintenance
+                </Link>
+              ) : null}
               {displayRole === "admin" ? (
                 <Link href="/dashboard/users" className="hover:text-white">
                   Users

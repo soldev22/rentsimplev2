@@ -10,9 +10,17 @@ type PropertyManagerProps = {
   initialProperties: PropertyRecord[]
   canManage: boolean
   isAdmin: boolean
+  landlordOptions?: Array<{
+    id: string
+    fullName: string
+    email: string
+  }>
+  canAssignOwner?: boolean
+  defaultOwnerId?: string
 }
 
 type PropertyFormState = {
+  ownerId: string
   addressLine1: string
   addressLine2: string
   city: string
@@ -28,6 +36,7 @@ type PropertyFormState = {
 }
 
 const emptyForm: PropertyFormState = {
+  ownerId: "",
   addressLine1: "",
   addressLine2: "",
   city: "",
@@ -69,6 +78,7 @@ const propertyStatusOptions = [
 
 function toFormState(property: PropertyRecord): PropertyFormState {
   return {
+    ownerId: property.ownerId,
     addressLine1: property.addressLine1,
     addressLine2: property.addressLine2,
     city: property.city,
@@ -86,6 +96,7 @@ function toFormState(property: PropertyRecord): PropertyFormState {
 
 function toPayload(form: PropertyFormState) {
   return {
+    ownerId: form.ownerId,
     addressLine1: form.addressLine1,
     addressLine2: form.addressLine2,
     city: form.city,
@@ -162,7 +173,14 @@ async function fetchPendingPropertyImageReviews() {
   return payload.reviews
 }
 
-export default function PropertyManager({ initialProperties, canManage, isAdmin }: PropertyManagerProps) {
+export default function PropertyManager({
+  initialProperties,
+  canManage,
+  isAdmin,
+  landlordOptions = [],
+  canAssignOwner = false,
+  defaultOwnerId,
+}: PropertyManagerProps) {
   const [properties, setProperties] = useState(initialProperties)
   const [selectedPropertyId, setSelectedPropertyId] = useState("")
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false)
@@ -256,6 +274,14 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
       affordabilityMultiple: "2.5",
     }))
   }, [createForm.affordabilityMultiple, isCreatePanelOpen])
+
+  useEffect(() => {
+    if (!canAssignOwner || !defaultOwnerId) {
+      return
+    }
+
+    setCreateForm((current) => (current.ownerId ? current : { ...current, ownerId: defaultOwnerId }))
+  }, [canAssignOwner, defaultOwnerId])
 
   function selectProperty(property: PropertyRecord | null, nextEditMode = false) {
     setSelectedPropertyId(property?.id ?? "")
@@ -807,6 +833,24 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
           {isCreatePanelOpen ? (
             <form className="mt-5 grid gap-4 lg:grid-cols-2" onSubmit={handleCreate}>
 
+          {canAssignOwner && landlordOptions.length > 0 ? (
+            <label className="text-sm font-medium text-slate-700 lg:col-span-2">
+              Landlord owner
+              <select
+                className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                value={createForm.ownerId}
+                onChange={(event) => updateCreateField("ownerId", event.target.value)}
+                required
+              >
+                {landlordOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.fullName} · {option.email}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
           <label className="text-sm font-medium text-slate-700 lg:col-span-2">
             Address line 1
             <input
@@ -1094,6 +1138,9 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
                       <div className="mt-1 text-sm text-slate-600">
                         {property.type} · {property.status}
                       </div>
+                      {canAssignOwner ? (
+                        <div className="mt-1 text-sm text-slate-500">Owner: {property.ownerId}</div>
+                      ) : null}
                       <div className="mt-1 text-sm text-slate-500">
                         {property.bedrooms} bed · {property.bathrooms} bath · £{property.monthlyRent.toLocaleString()}/month
                       </div>
@@ -1199,6 +1246,12 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
                   {!isEditMode ? (
                     <div className="mt-4 space-y-4">
                       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        {canAssignOwner ? (
+                          <div className="rounded-xl bg-slate-50 p-4">
+                            <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Owner</div>
+                            <div className="mt-2 text-sm font-semibold text-slate-900">{selectedProperty.ownerId}</div>
+                          </div>
+                        ) : null}
                         <div className="rounded-xl bg-slate-50 p-4">
                           <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Type</div>
                           <div className="mt-2 text-sm font-semibold text-slate-900">{selectedProperty.type}</div>
@@ -1239,6 +1292,24 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
                     </div>
                   ) : (
                     <form ref={editFormRef} className="mt-4 space-y-4" onSubmit={handleUpdate}>
+                      {canAssignOwner && landlordOptions.length > 0 ? (
+                        <label className="block text-sm font-medium text-slate-700">
+                          Landlord owner
+                          <select
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                            value={editForm.ownerId}
+                            onChange={(event) => updateEditField("ownerId", event.target.value)}
+                            required
+                          >
+                            {landlordOptions.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.fullName} · {option.email}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
+
                       <label className="block text-sm font-medium text-slate-700">
                         Address line 1
                         <input

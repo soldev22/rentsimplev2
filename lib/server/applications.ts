@@ -19,13 +19,17 @@ import {
   type PreScreeningSummary,
   type ReferencingInstruction,
   type ReferencingReport,
+  type TenancyDocumentTracking,
   type TenancyAgreementPreparation,
   type TenancyApplicationRecord,
   type TenancyApplicationStage,
   type TenancyApplicationStatus,
+  type TenantCommunicationNotification,
+  type TenantCommunicationEntry,
 } from "@/lib/auth"
 import { getApplicationsContainer } from "@/lib/server/cosmos"
-import { DEFAULT_AFFORDABILITY_MULTIPLE, getPublicAvailableProperty } from "@/lib/server/properties"
+import { deliverTenantCommunicationNotification } from "@/lib/server/notifications"
+import { DEFAULT_AFFORDABILITY_MULTIPLE, getPublicAvailableProperty, listPropertiesForUser } from "@/lib/server/properties"
 import { setUserRoleForWorkflow } from "@/lib/server/users"
 
 type CreateTenancyApplicationInput = PreScreeningQuestionnaire & {
@@ -188,6 +192,17 @@ function createDefaultApprovalDecision(): ApprovalDecision {
   }
 }
 
+function createDefaultTenancyDocumentTracking(): TenancyDocumentTracking {
+  return {
+    reference: "",
+    url: "",
+    sent: false,
+    sentAt: undefined,
+    signedCopyReceived: false,
+    signedCopyReceivedAt: undefined,
+  }
+}
+
 function createDefaultTenancyAgreement(rentAmount: number): TenancyAgreementPreparation {
   return {
     tenancyType: "",
@@ -203,6 +218,12 @@ function createDefaultTenancyAgreement(rentAmount: number): TenancyAgreementPrep
     agreementSentAt: undefined,
     agreementSigned: false,
     agreementSignedAt: undefined,
+    offerLetter: createDefaultTenancyDocumentTracking(),
+    leaseDocument: createDefaultTenancyDocumentTracking(),
+    supportingLegalDocuments: {
+      ...createDefaultTenancyDocumentTracking(),
+      summary: "",
+    },
   }
 }
 
@@ -255,11 +276,156 @@ function createDefaultPostMoveInManagement(): PostMoveInManagement {
     firstInspectionDate: "",
     maintenanceLogNotes: "",
     communicationLogNotes: "",
+    communicationEntries: [],
+  }
+}
+
+function normalizeCommunicationEntry(entry: Partial<TenantCommunicationEntry> | undefined): TenantCommunicationEntry | null {
+  if (!entry) {
+    return null
+  }
+
+  const subject = typeof entry.subject === "string" ? entry.subject.trim() : ""
+  const summary = typeof entry.summary === "string" ? entry.summary.trim() : ""
+
+  if (!subject || !summary) {
+    return null
+  }
+
+  const notification = normalizeCommunicationNotification(entry.notification)
+
+  return {
+    id: typeof entry.id === "string" && entry.id.trim() ? entry.id.trim() : randomUUID(),
+    occurredAt: typeof entry.occurredAt === "string" && entry.occurredAt.trim() ? entry.occurredAt.trim() : new Date().toISOString(),
+    channel:
+      entry.channel === "email" ||
+      entry.channel === "phone" ||
+      entry.channel === "sms" ||
+      entry.channel === "whatsapp" ||
+      entry.channel === "portal" ||
+      entry.channel === "letter" ||
+      entry.channel === "in_person" ||
+      entry.channel === "other"
+        ? entry.channel
+        : "other",
+    direction: entry.direction === "inbound" ? "inbound" : "outbound",
+    subject,
+    summary,
+    recordedByName: typeof entry.recordedByName === "string" && entry.recordedByName.trim() ? entry.recordedByName.trim() : "System",
+    notification,
+  }
+}
+
+function normalizeCommunicationNotification(
+  notification: Partial<TenantCommunicationNotification> | undefined,
+): TenantCommunicationNotification | undefined {
+  if (!notification || typeof notification.status !== "string") {
+    return undefined
+  }
+
+  const status =
+    notification.status === "pending" ||
+    notification.status === "sent" ||
+    notification.status === "skipped" ||
+    notification.status === "failed" ||
+    notification.status === "not_applicable"
+      ? notification.status
+      : "not_applicable"
+
+  return {
+    channel: notification.channel === "email" || notification.channel === "sms" ? notification.channel : undefined,
+    target: typeof notification.target === "string" ? notification.target.trim() : undefined,
+    status,
+    attemptedAt: typeof notification.attemptedAt === "string" ? notification.attemptedAt.trim() : undefined,
+    sentAt: typeof notification.sentAt === "string" ? notification.sentAt.trim() : undefined,
+    fromAddress: typeof notification.fromAddress === "string" ? notification.fromAddress.trim() : undefined,
+    replyTo: typeof notification.replyTo === "string" ? notification.replyTo.trim() : undefined,
+    copiedTo: Array.isArray(notification.copiedTo)
+      ? notification.copiedTo.filter((value): value is string => typeof value === "string" && value.trim().length > 0).map((value) => value.trim())
+      : undefined,
+    detail: typeof notification.detail === "string" ? notification.detail.trim() : "",
+  }
+}
+
+function normalizeCommunicationEntries(entries: Partial<TenantCommunicationEntry>[] | undefined) {
+  if (!Array.isArray(entries)) {
+    return [] as TenantCommunicationEntry[]
+  }
+
+  return entries
+    .map((entry) => normalizeCommunicationEntry(entry))
+    .filter((entry): entry is TenantCommunicationEntry => Boolean(entry))
+    .sort((left, right) => Date.parse(right.occurredAt) - Date.parse(left.occurredAt))
+}
+
+function hydratePostMoveInManagement(postMoveInManagement: Partial<PostMoveInManagement> | undefined) {
+  const defaults = createDefaultPostMoveInManagement()
+  const legacyCommunicationLogNotes =
+    typeof postMoveInManagement?.communicationLogNotes === "string" ? postMoveInManagement.communicationLogNotes.trim() : ""
+  const communicationEntries = normalizeCommunicationEntries(postMoveInManagement?.communicationEntries)
+
+  if (legacyCommunicationLogNotes && communicationEntries.length === 0) {
+    communicationEntries.push({
+      id: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      channel: "other",
+      direction: "outbound",
+      subject: "Legacy communication notes",
+      summary: legacyCommunicationLogNotes,
+      recordedByName: "Legacy migration",
+    })
+  }
+
+  return {
+    ...defaults,
+    ...postMoveInManagement,
+    firstInspectionDate:
+      typeof postMoveInManagement?.firstInspectionDate === "string" ? postMoveInManagement.firstInspectionDate.trim() : "",
+    maintenanceLogNotes:
+      typeof postMoveInManagement?.maintenanceLogNotes === "string" ? postMoveInManagement.maintenanceLogNotes.trim() : "",
+    communicationLogNotes: legacyCommunicationLogNotes,
+    communicationEntries,
   }
 }
 
 function sortApplications(applications: TenancyApplicationRecord[]) {
   return [...applications].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+}
+
+function mergeTenancyDocumentTracking(
+  existingDocument: TenancyDocumentTracking,
+  inputDocument: Partial<TenancyDocumentTracking> | undefined,
+) {
+  return {
+    ...existingDocument,
+    ...(inputDocument ?? {}),
+  }
+}
+
+function syncDocumentAuditTrail(
+  existingDocument: TenancyDocumentTracking,
+  nextDocument: TenancyDocumentTracking,
+  now: string,
+): TenancyDocumentTracking {
+  const syncedDocument = { ...nextDocument }
+
+  if (syncedDocument.sent && !existingDocument.sent) {
+    syncedDocument.sentAt = syncedDocument.sentAt || now
+  }
+
+  if (!syncedDocument.sent) {
+    syncedDocument.sentAt = undefined
+  }
+
+  if (syncedDocument.signedCopyReceived && !existingDocument.signedCopyReceived) {
+    syncedDocument.signedCopyReceivedAt = syncedDocument.signedCopyReceivedAt || now
+  }
+
+  if (!syncedDocument.signedCopyReceived) {
+    syncedDocument.signedCopyReceivedAt = undefined
+  }
+
+  return syncedDocument
 }
 
 function hydrateStoredApplication(application: TenancyApplicationRecord): TenancyApplicationRecord {
@@ -271,6 +437,24 @@ function hydrateStoredApplication(application: TenancyApplicationRecord): Tenanc
     tenancyAgreement: {
       ...defaultTenancyAgreement,
       ...application.tenancyAgreement,
+      offerLetter: mergeTenancyDocumentTracking(
+        defaultTenancyAgreement.offerLetter,
+        application.tenancyAgreement?.offerLetter,
+      ),
+      leaseDocument: mergeTenancyDocumentTracking(
+        defaultTenancyAgreement.leaseDocument,
+        application.tenancyAgreement?.leaseDocument,
+      ),
+      supportingLegalDocuments: {
+        ...mergeTenancyDocumentTracking(
+          defaultTenancyAgreement.supportingLegalDocuments,
+          application.tenancyAgreement?.supportingLegalDocuments,
+        ),
+        summary:
+          typeof application.tenancyAgreement?.supportingLegalDocuments?.summary === "string"
+            ? application.tenancyAgreement.supportingLegalDocuments.summary.trim()
+            : "",
+      },
     },
     applicantChecklist: {
       ...createDefaultApplicantChecklist(),
@@ -296,6 +480,7 @@ function hydrateStoredApplication(application: TenancyApplicationRecord): Tenanc
       creditCheckConsentGivenAt: application.preScreening?.creditCheckConsentGivenAt ?? "",
       creditCheckConsentVersion: application.preScreening?.creditCheckConsentVersion ?? "tenant-credit-check-consent-v1",
     }),
+    postMoveInManagement: hydratePostMoveInManagement(application.postMoveInManagement),
   }
 }
 
@@ -337,7 +522,7 @@ export async function getApplicationForApplicant(user: AuthUser, applicationId: 
   return application
 }
 
-export async function listApplicationsForReview(user: AuthUser) {
+export async function listApplicationsForReview(user: AuthUser, landlordId?: string) {
   assertReviewer(user)
 
   const container = await getApplicationsContainer()
@@ -347,7 +532,14 @@ export async function listApplicationsForReview(user: AuthUser) {
     })
     .fetchAll()
 
-  return sortApplications(resources.map(hydrateStoredApplication))
+  if (getUserRole(user) === "admin" && !landlordId) {
+    return sortApplications(resources.map(hydrateStoredApplication))
+  }
+
+  const accessibleProperties = await listPropertiesForUser(user, landlordId)
+  const propertyIds = new Set(accessibleProperties.map((property) => property.id))
+
+  return sortApplications(resources.map(hydrateStoredApplication).filter((application) => propertyIds.has(application.propertyId)))
 }
 
 export async function createTenancyApplication(user: AuthUser, input: CreateTenancyApplicationInput) {
@@ -444,6 +636,14 @@ export async function updateApplicationForApplicant(user: AuthUser, applicationI
       throw new Error("AgreementNotSentForSignature")
     }
 
+    if (
+      !existingApplication.tenancyAgreement.offerLetter.sent ||
+      !existingApplication.tenancyAgreement.leaseDocument.sent ||
+      !existingApplication.tenancyAgreement.supportingLegalDocuments.sent
+    ) {
+      throw new Error("RequiredTenancyDocumentsNotIssued")
+    }
+
     const signedFullName =
       typeof input.applicantChecklist?.signedFullName === "string"
         ? input.applicantChecklist.signedFullName.trim()
@@ -481,6 +681,11 @@ export async function updateApplicationForApplicant(user: AuthUser, applicationI
         ...existingApplication.tenancyAgreement,
         agreementSigned: true,
         agreementSignedAt: existingApplication.tenancyAgreement.agreementSignedAt || now,
+        leaseDocument: {
+          ...existingApplication.tenancyAgreement.leaseDocument,
+          signedCopyReceived: true,
+          signedCopyReceivedAt: existingApplication.tenancyAgreement.leaseDocument.signedCopyReceivedAt || now,
+        },
       },
     }
 
@@ -545,11 +750,31 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
     return null
   }
 
+  const now = new Date().toISOString()
+  const nextOfferLetter = mergeTenancyDocumentTracking(
+    existingApplication.tenancyAgreement.offerLetter,
+    input.tenancyAgreement?.offerLetter,
+  )
+  const nextLeaseDocument = mergeTenancyDocumentTracking(
+    existingApplication.tenancyAgreement.leaseDocument,
+    input.tenancyAgreement?.leaseDocument,
+  )
+  const nextSupportingLegalDocuments = {
+    ...mergeTenancyDocumentTracking(
+      existingApplication.tenancyAgreement.supportingLegalDocuments,
+      input.tenancyAgreement?.supportingLegalDocuments,
+    ),
+    summary:
+      typeof input.tenancyAgreement?.supportingLegalDocuments?.summary === "string"
+        ? input.tenancyAgreement.supportingLegalDocuments.summary.trim()
+        : existingApplication.tenancyAgreement.supportingLegalDocuments.summary,
+  }
+
   const nextApplication: TenancyApplicationRecord = {
     ...existingApplication,
     currentStage: input.currentStage ?? existingApplication.currentStage,
     status: input.status ?? existingApplication.status,
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
     referencingInstruction: {
       ...existingApplication.referencingInstruction,
       ...input.referencingInstruction,
@@ -569,6 +794,9 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
     tenancyAgreement: {
       ...existingApplication.tenancyAgreement,
       ...input.tenancyAgreement,
+      offerLetter: nextOfferLetter,
+      leaseDocument: nextLeaseDocument,
+      supportingLegalDocuments: nextSupportingLegalDocuments,
     },
     preMoveInCompliance: {
       ...existingApplication.preMoveInCompliance,
@@ -583,13 +811,23 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
       ...input.depositProtection,
     },
     postMoveInManagement: {
-      ...existingApplication.postMoveInManagement,
+      ...hydratePostMoveInManagement(existingApplication.postMoveInManagement),
       ...input.postMoveInManagement,
+      communicationEntries: normalizeCommunicationEntries(
+        input.postMoveInManagement?.communicationEntries ?? existingApplication.postMoveInManagement.communicationEntries,
+      ),
     },
   }
 
+  const existingCommunicationIds = new Set(existingApplication.postMoveInManagement.communicationEntries.map((entry) => entry.id))
+  nextApplication.postMoveInManagement.communicationEntries = await Promise.all(
+    nextApplication.postMoveInManagement.communicationEntries.map((entry) =>
+      existingCommunicationIds.has(entry.id) ? Promise.resolve(entry) : deliverTenantCommunicationNotification(nextApplication, entry),
+    ),
+  )
+
   if (nextApplication.tenancyAgreement.agreementSentForSignature && !existingApplication.tenancyAgreement.agreementSentForSignature) {
-    nextApplication.tenancyAgreement.agreementSentAt = new Date().toISOString()
+    nextApplication.tenancyAgreement.agreementSentAt = now
   }
 
   if (!nextApplication.tenancyAgreement.agreementSentForSignature) {
@@ -597,29 +835,66 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
   }
 
   if (nextApplication.tenancyAgreement.agreementSigned && !existingApplication.tenancyAgreement.agreementSigned) {
-    nextApplication.tenancyAgreement.agreementSignedAt = new Date().toISOString()
+    nextApplication.tenancyAgreement.agreementSignedAt = now
   }
 
   if (!nextApplication.tenancyAgreement.agreementSigned) {
     nextApplication.tenancyAgreement.agreementSignedAt = undefined
   }
 
+  if (nextApplication.tenancyAgreement.agreementSentForSignature) {
+    nextApplication.tenancyAgreement.leaseDocument.sent = true
+  }
+
+  if (nextApplication.tenancyAgreement.agreementSigned) {
+    nextApplication.tenancyAgreement.leaseDocument.signedCopyReceived = true
+  }
+
+  if (nextApplication.tenancyAgreement.leaseDocument.sent) {
+    nextApplication.tenancyAgreement.agreementSentForSignature = true
+    nextApplication.tenancyAgreement.agreementSentAt = nextApplication.tenancyAgreement.agreementSentAt || now
+  }
+
+  if (nextApplication.tenancyAgreement.leaseDocument.signedCopyReceived) {
+    nextApplication.tenancyAgreement.agreementSigned = true
+    nextApplication.tenancyAgreement.agreementSignedAt = nextApplication.tenancyAgreement.agreementSignedAt || now
+  }
+
+  nextApplication.tenancyAgreement.offerLetter = syncDocumentAuditTrail(
+    existingApplication.tenancyAgreement.offerLetter,
+    nextApplication.tenancyAgreement.offerLetter,
+    now,
+  )
+  nextApplication.tenancyAgreement.leaseDocument = syncDocumentAuditTrail(
+    existingApplication.tenancyAgreement.leaseDocument,
+    nextApplication.tenancyAgreement.leaseDocument,
+    now,
+  )
+  nextApplication.tenancyAgreement.supportingLegalDocuments = {
+    ...syncDocumentAuditTrail(
+      existingApplication.tenancyAgreement.supportingLegalDocuments,
+      nextApplication.tenancyAgreement.supportingLegalDocuments,
+      now,
+    ),
+    summary: nextApplication.tenancyAgreement.supportingLegalDocuments.summary,
+  }
+
   if (nextApplication.approvalDecision.outcome === "approved") {
     nextApplication.status = "approved"
     nextApplication.currentStage = input.currentStage ?? "agreement"
-    nextApplication.approvalDecision.certificateIssuedAt = nextApplication.approvalDecision.certificateIssuedAt || new Date().toISOString()
+    nextApplication.approvalDecision.certificateIssuedAt = nextApplication.approvalDecision.certificateIssuedAt || now
   }
 
   if (nextApplication.approvalDecision.outcome === "approved_with_guarantor") {
     nextApplication.status = "approved_with_guarantor"
     nextApplication.currentStage = input.currentStage ?? "agreement"
-    nextApplication.approvalDecision.certificateIssuedAt = nextApplication.approvalDecision.certificateIssuedAt || new Date().toISOString()
+    nextApplication.approvalDecision.certificateIssuedAt = nextApplication.approvalDecision.certificateIssuedAt || now
   }
 
   if (nextApplication.approvalDecision.outcome === "declined") {
     nextApplication.status = "declined"
     nextApplication.currentStage = input.currentStage ?? "decision"
-    nextApplication.approvalDecision.certificateIssuedAt = nextApplication.approvalDecision.certificateIssuedAt || new Date().toISOString()
+    nextApplication.approvalDecision.certificateIssuedAt = nextApplication.approvalDecision.certificateIssuedAt || now
   }
 
   if (

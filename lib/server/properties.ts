@@ -13,8 +13,10 @@ import {
 } from "@/lib/auth"
 import { getPropertiesContainer } from "@/lib/server/cosmos"
 import { deletePropertyImageAssets } from "@/lib/server/blob"
+import { listLandlordDirectoryForUser } from "@/lib/server/users"
 
 export const DEFAULT_AFFORDABILITY_MULTIPLE = 2.5
+const propertySeedEnabled = process.env.PROPERTY_DEMO_SEED_ENABLED?.trim().toLowerCase() === "true"
 
 const seedProperties: PropertyRecord[] = [
   {
@@ -64,6 +66,7 @@ const seedProperties: PropertyRecord[] = [
 const publicRentalStatuses = ["available", "vacant"] as const
 
 export type PropertyInput = {
+  ownerId?: string
   address?: string
   addressLine1?: string
   addressLine2?: string
@@ -78,6 +81,100 @@ export type PropertyInput = {
   bathrooms?: number
   monthlyRent?: number
   affordabilityMultiple?: number
+}
+
+async function getAccessibleLandlordIds(user: AuthUser, selectedLandlordId?: string) {
+  const role = getUserRole(user)
+
+  if (role === "admin") {
+    return selectedLandlordId?.trim() ? new Set([selectedLandlordId.trim().toLowerCase()]) : null
+  }
+
+  if (role === "agent") {
+    const landlords = await listLandlordDirectoryForUser(user)
+    const landlordIds = new Set(landlords.map((landlord) => landlord.id))
+
+    if (selectedLandlordId?.trim()) {
+      const normalizedSelectedLandlordId = selectedLandlordId.trim().toLowerCase()
+      return landlordIds.has(normalizedSelectedLandlordId) ? new Set([normalizedSelectedLandlordId]) : new Set<string>()
+    }
+
+    return landlordIds
+  }
+
+  if (role === "landlord") {
+    return new Set([user.id])
+  }
+
+  return new Set<string>()
+}
+
+async function canAccessPropertyForUser(user: AuthUser, property: PropertyRecord) {
+  const role = getUserRole(user)
+
+  if (role === "admin") {
+    return true
+  }
+
+  if (role === "agent") {
+    const landlordIds = await getAccessibleLandlordIds(user)
+    if (!landlordIds) {
+      return false
+    }
+    return landlordIds.has(property.ownerId)
+  }
+
+  return property.ownerId === user.id
+}
+
+async function resolvePropertyOwnerIdForCreate(user: AuthUser, requestedOwnerId?: string) {
+  const role = getUserRole(user)
+
+  if (role === "admin") {
+    return requestedOwnerId?.trim().toLowerCase() || user.id
+  }
+
+  if (role === "agent") {
+    const landlordIds = await getAccessibleLandlordIds(user)
+    const normalizedRequestedOwnerId = requestedOwnerId?.trim().toLowerCase()
+
+    if (!landlordIds) {
+      return user.id
+    }
+
+    if (normalizedRequestedOwnerId && landlordIds.has(normalizedRequestedOwnerId)) {
+      return normalizedRequestedOwnerId
+    }
+  }
+
+  return user.id
+}
+
+async function resolvePropertyOwnerIdForUpdate(user: AuthUser, requestedOwnerId: string | undefined, currentOwnerId: string) {
+  if (!requestedOwnerId?.trim()) {
+    return currentOwnerId
+  }
+
+  const role = getUserRole(user)
+  const normalizedRequestedOwnerId = requestedOwnerId.trim().toLowerCase()
+
+  if (role === "admin") {
+    return normalizedRequestedOwnerId
+  }
+
+  if (role === "agent") {
+    const landlordIds = await getAccessibleLandlordIds(user)
+
+    if (!landlordIds) {
+      return currentOwnerId
+    }
+
+    if (landlordIds.has(normalizedRequestedOwnerId)) {
+      return normalizedRequestedOwnerId
+    }
+  }
+
+  return currentOwnerId
 }
 
 function assertRequiredPropertyFields(property: Pick<PropertyRecord, "addressLine1" | "city" | "postcode" | "type" | "status">) {
@@ -211,14 +308,9 @@ async function getPropertyById(id: string) {
   return resources[0] ? normalizePropertyRecord(resources[0]) : null
 }
 
-function canAccessProperty(user: AuthUser, property: PropertyRecord) {
-  const role = getUserRole(user)
-
-  if (role === "admin" || role === "agent") {
-    return true
-  }
-
-  return property.ownerId === user.id
+export async function getPropertyByIdForSystem(id: string) {
+  await seedIfEmpty()
+  return getPropertyById(id)
 }
 
 function isPublicRentalStatus(status: string) {
@@ -226,6 +318,10 @@ function isPublicRentalStatus(status: string) {
 }
 
 async function seedIfEmpty() {
+  if (!propertySeedEnabled) {
+    return
+  }
+
   const container = await getPropertiesContainer()
   const { resources } = await container.items
     .query<number>({ query: "SELECT VALUE COUNT(1) FROM c" })
@@ -244,12 +340,13 @@ function assertAdmin(user: AuthUser) {
   }
 }
 
-export async function listPropertiesForUser(user: AuthUser) {
+export async function listPropertiesForUser(user: AuthUser, landlordId?: string) {
   await seedIfEmpty()
 
   const container = await getPropertiesContainer()
 
   const role = getUserRole(user)
+  const accessibleLandlordIds = await getAccessibleLandlordIds(user, landlordId)
   const querySpec =
     role === "admin" || role === "agent"
       ? {
@@ -262,7 +359,17 @@ export async function listPropertiesForUser(user: AuthUser) {
 
   const { resources } = await container.items.query<PropertyRecord>(querySpec).fetchAll()
 
-  return resources.map(normalizePropertyRecord)
+  const normalizedProperties = resources.map(normalizePropertyRecord)
+
+  if (role === "admin" && accessibleLandlordIds === null) {
+    return normalizedProperties
+  }
+
+  if (role === "admin" || role === "agent") {
+    return normalizedProperties.filter((property) => accessibleLandlordIds?.has(property.ownerId))
+  }
+
+  return normalizedProperties
 }
 
 export async function getPropertyForUser(user: AuthUser, propertyId: string) {
@@ -270,7 +377,7 @@ export async function getPropertyForUser(user: AuthUser, propertyId: string) {
 
   const property = await getPropertyById(propertyId)
 
-  if (!property || !canAccessProperty(user, property)) {
+  if (!property || !(await canAccessPropertyForUser(user, property))) {
     return null
   }
 
@@ -363,9 +470,10 @@ export async function createProperty(user: AuthUser, input: PropertyInput) {
   const normalized = normalizePropertyInput(input)
   assertRequiredPropertyFields(normalized)
   const now = new Date().toISOString()
+  const ownerId = await resolvePropertyOwnerIdForCreate(user, input.ownerId)
   const property: PropertyRecord = {
     id: randomUUID(),
-    ownerId: user.id,
+    ownerId,
     address: normalized.address,
     addressLine1: normalized.addressLine1,
     addressLine2: normalized.addressLine2,
@@ -397,12 +505,15 @@ export async function updateProperty(user: AuthUser, propertyId: string, input: 
     return null
   }
 
-  if (!canAccessProperty(user, property) || !canManageProperties(user)) {
+  if (!(await canAccessPropertyForUser(user, property)) || !canManageProperties(user)) {
     throw new Error("Forbidden")
   }
 
+  const nextOwnerId = await resolvePropertyOwnerIdForUpdate(user, input.ownerId, property.ownerId)
+
   const nextProperty: PropertyRecord = {
     ...property,
+    ownerId: nextOwnerId,
     ...(typeof input.addressLine1 === "string" ? { addressLine1: input.addressLine1.trim() } : null),
     ...(typeof input.addressLine2 === "string" ? { addressLine2: input.addressLine2.trim() } : null),
     ...(typeof input.city === "string" ? { city: input.city.trim() } : null),
@@ -435,7 +546,12 @@ export async function updateProperty(user: AuthUser, propertyId: string, input: 
   assertRequiredPropertyFields(nextProperty)
 
   const container = await getPropertiesContainer()
-  await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
+  if (nextOwnerId !== property.ownerId) {
+    await container.item(property.id, property.ownerId).delete()
+    await container.items.create(nextProperty)
+  } else {
+    await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
+  }
   return nextProperty
 }
 
@@ -446,7 +562,7 @@ export async function deletePropertyForUser(user: AuthUser, propertyId: string) 
     return false
   }
 
-  if (!canAccessProperty(user, property) || !canManageProperties(user)) {
+  if (!(await canAccessPropertyForUser(user, property)) || !canManageProperties(user)) {
     throw new Error("Forbidden")
   }
 
@@ -464,7 +580,7 @@ export async function addPropertyImage(user: AuthUser, propertyId: string, image
     return null
   }
 
-  if (!canAccessProperty(user, property) || !canManageProperties(user)) {
+  if (!(await canAccessPropertyForUser(user, property)) || !canManageProperties(user)) {
     throw new Error("Forbidden")
   }
 
@@ -490,7 +606,7 @@ export async function removePropertyImage(user: AuthUser, propertyId: string, bl
     return null
   }
 
-  if (!canAccessProperty(user, property) || !canManageProperties(user)) {
+  if (!(await canAccessPropertyForUser(user, property)) || !canManageProperties(user)) {
     throw new Error("Forbidden")
   }
 

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import AdminUserManager from "@/components/forms/AdminUserManager"
 import { getUserRole, isPendingApproval } from "@/lib/auth"
 import { getSessionUser } from "@/lib/server/session"
-import { listUsersForAdmin } from "@/lib/server/users"
+import { listAgentsForAdmin, listUsersForAdmin } from "@/lib/server/users"
 
 export const dynamic = "force-dynamic"
 
@@ -22,7 +22,7 @@ export default async function UsersPage() {
     redirect("/dashboard")
   }
 
-  const users = await listUsersForAdmin(user)
+  const [users, agents] = await Promise.all([listUsersForAdmin(user), listAgentsForAdmin(user)])
 
-  return <AdminUserManager initialUsers={users} currentUserEmail={user.email} />
+  return <AdminUserManager initialUsers={users} initialAgents={agents} currentUserEmail={user.email} />
 }

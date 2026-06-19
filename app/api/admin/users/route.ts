@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getSessionUser } from "@/lib/server/session"
-import { listUsersForAdmin, updateUserForAdmin } from "@/lib/server/users"
+import { listAgentsForAdmin, listUsersForAdmin, updateUserForAdmin } from "@/lib/server/users"
 
 export async function GET() {
   const user = await getSessionUser()
@@ -11,8 +11,8 @@ export async function GET() {
   }
 
   try {
-    const users = await listUsersForAdmin(user)
-    return NextResponse.json({ users })
+    const [users, agents] = await Promise.all([listUsersForAdmin(user), listAgentsForAdmin(user)])
+    return NextResponse.json({ users, agents })
   } catch (error) {
     if (error instanceof Error && error.message === "Forbidden") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -34,6 +34,11 @@ export async function PATCH(request: Request) {
       email?: string
       role?: "unallocated" | "admin" | "agent" | "landlord" | "tenant" | "applicant" | "builder"
       approval_status?: "pending_approval" | "approved"
+      managedByAgentId?: string | null
+      notificationProfile?: {
+        outboundEmail?: string
+        copyLandlordOnTenantEmails?: boolean
+      } | null
     }
 
     if (!body.email?.trim() || !body.role || !body.approval_status) {
@@ -43,6 +48,8 @@ export async function PATCH(request: Request) {
     const updatedUser = await updateUserForAdmin(user, body.email, {
       role: body.role,
       approval_status: body.approval_status,
+      managedByAgentId: body.managedByAgentId,
+      notificationProfile: body.notificationProfile,
     })
 
     if (!updatedUser) {

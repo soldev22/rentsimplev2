@@ -20,6 +20,7 @@ export type EmploymentStatus =
   | "other"
 
 export type PreferredContactMethod = "email" | "phone" | "sms" | "whatsapp"
+export type BuilderTrade = "general_builder" | "plumber" | "electrician" | "heating_engineer" | "roofer" | "multi_trade" | "other"
 
 export type ApplicantProfileDefaults = {
   employmentStatus: EmploymentStatus
@@ -34,6 +35,29 @@ export type ApplicantProfileDefaults = {
   adverseCreditDetails: string
 }
 
+export type BuilderProfileDefaults = {
+  companyName: string
+  primaryTrade: BuilderTrade
+  serviceAreas: string
+  preferredContactMethods: PreferredContactMethod[]
+  emergencyCalloutAvailable: boolean
+  hourlyRateGuidance: number
+  availabilityNotes: string
+  insuranceExpiryDate: string
+  gasSafeRegistered: boolean
+  gasSafeNumber: string
+  electricalCertified: boolean
+  electricalCertificationScheme: string
+  dbsChecked: boolean
+  dbsExpiryDate: string
+  accreditationNotes: string
+}
+
+export type NotificationProfileDefaults = {
+  outboundEmail: string
+  copyLandlordOnTenantEmails: boolean
+}
+
 export type AuthUser = {
   id: string
   email: string
@@ -41,6 +65,9 @@ export type AuthUser = {
   last_name: string
   mobile: string
   applicantProfile?: ApplicantProfileDefaults
+  builderProfile?: BuilderProfileDefaults
+  notificationProfile?: NotificationProfileDefaults
+  managedByAgentId?: string
   role: UserRole
   approval_status: ApprovalStatus
   createdAt: string
@@ -180,6 +207,15 @@ export type ApprovalDecision = {
   certificateIssuedAt?: string
 }
 
+export type TenancyDocumentTracking = {
+  reference: string
+  url: string
+  sent: boolean
+  sentAt?: string
+  signedCopyReceived: boolean
+  signedCopyReceivedAt?: string
+}
+
 export type TenancyAgreementPreparation = {
   tenancyType: "AST" | "PRT" | ""
   rentAmount: number
@@ -194,6 +230,11 @@ export type TenancyAgreementPreparation = {
   agreementSentAt?: string
   agreementSigned: boolean
   agreementSignedAt?: string
+  offerLetter: TenancyDocumentTracking
+  leaseDocument: TenancyDocumentTracking
+  supportingLegalDocuments: TenancyDocumentTracking & {
+    summary: string
+  }
 }
 
 export type ApplicantChecklistSignOff = {
@@ -232,10 +273,123 @@ export type DepositProtection = {
   certificateReference: string
 }
 
+export type TenantCommunicationChannel = "email" | "phone" | "sms" | "whatsapp" | "portal" | "letter" | "in_person" | "other"
+
+export type TenantCommunicationDirection = "outbound" | "inbound"
+
+export type TenantCommunicationNotificationChannel = "email" | "sms"
+
+export type TenantCommunicationNotificationStatus = "not_applicable" | "pending" | "sent" | "skipped" | "failed"
+
+export type TenantCommunicationNotification = {
+  channel?: TenantCommunicationNotificationChannel
+  target?: string
+  status: TenantCommunicationNotificationStatus
+  attemptedAt?: string
+  sentAt?: string
+  fromAddress?: string
+  replyTo?: string
+  copiedTo?: string[]
+  detail: string
+}
+
+export type TenantCommunicationEntry = {
+  id: string
+  occurredAt: string
+  channel: TenantCommunicationChannel
+  direction: TenantCommunicationDirection
+  subject: string
+  summary: string
+  recordedByName: string
+  notification?: TenantCommunicationNotification
+}
+
 export type PostMoveInManagement = {
   firstInspectionDate: string
   maintenanceLogNotes: string
   communicationLogNotes: string
+  communicationEntries: TenantCommunicationEntry[]
+}
+
+export type MaintenancePriority = "low" | "medium" | "high" | "urgent"
+export type MaintenanceIssueStatus =
+  | "reported"
+  | "triaged"
+  | "bidding_open"
+  | "builder_selected"
+  | "accreditation_pending"
+  | "ready_to_start"
+  | "in_progress"
+  | "awaiting_signoff"
+  | "completed"
+  | "closed"
+
+export type MaintenanceIssueCategory =
+  | "plumbing"
+  | "electrical"
+  | "heating"
+  | "security"
+  | "appliances"
+  | "damp_mould"
+  | "general"
+
+export type BuilderBidStatus = "submitted" | "shortlisted" | "accepted" | "declined"
+
+export type MaintenanceBuilderBid = {
+  id: string
+  builderId: string
+  builderEmail: string
+  builderName: string
+  amount: number
+  availabilityDate: string
+  estimatedDurationDays: number
+  notes: string
+  status: BuilderBidStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type MaintenanceAccreditationChecklist = {
+  insuranceChecked: boolean
+  insuranceCheckedAt?: string
+  gasSafeChecked: boolean
+  gasSafeCheckedAt?: string
+  electricalCertificationChecked: boolean
+  electricalCertificationCheckedAt?: string
+  dbsChecked: boolean
+  dbsCheckedAt?: string
+  methodStatementReceived: boolean
+  methodStatementReceivedAt?: string
+  targetStartDate: string
+  targetCompletionDate: string
+  checkedByName: string
+  checkedAt?: string
+  notes: string
+}
+
+export type MaintenanceIssueRecord = {
+  id: string
+  propertyId: string
+  propertyAddress: string
+  tenantId: string
+  tenantEmail: string
+  tenantName: string
+  title: string
+  description: string
+  category: MaintenanceIssueCategory
+  priority: MaintenancePriority
+  status: MaintenanceIssueStatus
+  reportedAt: string
+  responseDueAt?: string
+  resolutionDueAt?: string
+  biddingClosesAt?: string
+  selectedBuilderId?: string
+  selectedBuilderName?: string
+  selectedBuilderEmail?: string
+  accreditationChecklist: MaintenanceAccreditationChecklist
+  bids: MaintenanceBuilderBid[]
+  createdAt: string
+  updatedAt: string
 }
 
 export type TenancyApplicationRecord = {
@@ -286,6 +440,11 @@ export function canReviewTenancyApplications(user: Pick<AuthUser, "role"> | null
   return role === "admin" || role === "agent" || role === "landlord"
 }
 
+export function canAccessMaintenance(user: Pick<AuthUser, "role"> | null | undefined) {
+  const role = getUserRole(user)
+  return role === "admin" || role === "agent" || role === "landlord" || role === "tenant" || role === "builder"
+}
+
 export function isPendingApproval(user: Pick<AuthUser, "role" | "approval_status"> | null | undefined) {
   return getUserRole(user) === "unallocated"
 }
@@ -303,11 +462,11 @@ export function getDefaultDashboardPath(user: Pick<AuthUser, "role" | "approval_
     case "landlord":
       return "/dashboard/landlord"
     case "tenant":
-      return "/dashboard/tenants"
+      return "/dashboard/maintenance"
     case "applicant":
       return "/dashboard/applicant"
     case "builder":
-      return "/dashboard/builder"
+      return "/dashboard/maintenance"
     default:
       return "/waiting"
   }

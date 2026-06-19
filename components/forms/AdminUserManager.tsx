@@ -4,8 +4,15 @@ import { useDeferredValue, useState, useTransition } from "react"
 
 import type { ApprovalStatus, AuthUser, UserRole } from "@/lib/auth"
 
+type AgentOption = {
+  id: string
+  email: string
+  fullName: string
+}
+
 type AdminUserManagerProps = {
   initialUsers: AuthUser[]
+  initialAgents: AgentOption[]
   currentUserEmail: string
 }
 
@@ -71,12 +78,25 @@ function sortUsers(users: AuthUser[]) {
   return [...users].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
 }
 
-export default function AdminUserManager({ initialUsers, currentUserEmail }: AdminUserManagerProps) {
+function getNotificationSummary(user: AuthUser) {
+  if (user.role !== "landlord" && user.role !== "agent") {
+    return null
+  }
+
+  return {
+    outboundEmail: user.notificationProfile?.outboundEmail || user.email,
+    copyLandlord: user.role === "agent" ? user.notificationProfile?.copyLandlordOnTenantEmails !== false : false,
+  }
+}
+
+export default function AdminUserManager({ initialUsers, initialAgents, currentUserEmail }: AdminUserManagerProps) {
   const [users, setUsers] = useState(() => sortUsers(initialUsers))
+  const [agents] = useState(initialAgents)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedView, setSelectedView] = useState<UserView>("all")
   const [savingEmail, setSavingEmail] = useState<string | null>(null)
+  const [isResettingWorkspace, setIsResettingWorkspace] = useState(false)
   const [isPending, startTransition] = useTransition()
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
@@ -120,6 +140,14 @@ export default function AdminUserManager({ initialUsers, currentUserEmail }: Adm
             email: user.email,
             role: user.role,
             approval_status: user.role === "unallocated" ? "pending_approval" : user.approval_status,
+            managedByAgentId: user.role === "landlord" ? user.managedByAgentId ?? null : null,
+            notificationProfile:
+              user.role === "landlord" || user.role === "agent"
+                ? {
+                    outboundEmail: user.notificationProfile?.outboundEmail ?? "",
+                    copyLandlordOnTenantEmails: user.role === "agent" ? user.notificationProfile?.copyLandlordOnTenantEmails !== false : false,
+                  }
+                : null,
           }),
         })
 
@@ -161,6 +189,61 @@ export default function AdminUserManager({ initialUsers, currentUserEmail }: Adm
       },
       `Approved ${getFullName(user)} as an applicant.`,
     )
+  }
+
+  function resetWorkspace() {
+    const confirmed = window.confirm(
+      "Delete all applications, all properties, and all non-preserved users? Mike@solutionsdeveloped.co.uk and the current admin account will be kept.",
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setFeedback(null)
+    setIsResettingWorkspace(true)
+
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/admin/reset-workspace", {
+          method: "POST",
+        })
+
+        const payload = (await response.json()) as {
+          result?: {
+            deletedApplications: number
+            deletedProperties: number
+            deletedUsers: number
+          }
+          error?: string
+        }
+
+        if (!response.ok || !payload.result) {
+          throw new Error(payload.error || "Unable to reset workspace data.")
+        }
+
+        setUsers((current) =>
+          sortUsers(
+            current.filter(
+              (user) =>
+                user.email.toLowerCase() === currentUserEmail.toLowerCase() ||
+                user.email.toLowerCase() === "mike@solutionsdeveloped.co.uk",
+            ),
+          ),
+        )
+        setFeedback({
+          type: "success",
+          message: `Workspace reset complete. Deleted ${payload.result.deletedApplications} applications, ${payload.result.deletedProperties} properties, and ${payload.result.deletedUsers} users while preserving Mike and the current admin account.`,
+        })
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to reset workspace data.",
+        })
+      } finally {
+        setIsResettingWorkspace(false)
+      }
+    })
   }
 
   const pendingCount = users.filter((user) => user.approval_status === "pending_approval").length
@@ -215,6 +298,27 @@ export default function AdminUserManager({ initialUsers, currentUserEmail }: Adm
               <div className="mt-2 text-2xl font-semibold text-emerald-900">{approvedCount}</div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-700">Testing reset</p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">Reset workflow data</h2>
+            <p className="mt-2 max-w-3xl text-sm text-slate-700">
+              Delete all applications, properties, property images, and non-preserved users so you can re-test flows from a clean state.
+              Mike@solutionsdeveloped.co.uk and the current admin account are always preserved.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={resetWorkspace}
+            disabled={isResettingWorkspace}
+            className="rounded-md bg-rose-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isResettingWorkspace ? "Resetting..." : "Reset test data"}
+          </button>
         </div>
       </section>
 
@@ -364,6 +468,15 @@ export default function AdminUserManager({ initialUsers, currentUserEmail }: Adm
                   <td className="px-4 py-4 text-sm text-slate-600">
                     <div>{user.email}</div>
                     <div className="mt-1">{user.mobile || "No mobile number"}</div>
+                    {getNotificationSummary(user) ? (
+                      <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs text-slate-700">
+                        <div className="font-semibold uppercase tracking-[0.16em] text-violet-800">Notification routing</div>
+                        <div className="mt-2">Outbound email: {getNotificationSummary(user)?.outboundEmail}</div>
+                        {user.role === "agent" ? (
+                          <div className="mt-1">Copy landlord: {getNotificationSummary(user)?.copyLandlord ? "Yes" : "No"}</div>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {user.applicantProfile ? (
                       <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50 p-3 text-xs text-slate-700">
                         <div className="font-semibold uppercase tracking-[0.16em] text-sky-800">Applicant profile</div>
@@ -398,6 +511,119 @@ export default function AdminUserManager({ initialUsers, currentUserEmail }: Adm
                         </option>
                       ))}
                     </select>
+                    {user.role === "landlord" ? (
+                      <div className="mt-3 space-y-3">
+                        <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Managed by agent
+                          <select
+                            aria-label={`Managing agent for ${user.email}`}
+                            title={`Managing agent for ${user.email}`}
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-sky-500"
+                            value={user.managedByAgentId ?? ""}
+                            onChange={(event) =>
+                              setUsers((current) =>
+                                current.map((candidate) =>
+                                  candidate.email === user.email
+                                    ? {
+                                        ...candidate,
+                                        managedByAgentId: event.target.value || undefined,
+                                      }
+                                    : candidate,
+                                ),
+                              )
+                            }
+                          >
+                            <option value="">Unassigned</option>
+                            {agents.map((agent) => (
+                              <option key={agent.id} value={agent.id}>
+                                {agent.fullName}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Outbound email address
+                          <input
+                            aria-label={`Outbound email for ${user.email}`}
+                            title={`Outbound email for ${user.email}`}
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-sky-500"
+                            type="email"
+                            value={user.notificationProfile?.outboundEmail ?? ""}
+                            placeholder={user.email}
+                            onChange={(event) =>
+                              setUsers((current) =>
+                                current.map((candidate) =>
+                                  candidate.email === user.email
+                                    ? {
+                                        ...candidate,
+                                        notificationProfile: {
+                                          outboundEmail: event.target.value,
+                                          copyLandlordOnTenantEmails: Boolean(candidate.notificationProfile?.copyLandlordOnTenantEmails),
+                                        },
+                                      }
+                                    : candidate,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                    {user.role === "agent" ? (
+                      <div className="mt-3 space-y-3">
+                        <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Outbound email address
+                          <input
+                            aria-label={`Outbound email for ${user.email}`}
+                            title={`Outbound email for ${user.email}`}
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-sky-500"
+                            type="email"
+                            value={user.notificationProfile?.outboundEmail ?? ""}
+                            placeholder={user.email}
+                            onChange={(event) =>
+                              setUsers((current) =>
+                                current.map((candidate) =>
+                                  candidate.email === user.email
+                                    ? {
+                                        ...candidate,
+                                        notificationProfile: {
+                                          outboundEmail: event.target.value,
+                                          copyLandlordOnTenantEmails: candidate.notificationProfile?.copyLandlordOnTenantEmails ?? true,
+                                        },
+                                      }
+                                    : candidate,
+                                ),
+                              )
+                            }
+                          />
+                        </label>
+
+                        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                          <input
+                            className="mt-1"
+                            type="checkbox"
+                            checked={user.notificationProfile?.copyLandlordOnTenantEmails ?? true}
+                            onChange={(event) =>
+                              setUsers((current) =>
+                                current.map((candidate) =>
+                                  candidate.email === user.email
+                                    ? {
+                                        ...candidate,
+                                        notificationProfile: {
+                                          outboundEmail: candidate.notificationProfile?.outboundEmail ?? "",
+                                          copyLandlordOnTenantEmails: event.target.checked,
+                                        },
+                                      }
+                                    : candidate,
+                                ),
+                              )
+                            }
+                          />
+                          <span>Copy landlord on direct tenant emails</span>
+                        </label>
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-4">
                     <div className={`mb-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] ${getApprovalBadgeClass(user.approval_status)}`}>

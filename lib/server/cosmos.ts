@@ -15,6 +15,7 @@ const databaseId = process.env.COSMOSDB_DATABASE?.trim() || "rentsimple"
 const usersContainerId = process.env.COSMOSDB_USERS_CONTAINER?.trim() || "users"
 const propertiesContainerId = process.env.COSMOSDB_PROPERTIES_CONTAINER?.trim() || "properties"
 const applicationsContainerId = process.env.COSMOSDB_APPLICATIONS_CONTAINER?.trim() || "applications"
+const maintenanceContainerId = process.env.COSMOSDB_MAINTENANCE_CONTAINER?.trim() || "maintenance"
 
 function createCosmosClient() {
   if (!endpoint) {
@@ -119,5 +120,12 @@ export async function getApplicationsContainer(): Promise<Container> {
   return createContainerIfNeeded({
     id: applicationsContainerId,
     partitionKeyPath: "/applicantId",
+  })
+}
+
+export async function getMaintenanceContainer(): Promise<Container> {
+  return createContainerIfNeeded({
+    id: maintenanceContainerId,
+    partitionKeyPath: "/propertyId",
   })
 }
