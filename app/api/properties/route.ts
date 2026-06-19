@@ -46,6 +46,7 @@ export async function POST(request: Request) {
       bedrooms?: number
       bathrooms?: number
       monthlyRent?: number
+      affordabilityMultiple?: number
     }
 
     if (!body.addressLine1 || !body.city || !body.postcode || !body.type || !body.status) {
@@ -66,6 +67,7 @@ export async function POST(request: Request) {
       bedrooms: body.bedrooms,
       bathrooms: body.bathrooms,
       monthlyRent: body.monthlyRent,
+      affordabilityMultiple: body.affordabilityMultiple,
     })
 
     return NextResponse.json({ property }, { status: 201 })

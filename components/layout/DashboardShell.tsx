@@ -4,76 +4,36 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-import { type AuthUser, getDisplayName, getUserRole, isPendingApproval } from "@/lib/auth";
+type DashboardShellProps = {
+  children: React.ReactNode
+  initialUser: {
+    displayName: string
+    displayRole: string
+  }
+}
 
-export default function DashboardShell({ children }: { children: React.ReactNode }) {
+export default function DashboardShell({ children, initialUser }: DashboardShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [displayName, setDisplayName] = useState("User");
-  const [displayRole, setDisplayRole] = useState("Pending");
+  const [displayName] = useState(initialUser.displayName);
+  const [displayRole] = useState(initialUser.displayRole);
 
-  const navItems = [
-    { name: "Properties", href: "/dashboard/properties" },
-    { name: "Tenants", href: "/dashboard/tenants" },
-    { name: "Bookings", href: "/dashboard/bookings" },
-    { name: "Settings", href: "/dashboard/settings" },
-  ];
-
-  useEffect(() => {
-    let isActive = true;
-    const controller = new AbortController();
-
-    async function loadSession() {
-      try {
-        const response = await fetch("/api/auth/session", {
-          method: "GET",
-          cache: "no-store",
-          signal: controller.signal,
-        });
-
-        if (!isActive) {
-          return;
-        }
-
-        if (!response.ok) {
-          router.replace("/login");
-          return;
-        }
-
-        const payload = (await response.json()) as { user?: AuthUser | null };
-        const user = payload.user ?? null;
-
-        if (!user) {
-          router.replace("/login");
-          return;
-        }
-
-        if (isPendingApproval(user)) {
-          router.replace("/waiting");
-          return;
-        }
-
-        setDisplayName(getDisplayName(user));
-        setDisplayRole(getUserRole(user));
-        setIsCheckingAccess(false);
-      } catch {
-        if (!isActive || controller.signal.aborted) {
-          return;
-        }
-
-        router.replace("/login");
-      }
-    }
-
-    loadSession();
-
-    return () => {
-      isActive = false;
-      controller.abort();
-    };
-  }, [router]);
+  const navItems =
+    displayRole === "applicant"
+      ? [
+          { name: "My Applications", href: "/dashboard/applicant" },
+          { name: "Settings", href: "/dashboard/settings" },
+        ]
+      : [
+          { name: "Properties", href: "/dashboard/properties" },
+          ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
+            ? [{ name: "Applications", href: "/dashboard/bookings" }]
+            : []),
+          { name: "Tenants", href: "/dashboard/tenants" },
+          { name: "Settings", href: "/dashboard/settings" },
+          ...(displayRole === "admin" ? [{ name: "Users", href: "/dashboard/users" }] : []),
+        ];
 
   async function handleLogout() {
     setIsSigningOut(true);
@@ -86,17 +46,6 @@ export default function DashboardShell({ children }: { children: React.ReactNode
       router.replace("/login");
       router.refresh();
     }
-  }
-
-  if (isCheckingAccess) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-12">
-        <div className="rounded-2xl border border-slate-200 bg-white px-8 py-6 text-center shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">RentSimple</p>
-          <p className="mt-3 text-sm text-slate-600">Checking your access…</p>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -154,6 +103,22 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           </div>
         </header>
 
+        <nav className="mx-4 mt-4 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm md:hidden">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`shrink-0 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                pathname.startsWith(item.href)
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              {item.name}
+            </Link>
+          ))}
+        </nav>
+
         {/* Page content */}
         <main className="flex-1 px-6 pb-6 pt-4">{children}</main>
 
@@ -172,9 +137,20 @@ export default function DashboardShell({ children }: { children: React.ReactNode
               <Link href="/dashboard/settings" className="hover:text-white">
                 Settings
               </Link>
-              <Link href="/dashboard/bookings" className="hover:text-white">
-                Reports
-              </Link>
+              {displayRole === "admin" ? (
+                <Link href="/dashboard/users" className="hover:text-white">
+                  Users
+                </Link>
+              ) : null}
+              {displayRole === "applicant" ? (
+                <Link href="/dashboard/applicant" className="hover:text-white">
+                  Applications
+                </Link>
+              ) : (
+                <Link href="/dashboard/bookings" className="hover:text-white">
+                  Applications
+                </Link>
+              )}
             </div>
           </div>
         </footer>

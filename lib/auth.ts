@@ -9,12 +9,38 @@ export type PropertyImageModerationScores = {
   violence: number
 }
 
+export type EmploymentStatus =
+  | "employed_full_time"
+  | "employed_part_time"
+  | "self_employed"
+  | "contractor"
+  | "student"
+  | "retired"
+  | "unemployed"
+  | "other"
+
+export type PreferredContactMethod = "email" | "phone" | "sms" | "whatsapp"
+
+export type ApplicantProfileDefaults = {
+  employmentStatus: EmploymentStatus
+  annualIncome: number
+  moveInDate: string
+  preferredContactMethods: PreferredContactMethod[]
+  hasPets: boolean
+  petDetails: string
+  smokes: boolean
+  occupantCount: number
+  hasAdverseCredit: boolean
+  adverseCreditDetails: string
+}
+
 export type AuthUser = {
   id: string
   email: string
   first_name: string
   last_name: string
   mobile: string
+  applicantProfile?: ApplicantProfileDefaults
   role: UserRole
   approval_status: ApprovalStatus
   createdAt: string
@@ -61,9 +87,183 @@ export type PropertyRecord = {
   bedrooms: number
   bathrooms: number
   monthlyRent: number
+  affordabilityMultiple: number
   images: PropertyImageRecord[]
   createdAt: string
   updatedAt: string
+}
+
+export type TenancyApplicationStage =
+  | "pre_screening"
+  | "referencing_instruction"
+  | "full_referencing"
+  | "decision"
+  | "agreement"
+  | "pre_move_in"
+  | "move_in"
+  | "deposit_protection"
+  | "post_move_in"
+
+export type TenancyApplicationStatus =
+  | "submitted"
+  | "pre_screen_failed"
+  | "pre_screen_passed"
+  | "referencing_in_progress"
+  | "referencing_complete"
+  | "approved"
+  | "approved_with_guarantor"
+  | "declined"
+  | "agreement_in_progress"
+  | "pre_move_in_ready"
+  | "move_in_ready"
+  | "deposit_protected"
+  | "active_tenant"
+
+export type PreScreeningOutcome = "pass" | "fail"
+export type ReferencingOutcome = "pending" | "pass" | "fail" | "guarantor_required"
+export type TenantDecisionOutcome = "pending" | "approved" | "approved_with_guarantor" | "declined"
+
+export type PreScreeningQuestionnaire = ApplicantProfileDefaults & {
+  creditCheckConsentGiven: boolean
+  creditCheckConsentGivenAt: string
+  creditCheckConsentVersion: string
+}
+
+export type PreScreeningSummary = {
+  outcome: PreScreeningOutcome
+  affordabilityTarget: number
+  affordabilityRatio: number
+  reasons: string[]
+  assessedAt: string
+}
+
+export type ReferencingInstruction = {
+  providerStatus: "pending" | "sent" | "documents_received"
+  photoIdReceived: boolean
+  proofOfAddressReceived: boolean
+  incomeEvidenceReceived: boolean
+  employerContactDetails: string
+  previousLandlordContactDetails: string
+  sharePointFileStatus: "pending" | "created"
+  notes: string
+}
+
+export type FullReferencingChecks = {
+  identityDocumentVerified: boolean
+  addressVerified: boolean
+  fraudMarkersClear: boolean
+  creditFileReviewed: boolean
+  creditIssuesClear: boolean
+  linkedAddressesReviewed: boolean
+  creditScore: string
+  affordabilityVerified: boolean
+  employmentReferenceVerified: boolean
+  previousLandlordReferenceVerified: boolean
+  guarantorRequired: boolean
+  guarantorVerified: boolean
+  guarantorAnnualIncome: number
+  notes: string
+}
+
+export type ReferencingReport = {
+  outcome: ReferencingOutcome
+  completedAt?: string
+  summary: string
+  checks: FullReferencingChecks
+}
+
+export type ApprovalDecision = {
+  outcome: TenantDecisionOutcome
+  rationale: string
+  affordabilityCalculation: string
+  exceptionNotes: string
+  certificateIssuedAt?: string
+}
+
+export type TenancyAgreementPreparation = {
+  tenancyType: "AST" | "PRT" | ""
+  rentAmount: number
+  rentDueDate: string
+  depositAmount: number
+  termLengthMonths: number
+  guarantorDeedRequired: boolean
+  agreementProvider: string
+  agreementReference: string
+  agreementSigningUrl: string
+  agreementSentForSignature: boolean
+  agreementSentAt?: string
+  agreementSigned: boolean
+  agreementSignedAt?: string
+}
+
+export type ApplicantChecklistSignOff = {
+  applicationInformationConfirmed: boolean
+  moveInFundsConfirmed: boolean
+  agreementTermsAccepted: boolean
+  documentsReadyConfirmed: boolean
+  signedFullName: string
+  signedAt?: string
+}
+
+export type PreMoveInCompliance = {
+  epcIssued: boolean
+  gasSafetyIssued: boolean
+  eicrIssued: boolean
+  howToRentIssued: boolean
+  depositLeafletIssued: boolean
+  checkInScheduled: boolean
+  inventoryPrepared: boolean
+}
+
+export type MoveInChecklist = {
+  inspectionCompleted: boolean
+  inventoryCompletedWithPhotos: boolean
+  meterReadingsRecorded: boolean
+  smokeAlarmsTested: boolean
+  keysIssued: boolean
+  keyNumbers: string
+  tenantContactConfirmed: boolean
+}
+
+export type DepositProtection = {
+  protectedWithinThirtyDays: boolean
+  prescribedInformationIssued: boolean
+  certificateUploaded: boolean
+  certificateReference: string
+}
+
+export type PostMoveInManagement = {
+  firstInspectionDate: string
+  maintenanceLogNotes: string
+  communicationLogNotes: string
+}
+
+export type TenancyApplicationRecord = {
+  id: string
+  propertyId: string
+  propertyAddress: string
+  propertyCity: string
+  monthlyRent: number
+  affordabilityMultiple: number
+  applicantId: string
+  applicantEmail: string
+  applicantName: string
+  currentStage: TenancyApplicationStage
+  status: TenancyApplicationStatus
+  submittedAt: string
+  createdAt: string
+  updatedAt: string
+  preScreening: PreScreeningQuestionnaire
+  preScreeningSummary: PreScreeningSummary
+  referencingInstruction: ReferencingInstruction
+  referencingReport: ReferencingReport
+  approvalDecision: ApprovalDecision
+  tenancyAgreement: TenancyAgreementPreparation
+  applicantChecklist: ApplicantChecklistSignOff
+  preMoveInCompliance: PreMoveInCompliance
+  moveInChecklist: MoveInChecklist
+  depositProtection: DepositProtection
+  postMoveInManagement: PostMoveInManagement
 }
 
 export const MAX_PROPERTY_IMAGES = 30
@@ -77,6 +277,11 @@ export function getUserRole(user: Pick<AuthUser, "role"> | null | undefined) {
 }
 
 export function canManageProperties(user: Pick<AuthUser, "role"> | null | undefined) {
+  const role = getUserRole(user)
+  return role === "admin" || role === "agent" || role === "landlord"
+}
+
+export function canReviewTenancyApplications(user: Pick<AuthUser, "role"> | null | undefined) {
   const role = getUserRole(user)
   return role === "admin" || role === "agent" || role === "landlord"
 }

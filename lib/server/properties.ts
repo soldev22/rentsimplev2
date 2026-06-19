@@ -14,6 +14,8 @@ import {
 import { getPropertiesContainer } from "@/lib/server/cosmos"
 import { deletePropertyImageAssets } from "@/lib/server/blob"
 
+export const DEFAULT_AFFORDABILITY_MULTIPLE = 2.5
+
 const seedProperties: PropertyRecord[] = [
   {
     id: randomUUID(),
@@ -31,6 +33,7 @@ const seedProperties: PropertyRecord[] = [
     bedrooms: 3,
     bathrooms: 2,
     monthlyRent: 1800,
+    affordabilityMultiple: DEFAULT_AFFORDABILITY_MULTIPLE,
     images: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -51,11 +54,14 @@ const seedProperties: PropertyRecord[] = [
     bedrooms: 2,
     bathrooms: 1,
     monthlyRent: 1450,
+    affordabilityMultiple: DEFAULT_AFFORDABILITY_MULTIPLE,
     images: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
 ]
+
+const publicRentalStatuses = ["available", "vacant"] as const
 
 export type PropertyInput = {
   address?: string
@@ -71,6 +77,7 @@ export type PropertyInput = {
   bedrooms?: number
   bathrooms?: number
   monthlyRent?: number
+  affordabilityMultiple?: number
 }
 
 function assertRequiredPropertyFields(property: Pick<PropertyRecord, "addressLine1" | "city" | "postcode" | "type" | "status">) {
@@ -161,6 +168,7 @@ function normalizePropertyRecord(property: PropertyRecord) {
     bedrooms: toNonNegativeNumber(property.bedrooms),
     bathrooms: toNonNegativeNumber(property.bathrooms),
     monthlyRent: toNonNegativeNumber(property.monthlyRent),
+    affordabilityMultiple: toNonNegativeNumber(property.affordabilityMultiple) || DEFAULT_AFFORDABILITY_MULTIPLE,
     images: Array.isArray(property.images) ? property.images.map(normalizePropertyImageRecord) : [],
   }
 }
@@ -185,6 +193,9 @@ function normalizePropertyInput(input: PropertyInput) {
     bedrooms: Number.isFinite(input.bedrooms) ? Math.max(0, Number(input.bedrooms)) : 0,
     bathrooms: Number.isFinite(input.bathrooms) ? Math.max(0, Number(input.bathrooms)) : 0,
     monthlyRent: Number.isFinite(input.monthlyRent) ? Math.max(0, Number(input.monthlyRent)) : 0,
+    affordabilityMultiple: Number.isFinite(input.affordabilityMultiple)
+      ? Math.max(0, Number(input.affordabilityMultiple))
+      : DEFAULT_AFFORDABILITY_MULTIPLE,
   }
 }
 
@@ -201,7 +212,17 @@ async function getPropertyById(id: string) {
 }
 
 function canAccessProperty(user: AuthUser, property: PropertyRecord) {
+  const role = getUserRole(user)
+
+  if (role === "admin" || role === "agent") {
+    return true
+  }
+
   return property.ownerId === user.id
+}
+
+function isPublicRentalStatus(status: string) {
+  return publicRentalStatuses.includes(status.trim().toLowerCase() as (typeof publicRentalStatuses)[number])
 }
 
 async function seedIfEmpty() {
@@ -228,12 +249,18 @@ export async function listPropertiesForUser(user: AuthUser) {
 
   const container = await getPropertiesContainer()
 
-  const { resources } = await container.items
-    .query<PropertyRecord>({
-      query: "SELECT * FROM c WHERE c.ownerId = @ownerId ORDER BY c.address",
-      parameters: [{ name: "@ownerId", value: user.id }],
-    })
-    .fetchAll()
+  const role = getUserRole(user)
+  const querySpec =
+    role === "admin" || role === "agent"
+      ? {
+          query: "SELECT * FROM c ORDER BY c.address",
+        }
+      : {
+          query: "SELECT * FROM c WHERE c.ownerId = @ownerId ORDER BY c.address",
+          parameters: [{ name: "@ownerId", value: user.id }],
+        }
+
+  const { resources } = await container.items.query<PropertyRecord>(querySpec).fetchAll()
 
   return resources.map(normalizePropertyRecord)
 }
@@ -244,6 +271,58 @@ export async function getPropertyForUser(user: AuthUser, propertyId: string) {
   const property = await getPropertyById(propertyId)
 
   if (!property || !canAccessProperty(user, property)) {
+    return null
+  }
+
+  return property
+}
+
+export async function listPublicAvailableProperties(locationQuery?: string) {
+  await seedIfEmpty()
+
+  const container = await getPropertiesContainer()
+  const normalizedLocationQuery = locationQuery?.trim().toLowerCase() ?? ""
+  const { resources } = await container.items
+    .query<PropertyRecord>({
+      query: normalizedLocationQuery
+        ? `SELECT * FROM c
+           WHERE (LOWER(c.status) = @available OR LOWER(c.status) = @vacant)
+             AND (
+               CONTAINS(LOWER(c.address), @query)
+               OR CONTAINS(LOWER(c.city), @query)
+               OR CONTAINS(LOWER(c.postcode), @query)
+               OR CONTAINS(LOWER(c.addressLine1), @query)
+             )`
+        : `SELECT * FROM c
+           WHERE LOWER(c.status) = @available OR LOWER(c.status) = @vacant`,
+      parameters: [
+        { name: "@available", value: "available" },
+        { name: "@vacant", value: "vacant" },
+        ...(normalizedLocationQuery ? [{ name: "@query", value: normalizedLocationQuery }] : []),
+      ],
+    })
+    .fetchAll()
+
+  return resources
+    .map(normalizePropertyRecord)
+    .sort((left, right) => {
+      const leftCity = left.city.toLowerCase()
+      const rightCity = right.city.toLowerCase()
+
+      if (leftCity !== rightCity) {
+        return leftCity.localeCompare(rightCity)
+      }
+
+      return left.address.localeCompare(right.address)
+    })
+}
+
+export async function getPublicAvailableProperty(propertyId: string) {
+  await seedIfEmpty()
+
+  const property = await getPropertyById(propertyId)
+
+  if (!property || !isPublicRentalStatus(property.status)) {
     return null
   }
 
@@ -300,6 +379,7 @@ export async function createProperty(user: AuthUser, input: PropertyInput) {
     bedrooms: normalized.bedrooms,
     bathrooms: normalized.bathrooms,
     monthlyRent: normalized.monthlyRent,
+    affordabilityMultiple: normalized.affordabilityMultiple,
     images: [],
     createdAt: now,
     updatedAt: now,
@@ -340,6 +420,9 @@ export async function updateProperty(user: AuthUser, propertyId: string, input: 
     ...(typeof input.bedrooms === "number" ? { bedrooms: Math.max(0, input.bedrooms) } : null),
     ...(typeof input.bathrooms === "number" ? { bathrooms: Math.max(0, input.bathrooms) } : null),
     ...(typeof input.monthlyRent === "number" ? { monthlyRent: Math.max(0, input.monthlyRent) } : null),
+    ...(typeof input.affordabilityMultiple === "number"
+      ? { affordabilityMultiple: Math.max(0, input.affordabilityMultiple) || DEFAULT_AFFORDABILITY_MULTIPLE }
+      : null),
     updatedAt: new Date().toISOString(),
   }
 

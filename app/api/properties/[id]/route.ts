@@ -57,6 +57,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       bedrooms?: number
       bathrooms?: number
       monthlyRent?: number
+      affordabilityMultiple?: number
     }
 
     const { id } = await context.params

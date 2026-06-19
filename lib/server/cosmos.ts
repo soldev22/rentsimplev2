@@ -6,6 +6,7 @@ import { CosmosClient, type Container, type Database } from "@azure/cosmos"
 declare global {
   var __rentsimpleCosmosClient: CosmosClient | undefined
   var __rentsimpleCosmosDatabase: Promise<Database> | undefined
+  var __rentsimpleCosmosContainers: Map<string, Promise<Container>> | undefined
 }
 
 const endpoint = process.env.COSMOSDB_ENDPOINT?.trim() ?? ""
@@ -13,6 +14,7 @@ const key = process.env.COSMOSDB_KEY?.trim() ?? ""
 const databaseId = process.env.COSMOSDB_DATABASE?.trim() || "rentsimple"
 const usersContainerId = process.env.COSMOSDB_USERS_CONTAINER?.trim() || "users"
 const propertiesContainerId = process.env.COSMOSDB_PROPERTIES_CONTAINER?.trim() || "properties"
+const applicationsContainerId = process.env.COSMOSDB_APPLICATIONS_CONTAINER?.trim() || "applications"
 
 function createCosmosClient() {
   if (!endpoint) {
@@ -49,17 +51,54 @@ async function getDatabase() {
   return globalThis.__rentsimpleCosmosDatabase
 }
 
+function isAlreadyExistsError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: number }).code === 409
+}
+
 async function createContainerIfNeeded(definition: {
   id: string
   partitionKeyPath: string
 }) {
-  const database = await getDatabase()
-  const { container } = await database.containers.createIfNotExists({
-    id: definition.id,
-    partitionKey: { paths: [definition.partitionKeyPath] },
-  })
+  if (!globalThis.__rentsimpleCosmosContainers) {
+    globalThis.__rentsimpleCosmosContainers = new Map<string, Promise<Container>>()
+  }
 
-  return container
+  const cacheKey = `${definition.id}:${definition.partitionKeyPath}`
+  const cachedContainer = globalThis.__rentsimpleCosmosContainers.get(cacheKey)
+
+  if (cachedContainer) {
+    return cachedContainer
+  }
+
+  const containerPromise = (async () => {
+    const database = await getDatabase()
+
+    try {
+      const { container } = await database.containers.createIfNotExists({
+        id: definition.id,
+        partitionKey: { paths: [definition.partitionKeyPath] },
+      })
+
+      return container
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) {
+        throw error
+      }
+
+      const container = database.container(definition.id)
+      await container.read()
+      return container
+    }
+  })()
+
+  globalThis.__rentsimpleCosmosContainers.set(cacheKey, containerPromise)
+
+  try {
+    return await containerPromise
+  } catch (error) {
+    globalThis.__rentsimpleCosmosContainers.delete(cacheKey)
+    throw error
+  }
 }
 
 export async function getUsersContainer(): Promise<Container> {
@@ -73,5 +112,12 @@ export async function getPropertiesContainer(): Promise<Container> {
   return createContainerIfNeeded({
     id: propertiesContainerId,
     partitionKeyPath: "/ownerId",
+  })
+}
+
+export async function getApplicationsContainer(): Promise<Container> {
+  return createContainerIfNeeded({
+    id: applicationsContainerId,
+    partitionKeyPath: "/applicantId",
   })
 }

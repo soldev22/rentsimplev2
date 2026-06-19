@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react"
 
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
 import { MAX_PROPERTY_IMAGES, getPropertyImagePath, type PendingPropertyImageReview, type PropertyRecord } from "@/lib/auth"
@@ -24,6 +24,7 @@ type PropertyFormState = {
   bedrooms: string
   bathrooms: string
   monthlyRent: string
+  affordabilityMultiple: string
 }
 
 const emptyForm: PropertyFormState = {
@@ -38,6 +39,7 @@ const emptyForm: PropertyFormState = {
   bedrooms: "0",
   bathrooms: "0",
   monthlyRent: "0",
+  affordabilityMultiple: "2.5",
 }
 
 const propertyTypeOptions = [
@@ -57,6 +59,7 @@ const propertyTypeOptions = [
 
 const propertyStatusOptions = [
   "Available",
+  "Vacant",
   "Reserved",
   "Occupied",
   "Under maintenance",
@@ -77,6 +80,7 @@ function toFormState(property: PropertyRecord): PropertyFormState {
     bedrooms: String(property.bedrooms),
     bathrooms: String(property.bathrooms),
     monthlyRent: String(property.monthlyRent),
+    affordabilityMultiple: String(property.affordabilityMultiple),
   }
 }
 
@@ -93,6 +97,7 @@ function toPayload(form: PropertyFormState) {
     bedrooms: Number(form.bedrooms),
     bathrooms: Number(form.bathrooms),
     monthlyRent: Number(form.monthlyRent),
+    affordabilityMultiple: Number(form.affordabilityMultiple),
   }
 }
 
@@ -162,6 +167,7 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
   const [selectedPropertyId, setSelectedPropertyId] = useState("")
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false)
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(true)
+  const [portfolioSearch, setPortfolioSearch] = useState("")
   const [createForm, setCreateForm] = useState<PropertyFormState>(emptyForm)
   const [createImageFiles, setCreateImageFiles] = useState<File[]>([])
   const [isCreateDropActive, setIsCreateDropActive] = useState(false)
@@ -177,11 +183,36 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
   const [isPending, startTransition] = useTransition()
   const editFormRef = useRef<HTMLFormElement | null>(null)
   const exitEditModeAfterSaveRef = useRef(false)
+  const deferredPortfolioSearch = useDeferredValue(portfolioSearch)
 
   const selectedProperty = useMemo(
     () => properties.find((property) => property.id === selectedPropertyId) ?? null,
     [properties, selectedPropertyId],
   )
+  const filteredProperties = useMemo(() => {
+    const query = deferredPortfolioSearch.trim().toLowerCase()
+
+    if (!query) {
+      return properties
+    }
+
+    return properties.filter((property) => {
+      const haystack = [
+        property.address,
+        property.addressLine1,
+        property.addressLine2,
+        property.city,
+        property.postcode,
+        property.type,
+        property.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+
+      return haystack.includes(query)
+    })
+  }, [deferredPortfolioSearch, properties])
   const remainingSelectedPropertySlots = selectedProperty ? getRemainingImageSlots(selectedProperty) : 0
   const createPreviewUrls = useObjectUrls(createImageFiles)
   const editorPreviewUrls = useObjectUrls(editorImageFiles)
@@ -210,6 +241,21 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
       isMounted = false
     }
   }, [isAdmin])
+
+  useEffect(() => {
+    if (!isCreatePanelOpen) {
+      return
+    }
+
+    if (createForm.affordabilityMultiple.trim() !== "") {
+      return
+    }
+
+    setCreateForm((current) => ({
+      ...current,
+      affordabilityMultiple: "2.5",
+    }))
+  }, [createForm.affordabilityMultiple, isCreatePanelOpen])
 
   function selectProperty(property: PropertyRecord | null, nextEditMode = false) {
     setSelectedPropertyId(property?.id ?? "")
@@ -868,6 +914,18 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
               onChange={(event) => updateCreateField("bathrooms", event.target.value)}
             />
           </label>
+          <label className="text-sm font-medium text-slate-700">
+            Salary to rent ratio
+            <input
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+              type="number"
+              min="0.1"
+              step="0.1"
+              value={createForm.affordabilityMultiple}
+              onChange={(event) => updateCreateField("affordabilityMultiple", event.target.value)}
+            />
+            <span className="mt-1 block text-xs text-slate-500">Common UK screening tends to land around 2.5x to 3.0x annual rent.</span>
+          </label>
 
           <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-sm font-semibold text-slate-900">Images</div>
@@ -895,7 +953,7 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
                 onChange={handleCreateImageSelection}
               />
             </label>
-            <div className="mt-3 text-sm text-slate-500">
+                      <div className="mt-1 text-sm text-slate-500">
               {createImageFiles.length === 0
                 ? "No images selected yet."
                 : `${createImageFiles.length} image${createImageFiles.length === 1 ? "" : "s"} ready to upload.`}
@@ -982,14 +1040,44 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
             </button>
           </div>
 
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:flex-row lg:items-end lg:justify-between">
+            <label className="block flex-1 text-sm font-medium text-slate-700">
+              Search portfolio
+              <input
+                className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                value={portfolioSearch}
+                onChange={(event) => setPortfolioSearch(event.target.value)}
+                placeholder="Search by address, town, postcode, status, or type"
+              />
+            </label>
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-white px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+                {filteredProperties.length} of {properties.length} shown
+              </div>
+              {portfolioSearch.trim() ? (
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+                  onClick={() => setPortfolioSearch("")}
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </div>
+
           {isPortfolioOpen ? (
             properties.length === 0 ? (
             <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
               No properties are assigned to this account yet.
             </div>
+          ) : filteredProperties.length === 0 ? (
+            <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
+              No properties match that search yet.
+            </div>
           ) : (
             <ul className="mt-4 space-y-3">
-              {properties.map((property) => (
+              {filteredProperties.map((property) => (
                 <li
                   key={property.id}
                   className={`rounded-xl border px-4 py-4 transition ${
@@ -1132,6 +1220,10 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
                         <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Monthly rent</div>
                         <div className="mt-2 text-sm font-semibold text-slate-900">£{selectedProperty.monthlyRent.toLocaleString()}/month</div>
                       </div>
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Affordability ratio</div>
+                        <div className="mt-2 text-sm font-semibold text-slate-900">{selectedProperty.affordabilityMultiple.toFixed(1)}x annual rent</div>
+                      </div>
                       <div>
                         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Short description</div>
                         <p className="mt-3 text-sm font-medium text-slate-800">
@@ -1222,7 +1314,7 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
                         </label>
                       </div>
 
-                      <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="grid gap-4 sm:grid-cols-4">
                         <label className="text-sm font-medium text-slate-700">
                           Monthly rent
                           <input
@@ -1253,6 +1345,18 @@ export default function PropertyManager({ initialProperties, canManage, isAdmin 
                             min="0"
                             value={editForm.bathrooms}
                             onChange={(event) => updateEditField("bathrooms", event.target.value)}
+                          />
+                        </label>
+
+                        <label className="text-sm font-medium text-slate-700">
+                          Salary to rent ratio
+                          <input
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                            type="number"
+                            min="0.1"
+                            step="0.1"
+                            value={editForm.affordabilityMultiple}
+                            onChange={(event) => updateEditField("affordabilityMultiple", event.target.value)}
                           />
                         </label>
                       </div>

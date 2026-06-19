@@ -66,6 +66,10 @@ export default async function PropertyDetail({ params }: PageContext) {
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Owner</div>
               <div className="mt-2 text-sm font-semibold text-slate-900">{property.ownerId}</div>
             </div>
+            <div className="rounded-xl bg-slate-50 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Affordability ratio</div>
+              <div className="mt-2 text-sm font-semibold text-slate-900">{property.affordabilityMultiple.toFixed(1)}x annual rent</div>
+            </div>
           </div>
 
           <div className="mt-6">

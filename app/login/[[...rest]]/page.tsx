@@ -15,6 +15,7 @@ type FormState = {
   mobile: string
   email: string
   password: string
+  accountType: "applicant" | "general"
 }
 
 const redirectUrl = "/dashboard"
@@ -38,6 +39,7 @@ export default function LoginPage() {
     mobile: "",
     email: "",
     password: "",
+    accountType: "applicant",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -75,7 +77,7 @@ export default function LoginPage() {
     }
   }, [router])
 
-  function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
+  function handleInputChange(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = event.target
 
     setFormState((current) => ({
@@ -124,6 +126,7 @@ export default function LoginPage() {
                 mobile: formState.mobile,
                 email: formState.email,
                 password: formState.password,
+                accountType: formState.accountType === "applicant" ? "applicant" : undefined,
               }
             : {
                 email: formState.email,
@@ -162,7 +165,7 @@ export default function LoginPage() {
           </h1>
           <p className="mt-5 max-w-2xl text-lg text-slate-600">
             {isRegistrationMode
-              ? "Register for RentSimple access, then wait for an administrator to approve and assign your role."
+              ? "Register directly as an applicant to start the tenancy process, or create a general account that waits for administrator allocation."
               : "Use your email and password to manage properties, applicants, and tenant activity from one place."}
           </p>
 
@@ -176,7 +179,7 @@ export default function LoginPage() {
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-slate-900">Approval workflow</p>
               <p className="mt-2 text-sm text-slate-600">
-                New accounts start in the approval queue until an administrator assigns an active role.
+                Applicants can start straight away, while general accounts stay in the approval queue until an administrator assigns a role.
               </p>
             </div>
           </div>
@@ -229,6 +232,22 @@ export default function LoginPage() {
                   onChange={handleInputChange}
                   autoComplete="tel"
                 />
+              </label>
+            ) : null}
+
+            {isRegistrationMode ? (
+              <label className="block text-sm font-medium text-slate-700">
+                Registering as
+                <select
+                  className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 focus:border-sky-500"
+                  name="accountType"
+                  value={formState.accountType}
+                  onChange={handleInputChange}
+                  aria-label="Account type"
+                >
+                  <option value="applicant">Applicant</option>
+                  <option value="general">General account</option>
+                </select>
               </label>
             ) : null}
 
