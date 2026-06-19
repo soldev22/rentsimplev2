@@ -55,7 +55,7 @@ export default function AppChrome({
               </h2>
 
               <p className="mt-5 max-w-3xl text-lg text-slate-200">
-                Manage properties, tenants, applications, and maintenance from a single workspace that feels fast, focused, and built for real operations.
+                Manage xxxxx properties, tenants, applications, and maintenance from a single workspace that feels fast, focused, and built for real operations.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-4">
