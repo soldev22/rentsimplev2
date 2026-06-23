@@ -5,6 +5,6 @@ on:
 
 jobs:
   agent:
-    uses: github/agent-workflows/.github/workflows/agent.yml@v1
+    uses: github/agent-workflow/.github/workflows/agent.yml@v1
     with:
       workflow: .github/agent-workflows/issue-triage.md
