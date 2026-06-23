@@ -79,13 +79,13 @@ function sortUsers(users: AuthUser[]) {
 }
 
 function getNotificationSummary(user: AuthUser) {
-  if (user.role !== "landlord" && user.role !== "agent") {
+  if (user.role !== "landlord") {
     return null
   }
 
   return {
-    outboundEmail: user.notificationProfile?.outboundEmail || user.email,
-    copyLandlord: user.role === "agent" ? user.notificationProfile?.copyLandlordOnTenantEmails !== false : false,
+    transactionalEmail: user.notificationProfile?.outboundEmail || user.email,
+    registeredEmail: user.email,
   }
 }
 
@@ -142,10 +142,10 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
             approval_status: user.role === "unallocated" ? "pending_approval" : user.approval_status,
             managedByAgentId: user.role === "landlord" ? user.managedByAgentId ?? null : null,
             notificationProfile:
-              user.role === "landlord" || user.role === "agent"
+              user.role === "landlord"
                 ? {
                     outboundEmail: user.notificationProfile?.outboundEmail ?? "",
-                    copyLandlordOnTenantEmails: user.role === "agent" ? user.notificationProfile?.copyLandlordOnTenantEmails !== false : false,
+                    copyLandlordOnTenantEmails: false,
                   }
                 : null,
           }),
@@ -193,7 +193,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
 
   function resetWorkspace() {
     const confirmed = window.confirm(
-      "Delete all applications, all properties, and all non-preserved users? Mike@solutionsdeveloped.co.uk and the current admin account will be kept.",
+      "Delete all applications, all properties, and all non-preserved users? Mike@rentsimple.co.uk and the current admin account will be kept.",
     )
 
     if (!confirmed) {
@@ -227,7 +227,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
             current.filter(
               (user) =>
                 user.email.toLowerCase() === currentUserEmail.toLowerCase() ||
-                user.email.toLowerCase() === "mike@solutionsdeveloped.co.uk",
+                user.email.toLowerCase() === "mike@rentsimple.co.uk",
             ),
           ),
         )
@@ -308,7 +308,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
             <h2 className="mt-2 text-2xl font-bold text-slate-900">Reset workflow data</h2>
             <p className="mt-2 max-w-3xl text-sm text-slate-700">
               Delete all applications, properties, property images, and non-preserved users so you can re-test flows from a clean state.
-              Mike@solutionsdeveloped.co.uk and the current admin account are always preserved.
+              Mike@rentsimple.co.uk and the current admin account are always preserved.
             </p>
           </div>
           <button
@@ -471,10 +471,8 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                     {getNotificationSummary(user) ? (
                       <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs text-slate-700">
                         <div className="font-semibold uppercase tracking-[0.16em] text-violet-800">Notification routing</div>
-                        <div className="mt-2">Outbound email: {getNotificationSummary(user)?.outboundEmail}</div>
-                        {user.role === "agent" ? (
-                          <div className="mt-1">Copy landlord: {getNotificationSummary(user)?.copyLandlord ? "Yes" : "No"}</div>
-                        ) : null}
+                        <div className="mt-2">Transactional landlord email: {getNotificationSummary(user)?.transactionalEmail}</div>
+                        <div className="mt-1">Registered onboarding email: {getNotificationSummary(user)?.registeredEmail}</div>
                       </div>
                     ) : null}
                     {user.applicantProfile ? (
@@ -543,7 +541,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                         </label>
 
                         <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                          Outbound email address
+                          Transactional landlord email
                           <input
                             aria-label={`Outbound email for ${user.email}`}
                             title={`Outbound email for ${user.email}`}
@@ -568,60 +566,14 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                             }
                           />
                         </label>
+                        <p className="text-xs text-slate-500">
+                          Tenant correspondence uses this landlord transaction address in the app and always copies the landlord's registered onboarding email when it differs.
+                        </p>
                       </div>
                     ) : null}
                     {user.role === "agent" ? (
-                      <div className="mt-3 space-y-3">
-                        <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                          Outbound email address
-                          <input
-                            aria-label={`Outbound email for ${user.email}`}
-                            title={`Outbound email for ${user.email}`}
-                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-sky-500"
-                            type="email"
-                            value={user.notificationProfile?.outboundEmail ?? ""}
-                            placeholder={user.email}
-                            onChange={(event) =>
-                              setUsers((current) =>
-                                current.map((candidate) =>
-                                  candidate.email === user.email
-                                    ? {
-                                        ...candidate,
-                                        notificationProfile: {
-                                          outboundEmail: event.target.value,
-                                          copyLandlordOnTenantEmails: candidate.notificationProfile?.copyLandlordOnTenantEmails ?? true,
-                                        },
-                                      }
-                                    : candidate,
-                                ),
-                              )
-                            }
-                          />
-                        </label>
-
-                        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                          <input
-                            className="mt-1"
-                            type="checkbox"
-                            checked={user.notificationProfile?.copyLandlordOnTenantEmails ?? true}
-                            onChange={(event) =>
-                              setUsers((current) =>
-                                current.map((candidate) =>
-                                  candidate.email === user.email
-                                    ? {
-                                        ...candidate,
-                                        notificationProfile: {
-                                          outboundEmail: candidate.notificationProfile?.outboundEmail ?? "",
-                                          copyLandlordOnTenantEmails: event.target.checked,
-                                        },
-                                      }
-                                    : candidate,
-                                ),
-                              )
-                            }
-                          />
-                          <span>Copy landlord on direct tenant emails</span>
-                        </label>
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                        Agents can manage the workflow, but legal correspondence is routed between the tenant and the landlord's transactional email and copied to the landlord's registered onboarding email.
                       </div>
                     ) : null}
                   </td>

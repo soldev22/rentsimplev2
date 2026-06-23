@@ -175,8 +175,7 @@ function normalizeManagedUserInput(input: {
     role,
     approval_status: role === "unallocated" ? "pending_approval" : approvalStatus,
     managedByAgentId,
-    notificationProfile:
-      role === "landlord" || role === "agent" ? normalizeNotificationProfile(input.notificationProfile ?? undefined) : undefined,
+    notificationProfile: role === "landlord" ? normalizeNotificationProfile(input.notificationProfile ?? undefined) : undefined,
   }
 }
 

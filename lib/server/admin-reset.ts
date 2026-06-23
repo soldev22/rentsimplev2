@@ -5,7 +5,7 @@ import { normalizeEmail } from "@/lib/auth"
 import { deletePropertyImageAssets } from "@/lib/server/blob"
 import { getApplicationsContainer, getPropertiesContainer, getUsersContainer } from "@/lib/server/cosmos"
 
-const PRIMARY_RESET_ADMIN_EMAIL = normalizeEmail("mike@solutionsdeveloped.co.uk")
+const PRIMARY_RESET_ADMIN_EMAIL = normalizeEmail("mike@rentsimple.co.uk")
 
 type StoredUserResetRecord = {
   id: string

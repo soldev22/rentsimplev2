@@ -1,0 +1,10 @@
+name: Issue Triage Agent
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  agent:
+    uses: github/agent-workflows/.github/workflows/agent.yml@v1
+    with:
+      workflow: .github/agent-workflows/issue-triage.md

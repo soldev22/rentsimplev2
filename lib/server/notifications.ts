@@ -48,6 +48,10 @@ function formatMailbox(address: string, name: string) {
   return name ? `${name} <${address}>` : address
 }
 
+function formatPlatformFromName(routedName: string) {
+  return routedName && routedName !== "RentSimple" ? `${routedName} via RentSimple` : "RentSimple"
+}
+
 async function resolveEmailRouting(application: TenancyApplicationRecord, platformFromAddress: string) {
   const property = await getPropertyByIdForSystem(application.propertyId)
   const landlord = property ? await getUserById(property.ownerId) : null
@@ -90,7 +94,7 @@ async function sendRoutedEmailNotification(
 
   try {
     await transporter.sendMail({
-      from: formatMailbox(routing.fromAddress, routing.fromName),
+      from: formatMailbox(config.from, formatPlatformFromName(routing.fromName)),
       sender: config.from,
       replyTo: routing.replyTo,
       cc: routing.copiedTo.length > 0 ? routing.copiedTo : undefined,
@@ -103,19 +107,22 @@ async function sendRoutedEmailNotification(
       status: "sent",
       attemptedAt,
       sentAt: new Date().toISOString(),
-      fromAddress: routing.fromAddress,
+      fromAddress: config.from,
       replyTo: routing.replyTo,
       copiedTo: routing.copiedTo,
-      detail: routing.detail,
+      detail: `${routing.detail} Delivered using the platform SMTP sender ${config.from}.`,
     }
   } catch (error) {
     return {
       status: "failed",
       attemptedAt,
-      fromAddress: routing.fromAddress,
+      fromAddress: config.from,
       replyTo: routing.replyTo,
       copiedTo: routing.copiedTo,
-      detail: error instanceof Error ? `${routing.detail} ${error.message}`.trim() : `${routing.detail} Email notification failed.`,
+      detail:
+        error instanceof Error
+          ? `${routing.detail} Delivery via the platform SMTP sender ${config.from} failed. ${error.message}`.trim()
+          : `${routing.detail} Delivery via the platform SMTP sender ${config.from} failed.`,
     }
   }
 }

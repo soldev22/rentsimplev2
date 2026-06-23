@@ -3,14 +3,17 @@ import { describe, expect, it } from "vitest"
 import { resolveTenantCommunicationEmailRouting } from "@/lib/utils/tenant-communication-routing"
 
 describe("resolveTenantCommunicationEmailRouting", () => {
-  it("uses the managing agent email and copies the landlord", () => {
+  it("uses the landlord transactional email and copies the registered landlord email", () => {
     const routing = resolveTenantCommunicationEmailRouting({
       platformFromAddress: "notifications@rentsimple.co.uk",
       landlord: {
         email: "landlord@example.com",
         first_name: "Lana",
         last_name: "Landlord",
-        notificationProfile: undefined,
+        notificationProfile: {
+          outboundEmail: "case-123@rentsimple.co.uk",
+          copyLandlordOnTenantEmails: false,
+        },
       },
       managingAgent: {
         email: "agent@example.com",
@@ -23,31 +26,12 @@ describe("resolveTenantCommunicationEmailRouting", () => {
       },
     })
 
-    expect(routing.fromAddress).toBe("larn.agent@example.com")
-    expect(routing.replyTo).toBe("larn.agent@example.com")
+    expect(routing.fromAddress).toBe("case-123@rentsimple.co.uk")
+    expect(routing.replyTo).toBe("case-123@rentsimple.co.uk")
     expect(routing.copiedTo).toEqual(["landlord@example.com"])
   })
 
-  it("uses the landlord email when no managing agent exists", () => {
-    const routing = resolveTenantCommunicationEmailRouting({
-      platformFromAddress: "notifications@rentsimple.co.uk",
-      landlord: {
-        email: "landlord@example.com",
-        first_name: "Lana",
-        last_name: "Landlord",
-        notificationProfile: {
-          outboundEmail: "portfolio@landlord.example.com",
-          copyLandlordOnTenantEmails: false,
-        },
-      },
-      managingAgent: null,
-    })
-
-    expect(routing.fromAddress).toBe("portfolio@landlord.example.com")
-    expect(routing.copiedTo).toEqual([])
-  })
-
-  it("lets an agent disable landlord copying when needed", () => {
+  it("uses the landlord registered email when no transactional alias exists", () => {
     const routing = resolveTenantCommunicationEmailRouting({
       platformFromAddress: "notifications@rentsimple.co.uk",
       landlord: {
@@ -55,6 +39,26 @@ describe("resolveTenantCommunicationEmailRouting", () => {
         first_name: "Lana",
         last_name: "Landlord",
         notificationProfile: undefined,
+      },
+      managingAgent: null,
+    })
+
+    expect(routing.fromAddress).toBe("landlord@example.com")
+    expect(routing.replyTo).toBe("landlord@example.com")
+    expect(routing.copiedTo).toEqual([])
+  })
+
+  it("ignores agent email settings for tenant-landlord correspondence", () => {
+    const routing = resolveTenantCommunicationEmailRouting({
+      platformFromAddress: "notifications@rentsimple.co.uk",
+      landlord: {
+        email: "landlord@example.com",
+        first_name: "Lana",
+        last_name: "Landlord",
+        notificationProfile: {
+          outboundEmail: "landlord-alias@rentsimple.co.uk",
+          copyLandlordOnTenantEmails: false,
+        },
       },
       managingAgent: {
         email: "agent@example.com",
@@ -67,7 +71,9 @@ describe("resolveTenantCommunicationEmailRouting", () => {
       },
     })
 
-    expect(routing.copiedTo).toEqual([])
+    expect(routing.fromAddress).toBe("landlord-alias@rentsimple.co.uk")
+    expect(routing.replyTo).toBe("landlord-alias@rentsimple.co.uk")
+    expect(routing.copiedTo).toEqual(["landlord@example.com"])
   })
 
   it("falls back to the platform sender when no user emails are available", () => {

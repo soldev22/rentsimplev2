@@ -24,30 +24,22 @@ export function resolveTenantCommunicationEmailRouting(input: {
   landlord: RoutingParty
   managingAgent: RoutingParty
 }): TenantCommunicationEmailRouting {
-  const landlordEmail = input.landlord?.notificationProfile?.outboundEmail.trim() || input.landlord?.email.trim() || ""
-  const agentEmail = input.managingAgent?.notificationProfile?.outboundEmail.trim() || input.managingAgent?.email.trim() || ""
-  const copyLandlord = input.managingAgent?.notificationProfile?.copyLandlordOnTenantEmails !== false
+  const landlordRegisteredEmail = input.landlord?.email.trim() || ""
+  const landlordTransactionalEmail = input.landlord?.notificationProfile?.outboundEmail.trim() || landlordRegisteredEmail
 
-  if (agentEmail) {
+  if (landlordTransactionalEmail) {
     return {
-      fromAddress: agentEmail,
-      fromName: getPartyName(input.managingAgent),
-      replyTo: agentEmail,
-      copiedTo: copyLandlord && landlordEmail && landlordEmail.toLowerCase() !== agentEmail.toLowerCase() ? [landlordEmail] : [],
-      detail:
-        copyLandlord && landlordEmail && landlordEmail.toLowerCase() !== agentEmail.toLowerCase()
-          ? "Email sent directly to the tenant from the managing agent and copied to the landlord."
-          : "Email sent directly to the tenant from the managing agent.",
-    }
-  }
-
-  if (landlordEmail) {
-    return {
-      fromAddress: landlordEmail,
+      fromAddress: landlordTransactionalEmail,
       fromName: getPartyName(input.landlord),
-      replyTo: landlordEmail,
-      copiedTo: [],
-      detail: "Email sent directly to the tenant from the landlord.",
+      replyTo: landlordTransactionalEmail,
+      copiedTo:
+        landlordRegisteredEmail && landlordRegisteredEmail.toLowerCase() !== landlordTransactionalEmail.toLowerCase()
+          ? [landlordRegisteredEmail]
+          : [],
+      detail:
+        landlordRegisteredEmail && landlordRegisteredEmail.toLowerCase() !== landlordTransactionalEmail.toLowerCase()
+          ? "Email sent directly between the tenant and the landlord transactional address and copied to the landlord registered onboarding email."
+          : "Email sent directly between the tenant and the landlord registered onboarding email.",
     }
   }
 
@@ -56,6 +48,6 @@ export function resolveTenantCommunicationEmailRouting(input: {
     fromName: "RentSimple",
     replyTo: input.platformFromAddress,
     copiedTo: [],
-    detail: "Email sent directly to the tenant from the RentSimple platform sender because no landlord or agent email was available.",
+    detail: "Email used the RentSimple platform sender because no landlord transactional or registered email was available.",
   }
 }
