@@ -1,0 +1,10 @@
+name: Issue Triage Agent
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
