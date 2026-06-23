@@ -20,3 +20,4 @@ When a new issue is opened:
 - Classify it as bug, feature, question, or chore.
 - Add labels that match the classification.
 - Write a short summary comment explaining the classification.
+
