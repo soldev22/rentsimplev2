@@ -67,6 +67,7 @@ const propertyTypeOptions = [
 ]
 
 const propertyStatusOptions = [
+  "draft",
   "Available",
   "Vacant",
   "Reserved",
@@ -183,6 +184,7 @@ export default function PropertyManager({
 }: PropertyManagerProps) {
   const [properties, setProperties] = useState(initialProperties)
   const [selectedPropertyId, setSelectedPropertyId] = useState("")
+  const [expandedPortfolioId, setExpandedPortfolioId] = useState<string | null>(null)
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false)
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(true)
   const [portfolioSearch, setPortfolioSearch] = useState("")
@@ -728,7 +730,7 @@ export default function PropertyManager({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Properties</h1>
@@ -747,7 +749,7 @@ export default function PropertyManager({
       ) : null}
 
       {isAdmin ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="order-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Pending image approvals</h2>
@@ -819,7 +821,7 @@ export default function PropertyManager({
       ) : null}
 
       {canManage ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="order-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Add property</h2>
@@ -1073,7 +1075,7 @@ export default function PropertyManager({
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="order-1 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Portfolio</h2>
@@ -1125,7 +1127,13 @@ export default function PropertyManager({
             </div>
           ) : (
             <ul className="mt-4 space-y-3">
-              {filteredProperties.map((property) => (
+              {filteredProperties.map((property) => {
+                const approvedThumbnails = property.images
+                  .filter((image) => image.moderationStatus === "approved")
+                  .slice(0, 4)
+                const isExpanded = expandedPortfolioId === property.id
+
+                return (
                 <li
                   key={property.id}
                   className={`rounded-xl border px-4 py-4 transition ${
@@ -1136,26 +1144,25 @@ export default function PropertyManager({
                     <button
                       type="button"
                       className="flex-1 text-left"
-                      onClick={() => selectProperty(property)}
+                      onClick={() =>
+                        setExpandedPortfolioId((current) => (current === property.id ? null : property.id))
+                      }
                     >
-                      <div className="font-semibold text-slate-900">{property.address}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">{isExpanded ? "▾" : "▸"}</span>
+                        <div className="font-semibold text-slate-900">{property.address}</div>
+                      </div>
                       <div className="mt-1 text-sm text-slate-600">
-                        {property.type} · {property.status}
+                        {property.status} · £{property.monthlyRent.toLocaleString()}/month · {property.bedrooms} bed · {property.bathrooms} bath
                       </div>
-                      {canAssignOwner ? (
-                        <div className="mt-1 text-sm text-slate-500">Owner: {property.ownerId}</div>
-                      ) : null}
-                      <div className="mt-1 text-sm text-slate-500">
-                        {property.bedrooms} bed · {property.bathrooms} bath · £{property.monthlyRent.toLocaleString()}/month
-                      </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-6">
-                        {property.images.length === 0 ? (
-                          <div className="col-span-full rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-xs text-slate-500">
-                            No thumbnails yet
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {approvedThumbnails.length === 0 ? (
+                          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                            No approved thumbnails yet
                           </div>
                         ) : (
-                          property.images.slice(0, 6).map((image) => (
-                            <div key={image.id} className="relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                          approvedThumbnails.map((image) => (
+                            <div key={image.id} className="relative h-12 w-12 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
                               <Image
                                 src={getPropertyImagePath(property.id, image.id, "thumbnail")}
                                 alt={image.blobName}
@@ -1168,7 +1175,7 @@ export default function PropertyManager({
                         )}
                       </div>
                       <div className="mt-2 text-xs text-slate-500">
-                        {property.images.length} / {MAX_PROPERTY_IMAGES} images used
+                        {approvedThumbnails.length} approved thumbnails · {property.images.length} / {MAX_PROPERTY_IMAGES} images used
                       </div>
                     </button>
                     <div className="flex flex-col items-end gap-2">
@@ -1190,8 +1197,15 @@ export default function PropertyManager({
                       ) : null}
                     </div>
                   </div>
+
+                  {isExpanded ? (
+                    <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                      <div>{property.type} in {property.city}{property.postcode ? `, ${property.postcode}` : ""}</div>
+                      {canAssignOwner ? <div className="mt-1">Owner: {property.ownerId}</div> : null}
+                    </div>
+                  ) : null}
                 </li>
-              ))}
+              )})}
             </ul>
           )
           ) : (

@@ -2,7 +2,7 @@ export interface PropertyBulkUploadRow {
   address: string
   city: string
   postcode: string
-  propertyType: string
+  propertyType: PropertyBulkUploadPropertyType
   status?: string
   bedrooms: number
   bathrooms: number
@@ -60,13 +60,21 @@ export interface BulkUploadResult {
 }
 
 export const PROPERTY_TYPE_OPTIONS = [
-  "house",
-  "flat",
-  "bungalow",
-  "townhouse",
-  "studio",
+  "Detached house",
+  "Semi-detached house",
+  "Terraced house",
+  "Bungalow",
+  "Flat",
+  "Maisonette",
+  "Studio",
+  "Duplex",
+  "Penthouse",
+  "Cottage",
+  "Converted property",
   "other",
 ] as const
+
+export type PropertyBulkUploadPropertyType = (typeof PROPERTY_TYPE_OPTIONS)[number]
 
 export const PROPERTY_STATUS_OPTIONS = ["draft", "available", "vacant"] as const
 

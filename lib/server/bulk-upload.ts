@@ -10,6 +10,7 @@ import {
   BulkUploadPreviewProperty,
   BulkUploadPreviewResult,
   PROPERTY_TYPE_OPTIONS,
+  type PropertyBulkUploadPropertyType,
   BULK_UPLOAD_CSV_HEADERS,
   BULK_UPLOAD_REQUIRED_FIELDS,
   BULK_UPLOAD_MAX_PROPERTIES,
@@ -17,7 +18,7 @@ import {
   BULK_UPLOAD_MAX_FILE_SIZE_MB,
   BULK_UPLOAD_MAX_IMAGE_FILE_SIZE_MB,
 } from "@/lib/types/bulk-upload"
-import { createProperty, PropertyInput } from "@/lib/server/properties"
+import { addPropertyImage, createProperty, PropertyInput } from "@/lib/server/properties"
 import { uploadPropertyImage } from "@/lib/server/blob"
 import { writeAuditEvent } from "@/lib/server/audit"
 import type { AuthUser } from "@/lib/types/user"
@@ -45,7 +46,12 @@ export async function parseZipFile(
     const zip = new JSZip()
     await zip.loadAsync(buffer)
 
-    const csvFile = zip.file("properties.csv")
+    const zipEntries = Object.values(zip.files)
+    const csvFile = zipEntries.find(
+      (file) =>
+        !file.dir &&
+        (file.name === "properties.csv" || file.name.toLowerCase().endsWith("/properties.csv")),
+    )
     if (!csvFile) {
       return {
         csvContent: "",
@@ -65,34 +71,55 @@ export async function parseZipFile(
 
     const images = new Map<string, BulkUploadImageInfo>()
 
-    // Parse images folder
-    zip.folder("images")?.forEach(async (relativePath, file) => {
-      if (file.dir) return
-
-      const filename = relativePath.split("/").pop() || ""
-      const mimeType = getMimeType(filename)
-
-      if (!mimeType) {
-        console.warn(`Skipping unsupported image format: ${filename}`)
-        return
+    // Parse image files from any folder in the zip (including nested folders).
+    const imageEntries = zipEntries.filter((file) => {
+      if (file.dir) {
+        return false
       }
 
-      const buffer = await file.async("arraybuffer")
-      const sizeInMB = buffer.byteLength / (1024 * 1024)
-
-      if (sizeInMB > BULK_UPLOAD_MAX_IMAGE_FILE_SIZE_MB) {
-        console.warn(
-          `Skipping oversized image: ${filename} (${sizeInMB.toFixed(2)}MB)`,
-        )
-        return
+      const normalizedPath = normalizeImagePath(file.name)
+      if (normalizedPath.endsWith("/properties.csv") || normalizedPath === "properties.csv") {
+        return false
       }
 
-      images.set(filename, {
-        filename,
-        buffer: Buffer.from(buffer),
-        mimeType,
-      })
+      const filename = normalizedPath.split("/").pop() || ""
+      return Boolean(getMimeType(filename))
     })
+
+    await Promise.all(
+      imageEntries.map(async (file) => {
+        const normalizedPath = normalizeImagePath(file.name)
+        const filename = normalizedPath.split("/").pop()?.trim() || ""
+        const mimeType = getMimeType(filename)
+
+        if (!mimeType) {
+          console.warn(`Skipping unsupported image format: ${filename}`)
+          return
+        }
+
+        const imageBuffer = await file.async("arraybuffer")
+        const sizeInMB = imageBuffer.byteLength / (1024 * 1024)
+
+        if (sizeInMB > BULK_UPLOAD_MAX_IMAGE_FILE_SIZE_MB) {
+          console.warn(`Skipping oversized image: ${filename} (${sizeInMB.toFixed(2)}MB)`)
+          return
+        }
+
+        const imageInfo: BulkUploadImageInfo = {
+          filename,
+          buffer: Buffer.from(imageBuffer),
+          mimeType,
+        }
+
+        images.set(normalizeImageKey(filename), imageInfo)
+        images.set(normalizeImageKey(normalizedPath), imageInfo)
+
+        const pathAfterImagesFolder = normalizedPath.replace(/^.*\/images\//i, "")
+        if (pathAfterImagesFolder && pathAfterImagesFolder !== normalizedPath) {
+          images.set(normalizeImageKey(pathAfterImagesFolder), imageInfo)
+        }
+      }),
+    )
 
     return { csvContent, images }
   } catch (error) {
@@ -120,7 +147,7 @@ export function parsePropertyCSV(csvContent: string): PropertyBulkUploadRowWithI
       address: record.address || "",
       city: record.city || "",
       postcode: record.postcode || "",
-      propertyType: record.propertyType || "",
+      propertyType: (record.propertyType || "") as PropertyBulkUploadPropertyType,
       status: record.status || "draft",
       bedrooms: isNaN(Number(record.bedrooms)) ? 0 : Number(record.bedrooms),
       bathrooms: isNaN(Number(record.bathrooms)) ? 0 : Number(record.bathrooms),
@@ -185,7 +212,7 @@ export function validatePropertyRow(
   }
 
   // Validate propertyType
-  if (!PROPERTY_TYPE_OPTIONS.includes(row.propertyType as any)) {
+  if (!PROPERTY_TYPE_OPTIONS.includes(row.propertyType)) {
     errors.push({
       rowIndex: row.rowIndex,
       field: "propertyType",
@@ -234,7 +261,7 @@ export function validatePropertyRow(
     }
 
     for (const filename of imageFilenames) {
-      if (!images.has(filename)) {
+      if (!resolveImage(images, filename)) {
         errors.push({
           rowIndex: row.rowIndex,
           field: "imageFiles",
@@ -287,10 +314,14 @@ export async function generateBulkUploadPreview(
           .filter((f) => f)
       : []
 
-    const previewImages = imageFilenames.map((filename) => ({
-      filename,
-      url: `data:${images.get(filename)?.mimeType || "image/jpeg"};base64,${images.get(filename)?.buffer.toString("base64") || ""}`,
-    }))
+    const previewImages = imageFilenames.map((filename) => {
+      const image = resolveImage(images, filename)
+
+      return {
+        filename,
+        url: image ? `data:${image.mimeType};base64,${image.buffer.toString("base64")}` : undefined,
+      }
+    })
 
     properties.push({
       ...row,
@@ -333,6 +364,7 @@ export async function processBulkUpload(
   preview: BulkUploadPreviewResult,
   images: Map<string, BulkUploadImageInfo>,
   landlordEmail: string,
+  landlordId?: string,
   actingAsAgent: boolean = false,
 ): Promise<{
   success: boolean
@@ -348,8 +380,9 @@ export async function processBulkUpload(
       try {
         // Prepare property input
         const propertyInput: PropertyInput = {
+          ownerId: landlordId,
           type: previewProp.propertyType,
-          status: "draft",
+          status: normalizeBulkUploadStatus(previewProp.status),
           address: previewProp.address,
           city: previewProp.city,
           postcode: previewProp.postcode,
@@ -367,9 +400,9 @@ export async function processBulkUpload(
 
         // Upload images
         for (const imageInfo of previewProp.images) {
-          const imageFile = images.get(imageInfo.filename)
+          const imageFile = resolveImage(images, imageInfo.filename)
           if (imageFile) {
-            await uploadPropertyImage({
+            const uploadedImage = await uploadPropertyImage({
               propertyId: property.id,
               fileName: imageFile.filename,
               contentType: imageFile.mimeType,
@@ -377,6 +410,8 @@ export async function processBulkUpload(
               moderationStatus: "pending_review",
               uploadedByUserId: user.id,
             })
+
+            await addPropertyImage(user, property.id, uploadedImage)
           }
         }
 
@@ -458,4 +493,44 @@ function getMimeType(filename: string): string | null {
     gif: "image/gif",
   }
   return mimeTypes[ext] || null
+}
+
+function normalizeImageKey(filename: string) {
+  return normalizeImagePath(filename).toLowerCase()
+}
+
+function normalizeImagePath(path: string) {
+  return path.trim().replace(/\\+/g, "/").replace(/^\.\//, "")
+}
+
+function resolveImage(images: Map<string, BulkUploadImageInfo>, requestedFilename: string) {
+  const normalized = normalizeImageKey(requestedFilename)
+  const directMatch = images.get(normalized)
+
+  if (directMatch) {
+    return directMatch
+  }
+
+  const withoutImagesPrefix = normalized.replace(/^images\//, "")
+  const fromImagesPrefix = images.get(withoutImagesPrefix)
+  if (fromImagesPrefix) {
+    return fromImagesPrefix
+  }
+
+  const basename = normalized.split("/").pop() || normalized
+  return images.get(basename)
+}
+
+function normalizeBulkUploadStatus(status?: string) {
+  const normalized = (status || "draft").trim().toLowerCase()
+
+  if (normalized === "available") {
+    return "Available"
+  }
+
+  if (normalized === "vacant") {
+    return "Vacant"
+  }
+
+  return "draft"
 }

@@ -5,11 +5,13 @@ import type { BulkUploadPreviewResult, BulkUploadValidationError } from "@/lib/t
 
 interface PropertyBulkUploadFormProps {
   landlordEmail: string
+  landlordId?: string
   onSuccess?: (createdCount: number, propertyIds: string[]) => void
 }
 
 export default function PropertyBulkUploadForm({
   landlordEmail,
+  landlordId,
   onSuccess,
 }: PropertyBulkUploadFormProps) {
   const [state, setState] = useState<
@@ -117,6 +119,9 @@ export default function PropertyBulkUploadForm({
       formData.append("preview", JSON.stringify(preview))
       formData.append("previewHash", previewHash)
       formData.append("landlordEmail", landlordEmail)
+      if (landlordId) {
+        formData.append("landlordId", landlordId)
+      }
       formData.append("acknowledgedLegal", "true")
 
       const response = await fetch("/api/properties/bulk-upload", {

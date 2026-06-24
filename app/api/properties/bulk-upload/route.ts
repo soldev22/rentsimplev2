@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
       const previewJson = formData.get("preview") as string | null
       const previewHash = formData.get("previewHash") as string | null
       const landlordEmail = formData.get("landlordEmail") as string | null
+      const landlordId = formData.get("landlordId") as string | null
       const acknowledgedLegal = formData.get("acknowledgedLegal") as string | null
       const zipFile = formData.get("file") as File | null
 
@@ -139,6 +140,7 @@ export async function POST(request: NextRequest) {
           preview,
           images,
           landlordEmail,
+          landlordId || undefined,
           role === "agent", // acting as agent?
         )
 

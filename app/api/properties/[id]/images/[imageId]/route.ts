@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { isPendingApproval } from "@/lib/auth"
 import { downloadPropertyImage } from "@/lib/server/blob"
-import { getPropertyForUser } from "@/lib/server/properties"
+import { getPropertyForUser, getPublicAvailableProperty } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
 
 type RouteContext = {
@@ -14,17 +14,19 @@ type RouteContext = {
 
 export async function GET(_request: Request, { params }: RouteContext) {
   const user = await getSessionUser()
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  if (isPendingApproval(user)) {
-    return NextResponse.json({ error: "Account pending approval" }, { status: 403 })
-  }
-
   const { id, imageId } = await params
-  const property = await getPropertyForUser(user, id)
+  let isPublicAssetRequest = false
+
+  let property = null
+
+  if (user && !isPendingApproval(user)) {
+    property = await getPropertyForUser(user, id)
+  }
+
+  if (!property) {
+    property = await getPublicAvailableProperty(id)
+    isPublicAssetRequest = true
+  }
 
   if (!property) {
     return NextResponse.json({ error: "Property not found." }, { status: 404 })
@@ -33,6 +35,10 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const image = property.images.find((candidate) => candidate.id === imageId)
 
   if (!image) {
+    return NextResponse.json({ error: "Image not found." }, { status: 404 })
+  }
+
+  if (isPublicAssetRequest && image.moderationStatus !== "approved") {
     return NextResponse.json({ error: "Image not found." }, { status: 404 })
   }
 
@@ -45,7 +51,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
     return new NextResponse(download.stream, {
       headers: {
         "Content-Type": download.contentType,
-        "Cache-Control": "private, max-age=300",
+        "Cache-Control": isPublicAssetRequest ? "public, max-age=300" : "private, max-age=300",
         ...(typeof download.contentLength === "number"
           ? { "Content-Length": String(download.contentLength) }
           : null),

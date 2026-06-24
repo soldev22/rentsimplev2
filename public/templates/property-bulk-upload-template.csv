@@ -1,0 +1,3 @@
+address,city,postcode,propertyType,bedrooms,bathrooms,monthlyRent,shortDescription,longDescription,imageFiles
+42 Main Street,London,SW1A 1AA,Flat,2,1,1500,Beautiful 2-bed flat,Light and airy flat close to transport,"prop1-front.jpg,prop1-kitchen.jpg"
+15 Oak Road,Manchester,M1 1AD,Detached house,3,2,2000,Victorian terraced house,Spacious family home with garden,"prop2-ext.jpg"

@@ -36,7 +36,7 @@ export default function AppChrome({
 
               <div className="flex items-center gap-3">
                 <Link href="/properties" className="rounded border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                  Explore
+                  Search properties
                 </Link>
                 {authControls ?? (
                   <Link href="/login" className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900">
@@ -66,7 +66,7 @@ export default function AppChrome({
                 )}
 
                 <Link href="/properties" className="rounded border border-white/30 bg-white/10 px-6 py-3 text-white">
-                  View Properties
+                  Search & Filter Homes
                 </Link>
               </div>
             </div>
@@ -86,7 +86,7 @@ export default function AppChrome({
 
             <div className="flex items-center gap-3">
               <Link href="/properties" className="rounded border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                Explore
+                Search properties
               </Link>
               {authControls ?? (
                 <Link href="/login" className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900">

@@ -4,10 +4,17 @@ import { redirect } from "next/navigation"
 import PropertyBulkUploadForm from "@/components/forms/PropertyBulkUploadForm"
 import { getUserRole, isPendingApproval } from "@/lib/auth"
 import { getSessionUser } from "@/lib/server/session"
+import { listLandlordDirectoryForUser } from "@/lib/server/users"
 
 export const dynamic = "force-dynamic"
 
-export default async function PropertyBulkUploadPage() {
+type PropertyBulkUploadPageProps = {
+  searchParams: Promise<{
+    landlordId?: string
+  }>
+}
+
+export default async function PropertyBulkUploadPage({ searchParams }: PropertyBulkUploadPageProps) {
   const user = await getSessionUser()
 
   if (!user) {
@@ -19,9 +26,18 @@ export default async function PropertyBulkUploadPage() {
   }
 
   const role = getUserRole(user)
-  if (!["landlord", "agent"].includes(role)) {
+  if (!["landlord", "agent", "admin"].includes(role)) {
     redirect("/dashboard")
   }
+
+  const { landlordId } = await searchParams
+  const landlords = role === "admin" || role === "agent" ? await listLandlordDirectoryForUser(user) : []
+  const selectedLandlord = landlordId ? landlords.find((landlord) => landlord.id === landlordId) : null
+  const targetLabel = selectedLandlord
+    ? `${selectedLandlord.fullName || "Landlord"} (${selectedLandlord.email})`
+    : role === "landlord"
+      ? user.email
+      : "No landlord selected"
 
   return (
     <div className="space-y-6">
@@ -39,9 +55,27 @@ export default async function PropertyBulkUploadPage() {
             Prepare a ZIP file with your properties CSV file and images folder. All properties
             will be created in draft status for review before publishing.
           </p>
+          <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-900">
+            <span className="font-semibold">Upload target:</span> {targetLabel}
+          </div>
+          {(role === "admin" || role === "agent") && !landlordId ? (
+            <p className="text-xs text-amber-700 mb-4">
+              Select a landlord scope from the Properties page before uploading to ensure properties link to the correct landlord.
+            </p>
+          ) : null}
+          <p className="text-xs text-slate-500 mb-4">
+            Allowed property types: Detached house, Semi-detached house, Terraced house, Bungalow, Flat, Maisonette, Studio, Duplex, Penthouse, Cottage, Converted property, Other.
+          </p>
+          <Link
+            href="/templates/property-bulk-upload-template.csv"
+            download
+            className="inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+          >
+            Download CSV template
+          </Link>
         </div>
 
-        <PropertyBulkUploadForm landlordEmail={user.email} />
+        <PropertyBulkUploadForm landlordEmail={user.email} landlordId={landlordId} />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">

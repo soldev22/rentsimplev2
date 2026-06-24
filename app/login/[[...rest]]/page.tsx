@@ -52,7 +52,7 @@ export default function LoginPage() {
     mobile: "",
     email: "",
     password: "",
-    accountType: "applicant",
+    accountType: "general",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -414,6 +414,9 @@ export default function LoginPage() {
                   <option value="applicant">Applicant</option>
                   <option value="general">General account</option>
                 </select>
+                <span className="mt-2 block text-xs text-slate-500">
+                  General accounts enter the admin approval queue after email verification. Applicants can start the tenancy workflow immediately.
+                </span>
               </label>
             ) : null}
 

@@ -25,7 +25,7 @@ function buildPropertiesPageHref(input: { page: number; pageSize: number; landlo
     params.set("page", String(input.page))
   }
 
-  if (input.pageSize !== 25) {
+  if (input.pageSize !== 10) {
     params.set("pageSize", String(input.pageSize))
   }
 
@@ -53,11 +53,14 @@ export default async function PropertiesPage({ searchParams }: PropertiesPagePro
   const page = Number.isFinite(Number(pageParam)) ? Math.max(1, Math.floor(Number(pageParam))) : 1
   const pageSize = Number.isFinite(Number(pageSizeParam))
     ? Math.min(100, Math.max(10, Math.floor(Number(pageSizeParam))))
-    : 25
+    : 10
   const [pagedProperties, landlords] = await Promise.all([
     listPropertiesForUserPage(user, landlordId, { page, pageSize }),
     role === "admin" || role === "agent" ? listLandlordDirectoryForUser(user) : Promise.resolve([]),
   ])
+  const bulkUploadHref = landlordId
+    ? `/dashboard/landlord/bulk-upload?landlordId=${encodeURIComponent(landlordId)}`
+    : "/dashboard/landlord/bulk-upload"
 
   return (
     <div className="space-y-6">
@@ -69,16 +72,6 @@ export default async function PropertiesPage({ searchParams }: PropertiesPagePro
         />
       ) : null}
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600 mb-4">
-          {(role === "landlord" || role === "agent") && (
-            <Link
-              href="/dashboard/landlord/bulk-upload"
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-            >
-              + Bulk Upload
-            </Link>
-          )}
-        </div>
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
           <span>
             Showing {(pagedProperties.page - 1) * pagedProperties.pageSize + 1}-
@@ -140,6 +133,19 @@ export default async function PropertiesPage({ searchParams }: PropertiesPagePro
         canAssignOwner={role === "admin" || role === "agent"}
         defaultOwnerId={landlordId ?? landlords[0]?.id ?? user.id}
       />
+      {(role === "landlord" || role === "agent" || role === "admin") && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+            <span>Need to import multiple properties in one go?</span>
+            <Link
+              href={bulkUploadHref}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              + Bulk Upload
+            </Link>
+          </div>
+        </section>
+      )}
     </div>
   )
 }

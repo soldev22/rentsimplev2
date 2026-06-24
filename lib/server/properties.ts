@@ -71,7 +71,7 @@ const seedProperties: PropertyRecord[] = [
   },
 ]
 
-const publicRentalStatuses = ["available", "vacant"] as const
+const publicRentalStatuses = ["available"] as const
 
 export type PropertyInput = {
   ownerId?: string
@@ -562,7 +562,7 @@ export async function listPublicAvailableProperties(locationQuery?: string) {
     .query<PropertyRecord>({
       query: normalizedLocationQuery
         ? `SELECT * FROM c
-           WHERE (LOWER(c.status) = @available OR LOWER(c.status) = @vacant)
+           WHERE LOWER(c.status) = @available
              AND (
                CONTAINS(LOWER(c.address), @query)
                OR CONTAINS(LOWER(c.city), @query)
@@ -570,10 +570,9 @@ export async function listPublicAvailableProperties(locationQuery?: string) {
                OR CONTAINS(LOWER(c.addressLine1), @query)
              )`
         : `SELECT * FROM c
-           WHERE LOWER(c.status) = @available OR LOWER(c.status) = @vacant`,
+           WHERE LOWER(c.status) = @available`,
       parameters: [
         { name: "@available", value: "available" },
-        { name: "@vacant", value: "vacant" },
         ...(normalizedLocationQuery ? [{ name: "@query", value: normalizedLocationQuery }] : []),
       ],
     })

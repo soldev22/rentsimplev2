@@ -106,6 +106,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
   const [selectedView, setSelectedView] = useState<UserView>("all")
   const [savingEmail, setSavingEmail] = useState<string | null>(null)
   const [isResettingWorkspace, setIsResettingWorkspace] = useState(false)
+  const [switchingEmail, setSwitchingEmail] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
@@ -202,7 +203,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
 
   function resetWorkspace() {
     const confirmed = window.confirm(
-      "Delete all applications, all properties, and all non-preserved users? Mike@rentsimple.co.uk and the current admin account will be kept.",
+      "Delete all applications, properties, and property images while keeping all user accounts?",
     )
 
     if (!confirmed) {
@@ -222,7 +223,6 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
           result?: {
             deletedApplications: number
             deletedProperties: number
-            deletedUsers: number
           }
           error?: string
         }
@@ -231,18 +231,10 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
           throw new Error(payload.error || "Unable to reset workspace data.")
         }
 
-        setUsers((current) =>
-          sortUsers(
-            current.filter(
-              (user) =>
-                user.email.toLowerCase() === currentUserEmail.toLowerCase() ||
-                user.email.toLowerCase() === "mike@rentsimple.co.uk",
-            ),
-          ),
-        )
+        setUsers((current) => sortUsers(current))
         setFeedback({
           type: "success",
-          message: `Workspace reset complete. Deleted ${payload.result.deletedApplications} applications, ${payload.result.deletedProperties} properties, and ${payload.result.deletedUsers} users while preserving Mike and the current admin account.`,
+          message: `Workspace reset complete. Deleted ${payload.result.deletedApplications} applications and ${payload.result.deletedProperties} properties while preserving all user accounts.`,
         })
       } catch (error) {
         setFeedback({
@@ -251,6 +243,51 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
         })
       } finally {
         setIsResettingWorkspace(false)
+      }
+    })
+  }
+
+  function actAsUser(user: AuthUser) {
+    if (user.email === currentUserEmail) {
+      return
+    }
+
+    const confirmed = window.confirm(`Switch into ${getFullName(user)} (${user.email}) for testing?`)
+
+    if (!confirmed) {
+      return
+    }
+
+    setFeedback(null)
+    setSwitchingEmail(user.email)
+
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/admin/act-as", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email: user.email }),
+        })
+
+        const payload = (await response.json()) as {
+          ok?: boolean
+          redirectTo?: string
+          error?: string
+        }
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || "Unable to switch user.")
+        }
+
+        window.location.assign(payload.redirectTo || "/dashboard")
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to switch user.",
+        })
+        setSwitchingEmail(null)
       }
     })
   }
@@ -316,8 +353,8 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-700">Testing reset</p>
             <h2 className="mt-2 text-2xl font-bold text-slate-900">Reset workflow data</h2>
             <p className="mt-2 max-w-3xl text-sm text-slate-700">
-              Delete all applications, properties, property images, and non-preserved users so you can re-test flows from a clean state.
-              Mike@rentsimple.co.uk and the current admin account are always preserved.
+              Delete all applications, properties, and property images so you can re-test flows from a clean state.
+              All user accounts are preserved.
             </p>
           </div>
           <button
@@ -611,14 +648,24 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                   </td>
                   <td className="px-4 py-4 text-sm text-slate-600">{new Date(user.createdAt).toLocaleDateString()}</td>
                   <td className="px-4 py-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() => saveUser(user)}
-                      disabled={isCurrentAdmin || (isPending && savingEmail === user.email)}
-                      className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isCurrentAdmin ? "Current admin" : isPending && savingEmail === user.email ? "Saving..." : "Save"}
-                    </button>
+                    <div className="inline-flex flex-col items-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => saveUser(user)}
+                        disabled={isCurrentAdmin || (isPending && savingEmail === user.email)}
+                        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isCurrentAdmin ? "Current admin" : isPending && savingEmail === user.email ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => actAsUser(user)}
+                        disabled={isCurrentAdmin || (isPending && switchingEmail === user.email)}
+                        className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isCurrentAdmin ? "Current admin" : isPending && switchingEmail === user.email ? "Switching..." : "Act as"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
                   )
