@@ -22,6 +22,65 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## API Pagination
+
+The main list APIs now support two pagination modes.
+
+Offset mode:
+
+```text
+GET /api/properties?page=1&pageSize=25
+GET /api/applications?page=2&pageSize=50
+GET /api/maintenance?page=3&pageSize=25
+```
+
+Continuation mode:
+
+```text
+GET /api/properties?continuationToken=<token>&maxItemCount=50
+GET /api/applications?continuationToken=<token>&maxItemCount=50
+GET /api/maintenance?continuationToken=<token>&maxItemCount=50
+```
+
+Properties and applications also accept landlord scoping when relevant:
+
+```text
+GET /api/properties?landlordId=<landlordId>&page=1&pageSize=25
+GET /api/applications?landlordId=<landlordId>&page=1&pageSize=25
+```
+
+Response shape:
+
+```json
+{
+  "properties": [],
+  "pagination": {
+    "mode": "offset",
+    "page": 1,
+    "pageSize": 25,
+    "totalCount": 250,
+    "totalPages": 10,
+    "hasPreviousPage": false,
+    "hasNextPage": true
+  }
+}
+```
+
+Continuation responses return the next token instead of offset metadata:
+
+```json
+{
+  "applications": [],
+  "pagination": {
+    "mode": "continuation",
+    "continuationToken": "<next-token>",
+    "maxItemCount": 50
+  }
+}
+```
+
+Use offset pagination for user-facing page navigation. Use continuation pagination for deep traversal or background sync jobs against large Cosmos containers.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

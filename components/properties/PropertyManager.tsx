@@ -305,7 +305,10 @@ export default function PropertyManager({
     }))
   }
 
-  async function requestGeneratedDescription(form: PropertyFormState): Promise<{
+  async function requestGeneratedDescription(
+    form: PropertyFormState,
+    options?: { propertyId?: string },
+  ): Promise<{
     shortDescription: string
     longDescription: string
   }> {
@@ -315,6 +318,7 @@ export default function PropertyManager({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        propertyId: options?.propertyId,
         addressLine1: form.addressLine1,
         addressLine2: form.addressLine2,
         city: form.city,
@@ -366,7 +370,7 @@ export default function PropertyManager({
     setIsGeneratingEditDescription(true)
 
     try {
-      const description = await requestGeneratedDescription(editForm)
+      const description = await requestGeneratedDescription(editForm, { propertyId: selectedPropertyId })
       updateEditField("shortDescription", description.shortDescription)
       updateEditField("longDescription", description.longDescription)
       setMessage("Descriptions generated.")

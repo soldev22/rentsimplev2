@@ -4,6 +4,7 @@ import type { AuthUser, PropertyRecord, TenancyApplicationRecord } from "@/lib/a
 import { normalizeEmail } from "@/lib/auth"
 import { deletePropertyImageAssets } from "@/lib/server/blob"
 import { getApplicationsContainer, getPropertiesContainer, getUsersContainer } from "@/lib/server/cosmos"
+import { fetchAllQueryInBatches } from "@/lib/server/pagination"
 
 const PRIMARY_RESET_ADMIN_EMAIL = normalizeEmail("mike@rentsimple.co.uk")
 
@@ -29,10 +30,10 @@ export async function resetWorkspaceForTesting(adminUser: AuthUser) {
     getApplicationsContainer(),
   ])
 
-  const [{ resources: users }, { resources: properties }, { resources: applications }] = await Promise.all([
-    usersContainer.items.query<StoredUserResetRecord>({ query: "SELECT c.id, c.email FROM c" }).fetchAll(),
-    propertiesContainer.items.query<PropertyRecord>({ query: "SELECT * FROM c" }).fetchAll(),
-    applicationsContainer.items.query<TenancyApplicationRecord>({ query: "SELECT * FROM c" }).fetchAll(),
+  const [users, properties, applications] = await Promise.all([
+    fetchAllQueryInBatches<StoredUserResetRecord>(usersContainer, { query: "SELECT c.id, c.email FROM c" }),
+    fetchAllQueryInBatches<PropertyRecord>(propertiesContainer, { query: "SELECT * FROM c" }),
+    fetchAllQueryInBatches<TenancyApplicationRecord>(applicationsContainer, { query: "SELECT * FROM c" }),
   ])
 
   const usersToDelete = users.filter((user) => !preservedEmails.has(normalizeEmail(user.email)))

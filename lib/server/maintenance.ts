@@ -16,6 +16,12 @@ import {
   type PropertyRecord,
 } from "@/lib/auth"
 import { getApplicationsContainer, getMaintenanceContainer, getPropertiesContainer } from "@/lib/server/cosmos"
+import {
+  buildPaginatedResult,
+  fetchQueryPageWithContinuation,
+  normalizePageOptions,
+  type PageOptions,
+} from "@/lib/server/pagination"
 import { listPropertiesForUser } from "@/lib/server/properties"
 
 type CreateMaintenanceIssueInput = {
@@ -212,36 +218,157 @@ function syncAccreditationChecklist(
 }
 
 export async function listMaintenanceIssuesForUser(user: AuthUser) {
+  const paged = await listMaintenanceIssuesForUserPage(user, { page: 1, pageSize: 1000 })
+  return paged.items
+}
+
+export async function listMaintenanceIssuesForUserPage(user: AuthUser, options?: PageOptions) {
   assertMaintenanceUser(user)
 
   const role = getUserRole(user)
   const container = await getMaintenanceContainer()
-  const { resources } = await container.items.query<MaintenanceIssueRecord>({ query: "SELECT * FROM c" }).fetchAll()
+  const { page, pageSize, offset } = normalizePageOptions(options, { defaultPageSize: 25, maxPageSize: 100 })
+
+  const runPagedQuery = async (whereClause: string, parameters: Array<{ name: string; value: string }>) => {
+    const countQuery = `SELECT VALUE COUNT(1) FROM c${whereClause}`
+    const dataQuery = `SELECT * FROM c${whereClause} ORDER BY c.reportedAt DESC OFFSET ${offset} LIMIT ${pageSize}`
+    const [{ resources: countRows }, { resources }] = await Promise.all([
+      container.items.query<number>({ query: countQuery, parameters }).fetchAll(),
+      container.items.query<MaintenanceIssueRecord>({ query: dataQuery, parameters }).fetchAll(),
+    ])
+
+    const items = resources.sort((left, right) => Date.parse(right.reportedAt) - Date.parse(left.reportedAt))
+    return buildPaginatedResult(items, countRows[0] ?? 0, page, pageSize)
+  }
 
   if (role === "builder") {
-    return resources
-      .filter(
-        (issue) => issue.status === "bidding_open" || issue.selectedBuilderId === user.id || issue.bids.some((bid) => bid.builderId === user.id),
-      )
-      .sort((left, right) => Date.parse(right.reportedAt) - Date.parse(left.reportedAt))
+    return runPagedQuery(
+      " WHERE c.status = @biddingOpen OR c.selectedBuilderId = @builderId OR ARRAY_CONTAINS(c.bids, {\"builderId\": @builderId}, true)",
+      [
+        { name: "@biddingOpen", value: "bidding_open" },
+        { name: "@builderId", value: user.id },
+      ],
+    )
   }
 
   if (role === "tenant") {
     const accessiblePropertyIds = await listActiveTenantPropertyIds(user)
-    return resources
-      .filter((issue) => accessiblePropertyIds.has(issue.propertyId) && issue.tenantId === user.id)
-      .sort((left, right) => Date.parse(right.reportedAt) - Date.parse(left.reportedAt))
+
+    if (accessiblePropertyIds.size === 0) {
+      return buildPaginatedResult([] as MaintenanceIssueRecord[], 0, page, pageSize)
+    }
+
+    const parameters = [...accessiblePropertyIds].map((propertyId, index) => ({ name: `@propertyId${index}`, value: propertyId }))
+    const inClause = parameters.map((parameter) => parameter.name).join(", ")
+    return runPagedQuery(` WHERE c.tenantId = @tenantId AND c.propertyId IN (${inClause})`, [
+      { name: "@tenantId", value: user.id },
+      ...parameters,
+    ])
   }
 
   const accessiblePropertyIds = await getAccessiblePropertyIds(user)
 
   if (!accessiblePropertyIds) {
-    return []
+    return buildPaginatedResult([] as MaintenanceIssueRecord[], 0, page, pageSize)
   }
 
-  return resources
-    .filter((issue) => accessiblePropertyIds.has(issue.propertyId))
-    .sort((left, right) => Date.parse(right.reportedAt) - Date.parse(left.reportedAt))
+  const propertyIds = [...accessiblePropertyIds]
+
+  if (propertyIds.length === 0) {
+    return buildPaginatedResult([] as MaintenanceIssueRecord[], 0, page, pageSize)
+  }
+
+  const parameters = propertyIds.map((propertyId, index) => ({ name: `@propertyId${index}`, value: propertyId }))
+  const inClause = parameters.map((parameter) => parameter.name).join(", ")
+  return runPagedQuery(` WHERE c.propertyId IN (${inClause})`, parameters)
+}
+
+export async function listMaintenanceIssuesForUserByContinuation(
+  user: AuthUser,
+  options?: {
+    continuationToken?: string
+    maxItemCount?: number
+  },
+) {
+  assertMaintenanceUser(user)
+
+  const role = getUserRole(user)
+  const container = await getMaintenanceContainer()
+  const maxItemCount = Math.max(1, Math.min(options?.maxItemCount ?? 50, 200))
+
+  const runContinuationQuery = async (whereClause: string, parameters: Array<{ name: string; value: string }>) => {
+    const query = `SELECT * FROM c${whereClause} ORDER BY c.reportedAt DESC`
+    const page = await fetchQueryPageWithContinuation<MaintenanceIssueRecord>(
+      container,
+      {
+        query,
+        parameters,
+      },
+      {
+        continuationToken: options?.continuationToken,
+        maxItemCount,
+      },
+    )
+
+    return {
+      items: page.items.sort((left, right) => Date.parse(right.reportedAt) - Date.parse(left.reportedAt)),
+      continuationToken: page.continuationToken,
+      maxItemCount: page.maxItemCount,
+    }
+  }
+
+  if (role === "builder") {
+    return runContinuationQuery(
+      " WHERE c.status = @biddingOpen OR c.selectedBuilderId = @builderId OR ARRAY_CONTAINS(c.bids, {\"builderId\": @builderId}, true)",
+      [
+        { name: "@biddingOpen", value: "bidding_open" },
+        { name: "@builderId", value: user.id },
+      ],
+    )
+  }
+
+  if (role === "tenant") {
+    const accessiblePropertyIds = await listActiveTenantPropertyIds(user)
+
+    if (accessiblePropertyIds.size === 0) {
+      return {
+        items: [] as MaintenanceIssueRecord[],
+        continuationToken: undefined,
+        maxItemCount,
+      }
+    }
+
+    const parameters = [...accessiblePropertyIds].map((propertyId, index) => ({ name: `@propertyId${index}`, value: propertyId }))
+    const inClause = parameters.map((parameter) => parameter.name).join(", ")
+    return runContinuationQuery(` WHERE c.tenantId = @tenantId AND c.propertyId IN (${inClause})`, [
+      { name: "@tenantId", value: user.id },
+      ...parameters,
+    ])
+  }
+
+  const accessiblePropertyIds = await getAccessiblePropertyIds(user)
+
+  if (!accessiblePropertyIds) {
+    return {
+      items: [] as MaintenanceIssueRecord[],
+      continuationToken: undefined,
+      maxItemCount,
+    }
+  }
+
+  const propertyIds = [...accessiblePropertyIds]
+
+  if (propertyIds.length === 0) {
+    return {
+      items: [] as MaintenanceIssueRecord[],
+      continuationToken: undefined,
+      maxItemCount,
+    }
+  }
+
+  const parameters = propertyIds.map((propertyId, index) => ({ name: `@propertyId${index}`, value: propertyId }))
+  const inClause = parameters.map((parameter) => parameter.name).join(", ")
+  return runContinuationQuery(` WHERE c.propertyId IN (${inClause})`, parameters)
 }
 
 export async function listReportableTenantProperties(user: AuthUser) {

@@ -15,6 +15,10 @@ const databaseId = process.env.COSMOSDB_DATABASE?.trim() || "rentsimple"
 const usersContainerId = process.env.COSMOSDB_USERS_CONTAINER?.trim() || "users"
 const propertiesContainerId = process.env.COSMOSDB_PROPERTIES_CONTAINER?.trim() || "properties"
 const applicationsContainerId = process.env.COSMOSDB_APPLICATIONS_CONTAINER?.trim() || "applications"
+const applicationCommunicationsContainerId =
+  process.env.COSMOSDB_APPLICATION_COMMUNICATIONS_CONTAINER?.trim() || "applicationscommunications"
+const auditEventsContainerId = process.env.COSMOSDB_AUDIT_EVENTS_CONTAINER?.trim() || "audit-events"
+const authSecurityContainerId = process.env.COSMOSDB_AUTH_SECURITY_CONTAINER?.trim() || "auth-security"
 const maintenanceContainerId = process.env.COSMOSDB_MAINTENANCE_CONTAINER?.trim() || "maintenance"
 
 function createCosmosClient() {
@@ -120,6 +124,27 @@ export async function getApplicationsContainer(): Promise<Container> {
   return createContainerIfNeeded({
     id: applicationsContainerId,
     partitionKeyPath: "/applicantId",
+  })
+}
+
+export async function getApplicationCommunicationsContainer(): Promise<Container> {
+  return createContainerIfNeeded({
+    id: applicationCommunicationsContainerId,
+    partitionKeyPath: "/applicationId",
+  })
+}
+
+export async function getAuditEventsContainer(): Promise<Container> {
+  return createContainerIfNeeded({
+    id: auditEventsContainerId,
+    partitionKeyPath: "/entityKey",
+  })
+}
+
+export async function getAuthSecurityContainer(): Promise<Container> {
+  return createContainerIfNeeded({
+    id: authSecurityContainerId,
+    partitionKeyPath: "/id",
   })
 }
 

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 
 import { isPendingApproval } from "@/lib/auth"
-import { createProperty, listPropertiesForUser } from "@/lib/server/properties"
+import { createProperty, listPropertiesForUserByContinuation, listPropertiesForUserPage } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getSessionUser()
 
   if (!user) {
@@ -15,9 +15,36 @@ export async function GET() {
     return NextResponse.json({ error: "Account pending approval" }, { status: 403 })
   }
 
-  const properties = await listPropertiesForUser(user)
+  const url = new URL(request.url)
+  const page = Number.isFinite(Number(url.searchParams.get("page"))) ? Number(url.searchParams.get("page")) : 1
+  const pageSize = Number.isFinite(Number(url.searchParams.get("pageSize")))
+    ? Number(url.searchParams.get("pageSize"))
+    : 25
+  const landlordId = url.searchParams.get("landlordId") ?? undefined
+  const continuationToken = url.searchParams.get("continuationToken") ?? undefined
+  const maxItemCount = Number.isFinite(Number(url.searchParams.get("maxItemCount")))
+    ? Number(url.searchParams.get("maxItemCount"))
+    : 50
 
-  return NextResponse.json({ properties })
+  if (continuationToken) {
+    const continuationPage = await listPropertiesForUserByContinuation(user, landlordId, {
+      continuationToken,
+      maxItemCount,
+    })
+
+    return NextResponse.json({
+      properties: continuationPage.items,
+      pagination: {
+        mode: "continuation",
+        continuationToken: continuationPage.continuationToken,
+        maxItemCount: continuationPage.maxItemCount,
+      },
+    })
+  }
+
+  const paged = await listPropertiesForUserPage(user, landlordId, { page, pageSize })
+
+  return NextResponse.json({ properties: paged.items, pagination: { mode: "offset", ...paged } })
 }
 
 export async function POST(request: Request) {

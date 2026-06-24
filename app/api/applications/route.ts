@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server"
 
-import { createTenancyApplication, listApplicationsForApplicant, listApplicationsForReview } from "@/lib/server/applications"
+import {
+  createTenancyApplication,
+  listApplicationsForApplicantByContinuation,
+  listApplicationsForApplicantPage,
+  listApplicationsForReviewByContinuation,
+  listApplicationsForReviewPage,
+} from "@/lib/server/applications"
 import { canReviewTenancyApplications, getUserRole, isPendingApproval } from "@/lib/auth"
 import { getSessionUser } from "@/lib/server/session"
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getSessionUser()
 
   if (!user) {
@@ -16,13 +22,41 @@ export async function GET() {
   }
 
   try {
-    const applications = canReviewTenancyApplications(user)
-      ? await listApplicationsForReview(user)
-      : getUserRole(user) === "applicant"
-        ? await listApplicationsForApplicant(user)
-        : []
+    const url = new URL(request.url)
+    const page = Number.isFinite(Number(url.searchParams.get("page"))) ? Number(url.searchParams.get("page")) : 1
+    const pageSize = Number.isFinite(Number(url.searchParams.get("pageSize")))
+      ? Number(url.searchParams.get("pageSize"))
+      : 25
+    const landlordId = url.searchParams.get("landlordId") ?? undefined
+    const continuationToken = url.searchParams.get("continuationToken") ?? undefined
+    const maxItemCount = Number.isFinite(Number(url.searchParams.get("maxItemCount")))
+      ? Number(url.searchParams.get("maxItemCount"))
+      : 50
 
-    return NextResponse.json({ applications })
+    if (continuationToken) {
+      const continuationPage = canReviewTenancyApplications(user)
+        ? await listApplicationsForReviewByContinuation(user, landlordId, { continuationToken, maxItemCount })
+        : getUserRole(user) === "applicant"
+          ? await listApplicationsForApplicantByContinuation(user, { continuationToken, maxItemCount })
+          : { items: [], continuationToken: undefined, maxItemCount }
+
+      return NextResponse.json({
+        applications: continuationPage.items,
+        pagination: {
+          mode: "continuation",
+          continuationToken: continuationPage.continuationToken,
+          maxItemCount: continuationPage.maxItemCount,
+        },
+      })
+    }
+
+    const paged = canReviewTenancyApplications(user)
+      ? await listApplicationsForReviewPage(user, landlordId, { page, pageSize })
+      : getUserRole(user) === "applicant"
+        ? await listApplicationsForApplicantPage(user, { page, pageSize })
+        : { items: [], page, pageSize, totalCount: 0, totalPages: 1, hasPreviousPage: false, hasNextPage: false }
+
+    return NextResponse.json({ applications: paged.items, pagination: { mode: "offset", ...paged } })
   } catch (error) {
     if (error instanceof Error && error.message === "Forbidden") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })

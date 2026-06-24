@@ -27,10 +27,27 @@ import {
   type TenantCommunicationNotification,
   type TenantCommunicationEntry,
 } from "@/lib/auth"
-import { getApplicationsContainer } from "@/lib/server/cosmos"
+import { writeAuditEvents } from "@/lib/server/audit"
+import { getApplicationCommunicationsContainer, getApplicationsContainer } from "@/lib/server/cosmos"
+import {
+  buildPaginatedResult,
+  fetchQueryPageWithContinuation,
+  normalizePageOptions,
+  type PageOptions,
+} from "@/lib/server/pagination"
 import { deliverTenantCommunicationNotification } from "@/lib/server/notifications"
 import { DEFAULT_AFFORDABILITY_MULTIPLE, getPublicAvailableProperty, listPropertiesForUser } from "@/lib/server/properties"
 import { setUserRoleForWorkflow } from "@/lib/server/users"
+
+const LEGACY_COMMUNICATION_ENTRY_ID = "legacy-communication-notes"
+
+type ApplicationCommunicationRecord = TenantCommunicationEntry & {
+  applicationId: string
+  applicantId: string
+  propertyId: string
+  createdAt: string
+  updatedAt: string
+}
 
 type CreateTenancyApplicationInput = PreScreeningQuestionnaire & {
   propertyId: string
@@ -56,6 +73,24 @@ type ReviewerUpdateInput = Partial<{
   depositProtection: Partial<DepositProtection>
   postMoveInManagement: Partial<PostMoveInManagement>
 }>
+
+const APPLICATION_AUDIT_FIELDS = [
+  { path: "currentStage", action: "stage_changed" },
+  { path: "status", action: "status_changed" },
+  { path: "preScreening", action: "pre_screening_updated" },
+  { path: "preScreeningSummary", action: "pre_screening_summary_updated" },
+  { path: "referencingInstruction", action: "referencing_instruction_updated" },
+  { path: "referencingReport", action: "referencing_report_updated" },
+  { path: "approvalDecision", action: "approval_decision_updated" },
+  { path: "tenancyAgreement", action: "tenancy_agreement_updated" },
+  { path: "applicantChecklist", action: "applicant_checklist_updated" },
+  { path: "preMoveInCompliance", action: "pre_move_in_compliance_updated" },
+  { path: "moveInChecklist", action: "move_in_checklist_updated" },
+  { path: "depositProtection", action: "deposit_protection_updated" },
+  { path: "postMoveInManagement.firstInspectionDate", action: "first_inspection_updated" },
+  { path: "postMoveInManagement.maintenanceLogNotes", action: "maintenance_log_updated" },
+  { path: "postMoveInManagement.communicationLogNotes", action: "communication_notes_updated" },
+] as const
 
 function assertApplicant(user: AuthUser) {
   if (getUserRole(user) !== "applicant") {
@@ -280,6 +315,18 @@ function createDefaultPostMoveInManagement(): PostMoveInManagement {
   }
 }
 
+function createLegacyCommunicationEntry(summary: string): TenantCommunicationEntry {
+  return {
+    id: LEGACY_COMMUNICATION_ENTRY_ID,
+    occurredAt: new Date().toISOString(),
+    channel: "other",
+    direction: "outbound",
+    subject: "Legacy communication notes",
+    summary,
+    recordedByName: "Legacy migration",
+  }
+}
+
 function normalizeCommunicationEntry(entry: Partial<TenantCommunicationEntry> | undefined): TenantCommunicationEntry | null {
   if (!entry) {
     return null
@@ -358,22 +405,29 @@ function normalizeCommunicationEntries(entries: Partial<TenantCommunicationEntry
     .sort((left, right) => Date.parse(right.occurredAt) - Date.parse(left.occurredAt))
 }
 
-function hydratePostMoveInManagement(postMoveInManagement: Partial<PostMoveInManagement> | undefined) {
+function mergeCommunicationEntries(...groups: Array<Partial<TenantCommunicationEntry>[] | undefined>) {
+  const merged = new Map<string, TenantCommunicationEntry>()
+
+  groups.forEach((group) => {
+    normalizeCommunicationEntries(group).forEach((entry) => {
+      merged.set(entry.id, entry)
+    })
+  })
+
+  return normalizeCommunicationEntries([...merged.values()])
+}
+
+function hydratePostMoveInManagement(
+  postMoveInManagement: Partial<PostMoveInManagement> | undefined,
+  options?: { includeLegacyCommunicationEntry?: boolean },
+) {
   const defaults = createDefaultPostMoveInManagement()
   const legacyCommunicationLogNotes =
     typeof postMoveInManagement?.communicationLogNotes === "string" ? postMoveInManagement.communicationLogNotes.trim() : ""
   const communicationEntries = normalizeCommunicationEntries(postMoveInManagement?.communicationEntries)
 
-  if (legacyCommunicationLogNotes && communicationEntries.length === 0) {
-    communicationEntries.push({
-      id: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      channel: "other",
-      direction: "outbound",
-      subject: "Legacy communication notes",
-      summary: legacyCommunicationLogNotes,
-      recordedByName: "Legacy migration",
-    })
+  if (options?.includeLegacyCommunicationEntry !== false && legacyCommunicationLogNotes && communicationEntries.length === 0) {
+    communicationEntries.push(createLegacyCommunicationEntry(legacyCommunicationLogNotes))
   }
 
   return {
@@ -390,6 +444,129 @@ function hydratePostMoveInManagement(postMoveInManagement: Partial<PostMoveInMan
 
 function sortApplications(applications: TenancyApplicationRecord[]) {
   return [...applications].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+}
+
+function getAuditMetadata(application: TenancyApplicationRecord, user: AuthUser) {
+  return {
+    applicantId: application.applicantId,
+    propertyId: application.propertyId,
+    performedByRole: getUserRole(user),
+  }
+}
+
+function getValueAtPath(record: Record<string, unknown>, path: string): unknown {
+  return path.split(".").reduce<unknown>((value, segment) => {
+    if (!value || typeof value !== "object") {
+      return undefined
+    }
+
+    return (value as Record<string, unknown>)[segment]
+  }, record)
+}
+
+function areAuditValuesEqual(left: unknown, right: unknown) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null)
+}
+
+function buildApplicationAuditEvents(
+  previousApplication: TenancyApplicationRecord,
+  nextApplication: TenancyApplicationRecord,
+  user: AuthUser,
+) {
+  return APPLICATION_AUDIT_FIELDS.flatMap(({ path, action }) => {
+    const oldValue = getValueAtPath(previousApplication as unknown as Record<string, unknown>, path)
+    const newValue = getValueAtPath(nextApplication as unknown as Record<string, unknown>, path)
+
+    if (areAuditValuesEqual(oldValue, newValue)) {
+      return []
+    }
+
+    return [
+      {
+        entityType: "application",
+        entityId: nextApplication.id,
+        action,
+        fieldPath: path,
+        oldValue,
+        newValue,
+        performedBy: user.email,
+        metadata: getAuditMetadata(nextApplication, user),
+        timestamp: nextApplication.updatedAt,
+      },
+    ]
+  })
+}
+
+function buildCommunicationAuditEvents(
+  previousEntries: TenantCommunicationEntry[],
+  nextEntries: TenantCommunicationEntry[],
+  application: TenancyApplicationRecord,
+  user: AuthUser,
+) {
+  const previousEntriesById = new Map(previousEntries.map((entry) => [entry.id, entry]))
+  const nextEntriesById = new Map(nextEntries.map((entry) => [entry.id, entry]))
+  const metadata = getAuditMetadata(application, user)
+  const timestamp = application.updatedAt
+  const events: Array<{
+    entityType: string
+    entityId: string
+    action: string
+    fieldPath: string
+    oldValue?: TenantCommunicationEntry
+    newValue?: TenantCommunicationEntry
+    performedBy: string
+    metadata: ReturnType<typeof getAuditMetadata>
+    timestamp: string
+  }> = []
+
+  nextEntries.forEach((entry) => {
+    const previousEntry = previousEntriesById.get(entry.id)
+
+    if (!previousEntry) {
+      events.push({
+        entityType: "application",
+        entityId: application.id,
+        action: "communication_entry_added",
+        fieldPath: `postMoveInManagement.communicationEntries.${entry.id}`,
+        newValue: entry,
+        performedBy: user.email,
+        metadata,
+        timestamp,
+      })
+      return
+    }
+
+    if (!areAuditValuesEqual(previousEntry, entry)) {
+      events.push({
+        entityType: "application",
+        entityId: application.id,
+        action: "communication_entry_updated",
+        fieldPath: `postMoveInManagement.communicationEntries.${entry.id}`,
+        oldValue: previousEntry,
+        newValue: entry,
+        performedBy: user.email,
+        metadata,
+        timestamp,
+      })
+    }
+  })
+
+  previousEntries.forEach((entry) => {
+    if (!nextEntriesById.has(entry.id)) {
+      events.push({
+        entityType: "application",
+        entityId: application.id,
+        action: "communication_entry_deleted",
+        fieldPath: `postMoveInManagement.communicationEntries.${entry.id}`,
+        oldValue: entry,
+        performedBy: user.email,
+        metadata,
+        timestamp,
+      })
+    }
+  })
+
+  return events
 }
 
 function mergeTenancyDocumentTracking(
@@ -480,8 +657,143 @@ function hydrateStoredApplication(application: TenancyApplicationRecord): Tenanc
       creditCheckConsentGivenAt: application.preScreening?.creditCheckConsentGivenAt ?? "",
       creditCheckConsentVersion: application.preScreening?.creditCheckConsentVersion ?? "tenant-credit-check-consent-v1",
     }),
-    postMoveInManagement: hydratePostMoveInManagement(application.postMoveInManagement),
+    postMoveInManagement: hydratePostMoveInManagement(application.postMoveInManagement, {
+      includeLegacyCommunicationEntry: false,
+    }),
   }
+}
+
+async function listStoredCommunicationRecordsByApplicationIds(applicationIds: string[]) {
+  if (applicationIds.length === 0) {
+    return [] as ApplicationCommunicationRecord[]
+  }
+
+  const container = await getApplicationCommunicationsContainer()
+  const { resources } = await container.items
+    .query<ApplicationCommunicationRecord>({
+      query: "SELECT * FROM c WHERE ARRAY_CONTAINS(@applicationIds, c.applicationId)",
+      parameters: [{ name: "@applicationIds", value: applicationIds }],
+    })
+    .fetchAll()
+
+  return resources
+}
+
+async function listStoredCommunicationEntriesByApplicationId(applicationIds: string[]) {
+  const records = await listStoredCommunicationRecordsByApplicationIds(applicationIds)
+  const groupedEntries = new Map<string, TenantCommunicationEntry[]>()
+
+  records.forEach((record) => {
+    const existingEntries = groupedEntries.get(record.applicationId) ?? []
+    existingEntries.push({
+      id: record.id,
+      occurredAt: record.occurredAt,
+      channel: record.channel,
+      direction: record.direction,
+      subject: record.subject,
+      summary: record.summary,
+      recordedByName: record.recordedByName,
+      notification: record.notification,
+    })
+    groupedEntries.set(record.applicationId, existingEntries)
+  })
+
+  groupedEntries.forEach((entries, applicationId) => {
+    groupedEntries.set(applicationId, normalizeCommunicationEntries(entries))
+  })
+
+  return groupedEntries
+}
+
+async function hydrateApplicationsWithCommunications(applications: TenancyApplicationRecord[]) {
+  if (applications.length === 0) {
+    return [] as TenancyApplicationRecord[]
+  }
+
+  const hydratedApplications = applications.map(hydrateStoredApplication)
+  const entriesByApplicationId = await listStoredCommunicationEntriesByApplicationId(
+    hydratedApplications.map((application) => application.id),
+  )
+
+  return hydratedApplications.map((application) => {
+    const mergedEntries = mergeCommunicationEntries(
+      application.postMoveInManagement.communicationEntries,
+      entriesByApplicationId.get(application.id),
+    )
+    const nextEntries =
+      mergedEntries.length > 0 || !application.postMoveInManagement.communicationLogNotes
+        ? mergedEntries
+        : [createLegacyCommunicationEntry(application.postMoveInManagement.communicationLogNotes)]
+
+    return {
+      ...application,
+      postMoveInManagement: {
+        ...application.postMoveInManagement,
+        communicationEntries: nextEntries,
+      },
+    }
+  })
+}
+
+async function hydrateApplicationWithCommunications(application: TenancyApplicationRecord | null) {
+  if (!application) {
+    return null
+  }
+
+  const [hydratedApplication] = await hydrateApplicationsWithCommunications([application])
+  return hydratedApplication ?? null
+}
+
+function stripStoredCommunicationEntries(application: TenancyApplicationRecord): TenancyApplicationRecord {
+  return {
+    ...application,
+    postMoveInManagement: {
+      ...hydratePostMoveInManagement(application.postMoveInManagement, {
+        includeLegacyCommunicationEntry: false,
+      }),
+      communicationEntries: [],
+    },
+  }
+}
+
+function isNotFoundError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: number }).code === 404
+}
+
+async function syncStoredCommunicationEntries(application: TenancyApplicationRecord, entries: TenantCommunicationEntry[]) {
+  const container = await getApplicationCommunicationsContainer()
+  const existingRecords = await listStoredCommunicationRecordsByApplicationIds([application.id])
+  const existingById = new Map(existingRecords.map((record) => [record.id, record]))
+  const now = new Date().toISOString()
+  const nextEntries = mergeCommunicationEntries(entries)
+  const nextRecords: ApplicationCommunicationRecord[] = nextEntries.map((entry) => {
+    const existingRecord = existingById.get(entry.id)
+
+    return {
+      ...entry,
+      applicationId: application.id,
+      applicantId: application.applicantId,
+      propertyId: application.propertyId,
+      createdAt: existingRecord?.createdAt ?? now,
+      updatedAt: now,
+    }
+  })
+  const nextIds = new Set(nextRecords.map((record) => record.id))
+
+  await Promise.all(nextRecords.map((record) => container.items.upsert(record)))
+  await Promise.all(
+    existingRecords
+      .filter((record) => !nextIds.has(record.id))
+      .map((record) =>
+        container.item(record.id, record.applicationId).delete().catch((error: unknown) => {
+          if (!isNotFoundError(error)) {
+            throw error
+          }
+        }),
+      ),
+  )
+
+  return nextEntries
 }
 
 async function getApplicationById(id: string) {
@@ -493,21 +805,66 @@ async function getApplicationById(id: string) {
     })
     .fetchAll()
 
-  return resources[0] ? hydrateStoredApplication(resources[0]) : null
+  return hydrateApplicationWithCommunications(resources[0] ?? null)
 }
 
 export async function listApplicationsForApplicant(user: AuthUser) {
+  const paged = await listApplicationsForApplicantPage(user, { page: 1, pageSize: 1000 })
+  return paged.items
+}
+
+export async function listApplicationsForApplicantPage(user: AuthUser, options?: PageOptions) {
   assertApplicant(user)
 
   const container = await getApplicationsContainer()
-  const { resources } = await container.items
-    .query<TenancyApplicationRecord>({
-      query: "SELECT * FROM c WHERE c.applicantId = @applicantId",
-      parameters: [{ name: "@applicantId", value: user.id }],
-    })
-    .fetchAll()
+  const { page, pageSize, offset } = normalizePageOptions(options, { defaultPageSize: 25, maxPageSize: 100 })
+  const countQuery = "SELECT VALUE COUNT(1) FROM c WHERE c.applicantId = @applicantId"
+  const dataQuery = `SELECT * FROM c WHERE c.applicantId = @applicantId ORDER BY c.createdAt DESC OFFSET ${offset} LIMIT ${pageSize}`
 
-  return sortApplications(resources.map(hydrateStoredApplication))
+  const [{ resources: countRows }, { resources }] = await Promise.all([
+    container.items
+      .query<number>({
+        query: countQuery,
+        parameters: [{ name: "@applicantId", value: user.id }],
+      })
+      .fetchAll(),
+    container.items
+      .query<TenancyApplicationRecord>({
+        query: dataQuery,
+        parameters: [{ name: "@applicantId", value: user.id }],
+      })
+      .fetchAll(),
+  ])
+
+  const hydratedApplications = await hydrateApplicationsWithCommunications(resources)
+  return buildPaginatedResult(sortApplications(hydratedApplications), countRows[0] ?? 0, page, pageSize)
+}
+
+export async function listApplicationsForApplicantByContinuation(
+  user: AuthUser,
+  options?: {
+    continuationToken?: string
+    maxItemCount?: number
+  },
+) {
+  assertApplicant(user)
+
+  const container = await getApplicationsContainer()
+  const page = await fetchQueryPageWithContinuation<TenancyApplicationRecord>(
+    container,
+    {
+      query: "SELECT * FROM c WHERE c.applicantId = @applicantId ORDER BY c.createdAt DESC",
+      parameters: [{ name: "@applicantId", value: user.id }],
+    },
+    options,
+  )
+  const hydratedApplications = await hydrateApplicationsWithCommunications(page.items)
+
+  return {
+    items: sortApplications(hydratedApplications),
+    continuationToken: page.continuationToken,
+    maxItemCount: page.maxItemCount,
+  }
 }
 
 export async function getApplicationForApplicant(user: AuthUser, applicationId: string) {
@@ -523,23 +880,111 @@ export async function getApplicationForApplicant(user: AuthUser, applicationId: 
 }
 
 export async function listApplicationsForReview(user: AuthUser, landlordId?: string) {
+  const paged = await listApplicationsForReviewPage(user, landlordId, { page: 1, pageSize: 1000 })
+  return paged.items
+}
+
+export async function listApplicationsForReviewPage(user: AuthUser, landlordId?: string, options?: PageOptions) {
   assertReviewer(user)
 
   const container = await getApplicationsContainer()
-  const { resources } = await container.items
-    .query<TenancyApplicationRecord>({
-      query: "SELECT * FROM c",
-    })
-    .fetchAll()
+  const { page, pageSize, offset } = normalizePageOptions(options, { defaultPageSize: 25, maxPageSize: 100 })
+  const role = getUserRole(user)
 
-  if (getUserRole(user) === "admin" && !landlordId) {
-    return sortApplications(resources.map(hydrateStoredApplication))
+  if (role === "admin" && !landlordId) {
+    const [{ resources: countRows }, { resources }] = await Promise.all([
+      container.items.query<number>({ query: "SELECT VALUE COUNT(1) FROM c" }).fetchAll(),
+      container.items
+        .query<TenancyApplicationRecord>({
+          query: `SELECT * FROM c ORDER BY c.createdAt DESC OFFSET ${offset} LIMIT ${pageSize}`,
+        })
+        .fetchAll(),
+    ])
+
+    const hydratedApplications = await hydrateApplicationsWithCommunications(resources)
+    return buildPaginatedResult(sortApplications(hydratedApplications), countRows[0] ?? 0, page, pageSize)
   }
 
   const accessibleProperties = await listPropertiesForUser(user, landlordId)
-  const propertyIds = new Set(accessibleProperties.map((property) => property.id))
+  const propertyIds = [...new Set(accessibleProperties.map((property) => property.id))]
 
-  return sortApplications(resources.map(hydrateStoredApplication).filter((application) => propertyIds.has(application.propertyId)))
+  if (propertyIds.length === 0) {
+    return buildPaginatedResult([] as TenancyApplicationRecord[], 0, page, pageSize)
+  }
+
+  const parameters = propertyIds.map((propertyId, index) => ({ name: `@propertyId${index}`, value: propertyId }))
+  const inClause = parameters.map((parameter) => parameter.name).join(", ")
+  const whereClause = ` WHERE c.propertyId IN (${inClause})`
+  const countQuery = `SELECT VALUE COUNT(1) FROM c${whereClause}`
+  const dataQuery = `SELECT * FROM c${whereClause} ORDER BY c.createdAt DESC OFFSET ${offset} LIMIT ${pageSize}`
+
+  const [{ resources: countRows }, { resources }] = await Promise.all([
+    container.items.query<number>({ query: countQuery, parameters }).fetchAll(),
+    container.items.query<TenancyApplicationRecord>({ query: dataQuery, parameters }).fetchAll(),
+  ])
+
+  const hydratedApplications = await hydrateApplicationsWithCommunications(resources)
+  return buildPaginatedResult(sortApplications(hydratedApplications), countRows[0] ?? 0, page, pageSize)
+}
+
+export async function listApplicationsForReviewByContinuation(
+  user: AuthUser,
+  landlordId?: string,
+  options?: {
+    continuationToken?: string
+    maxItemCount?: number
+  },
+) {
+  assertReviewer(user)
+
+  const container = await getApplicationsContainer()
+  const role = getUserRole(user)
+
+  if (role === "admin" && !landlordId) {
+    const page = await fetchQueryPageWithContinuation<TenancyApplicationRecord>(
+      container,
+      {
+        query: "SELECT * FROM c ORDER BY c.createdAt DESC",
+      },
+      options,
+    )
+    const hydratedApplications = await hydrateApplicationsWithCommunications(page.items)
+
+    return {
+      items: sortApplications(hydratedApplications),
+      continuationToken: page.continuationToken,
+      maxItemCount: page.maxItemCount,
+    }
+  }
+
+  const accessibleProperties = await listPropertiesForUser(user, landlordId)
+  const propertyIds = [...new Set(accessibleProperties.map((property) => property.id))]
+
+  if (propertyIds.length === 0) {
+    return {
+      items: [] as TenancyApplicationRecord[],
+      continuationToken: undefined,
+      maxItemCount: Math.max(1, Math.min(options?.maxItemCount ?? 50, 200)),
+    }
+  }
+
+  const parameters = propertyIds.map((propertyId, index) => ({ name: `@propertyId${index}`, value: propertyId }))
+  const inClause = parameters.map((parameter) => parameter.name).join(", ")
+  const page = await fetchQueryPageWithContinuation<TenancyApplicationRecord>(
+    container,
+    {
+      query: `SELECT * FROM c WHERE c.propertyId IN (${inClause}) ORDER BY c.createdAt DESC`,
+      parameters,
+    },
+    options,
+  )
+  const hydratedApplications = await hydrateApplicationsWithCommunications(page.items)
+
+  return {
+    items: sortApplications(hydratedApplications),
+    continuationToken: page.continuationToken,
+    maxItemCount: page.maxItemCount,
+  }
 }
 
 export async function createTenancyApplication(user: AuthUser, input: CreateTenancyApplicationInput) {
@@ -614,7 +1059,23 @@ export async function createTenancyApplication(user: AuthUser, input: CreateTena
     postMoveInManagement: createDefaultPostMoveInManagement(),
   }
 
-  await container.items.create(application)
+  await container.items.create(stripStoredCommunicationEntries(application))
+  await writeAuditEvents([
+    {
+      entityType: "application",
+      entityId: application.id,
+      action: "application_created",
+      newValue: {
+        currentStage: application.currentStage,
+        status: application.status,
+        applicantId: application.applicantId,
+        propertyId: application.propertyId,
+      },
+      performedBy: user.email,
+      metadata: getAuditMetadata(application, user),
+      timestamp: application.createdAt,
+    },
+  ])
   return application
 }
 
@@ -690,7 +1151,22 @@ export async function updateApplicationForApplicant(user: AuthUser, applicationI
     }
 
     const container = await getApplicationsContainer()
-    await container.item(nextApplication.id, nextApplication.applicantId).replace(nextApplication)
+    await syncStoredCommunicationEntries(nextApplication, nextApplication.postMoveInManagement.communicationEntries)
+    await container.item(nextApplication.id, nextApplication.applicantId).replace(stripStoredCommunicationEntries(nextApplication))
+    const auditEvents = [
+      ...buildApplicationAuditEvents(existingApplication, nextApplication, user),
+      ...buildCommunicationAuditEvents(
+        existingApplication.postMoveInManagement.communicationEntries,
+        nextApplication.postMoveInManagement.communicationEntries,
+        nextApplication,
+        user,
+      ),
+    ]
+
+    if (auditEvents.length > 0) {
+      await writeAuditEvents(auditEvents)
+    }
+
     return nextApplication
   }
 
@@ -737,7 +1213,22 @@ export async function updateApplicationForApplicant(user: AuthUser, applicationI
   }
 
   const container = await getApplicationsContainer()
-  await container.item(nextApplication.id, nextApplication.applicantId).replace(nextApplication)
+  await syncStoredCommunicationEntries(nextApplication, nextApplication.postMoveInManagement.communicationEntries)
+  await container.item(nextApplication.id, nextApplication.applicantId).replace(stripStoredCommunicationEntries(nextApplication))
+  const auditEvents = [
+    ...buildApplicationAuditEvents(existingApplication, nextApplication, user),
+    ...buildCommunicationAuditEvents(
+      existingApplication.postMoveInManagement.communicationEntries,
+      nextApplication.postMoveInManagement.communicationEntries,
+      nextApplication,
+      user,
+    ),
+  ]
+
+  if (auditEvents.length > 0) {
+    await writeAuditEvents(auditEvents)
+  }
+
   return nextApplication
 }
 
@@ -824,6 +1315,10 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
     nextApplication.postMoveInManagement.communicationEntries.map((entry) =>
       existingCommunicationIds.has(entry.id) ? Promise.resolve(entry) : deliverTenantCommunicationNotification(nextApplication, entry),
     ),
+  )
+  nextApplication.postMoveInManagement.communicationEntries = await syncStoredCommunicationEntries(
+    nextApplication,
+    nextApplication.postMoveInManagement.communicationEntries,
   )
 
   if (nextApplication.tenancyAgreement.agreementSentForSignature && !existingApplication.tenancyAgreement.agreementSentForSignature) {
@@ -915,6 +1410,20 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
   }
 
   const container = await getApplicationsContainer()
-  await container.item(nextApplication.id, nextApplication.applicantId).replace(nextApplication)
+  await container.item(nextApplication.id, nextApplication.applicantId).replace(stripStoredCommunicationEntries(nextApplication))
+  const auditEvents = [
+    ...buildApplicationAuditEvents(existingApplication, nextApplication, user),
+    ...buildCommunicationAuditEvents(
+      existingApplication.postMoveInManagement.communicationEntries,
+      nextApplication.postMoveInManagement.communicationEntries,
+      nextApplication,
+      user,
+    ),
+  ]
+
+  if (auditEvents.length > 0) {
+    await writeAuditEvents(auditEvents)
+  }
+
   return nextApplication
 }

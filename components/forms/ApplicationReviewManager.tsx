@@ -13,10 +13,12 @@ import type {
   TenancyApplicationStatus,
   TenantDecisionOutcome,
 } from "@/lib/auth"
+import type { AuditEventRecord } from "@/lib/types/audit"
 import { downloadTenancyLogPdf, downloadTenancyLogTxt } from "@/lib/utils/tenancy-log-export"
 
 type ApplicationReviewManagerProps = {
   initialApplications: TenancyApplicationRecord[]
+  initialAuditEventsByApplicationId: Record<string, AuditEventRecord[]>
   currentUserDisplayName: string
 }
 
@@ -104,11 +106,63 @@ function formatAuditTimestamp(value?: string) {
   return value ? new Date(value).toLocaleString() : "Not recorded"
 }
 
-export default function ApplicationReviewManager({ initialApplications, currentUserDisplayName }: ApplicationReviewManagerProps) {
+function formatAuditAction(action: string) {
+  return action.replace(/_/g, " ")
+}
+
+function formatAuditValue(value: AuditEventRecord["oldValue"] | AuditEventRecord["newValue"]) {
+  if (value === undefined) {
+    return "Not recorded"
+  }
+
+  if (value === null) {
+    return "Cleared"
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value)
+  }
+
+  return JSON.stringify(value)
+}
+
+function AuditEventCard({ event }: { event: AuditEventRecord }) {
+  return (
+    <article className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="font-semibold capitalize text-slate-900">{formatAuditAction(event.action)}</div>
+          <div className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">{event.fieldPath ?? "application"}</div>
+        </div>
+        <div className="text-xs text-slate-500">
+          {new Date(event.timestamp).toLocaleString()} · {event.performedBy}
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2 lg:grid-cols-2">
+        <div className="rounded-md bg-slate-50 px-3 py-2">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Before</div>
+          <div className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-700">{formatAuditValue(event.oldValue)}</div>
+        </div>
+        <div className="rounded-md bg-emerald-50 px-3 py-2">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">After</div>
+          <div className="mt-1 whitespace-pre-wrap break-words text-xs text-emerald-900">{formatAuditValue(event.newValue)}</div>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+export default function ApplicationReviewManager({
+  initialApplications,
+  initialAuditEventsByApplicationId,
+  currentUserDisplayName,
+}: ApplicationReviewManagerProps) {
   const [applications, setApplications] = useState(initialApplications)
+  const [auditEventsByApplicationId, setAuditEventsByApplicationId] = useState(initialAuditEventsByApplicationId)
   const [feedback, setFeedback] = useState<FeedbackState>({})
   const [communicationDrafts, setCommunicationDrafts] = useState<Record<string, CommunicationDraft>>({})
   const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(initialApplications[0]?.id ?? null)
+  const [fullAuditApplicationId, setFullAuditApplicationId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   function updateApplication(applicationId: string, updater: (application: TenancyApplicationRecord) => TenancyApplicationRecord) {
@@ -143,6 +197,7 @@ export default function ApplicationReviewManager({ initialApplications, currentU
 
         const payload = (await response.json()) as {
           application?: TenancyApplicationRecord
+          auditEvents?: AuditEventRecord[]
           error?: string
         }
 
@@ -153,6 +208,12 @@ export default function ApplicationReviewManager({ initialApplications, currentU
         setApplications((current) =>
           current.map((candidate) => (candidate.id === payload.application?.id ? payload.application : candidate)),
         )
+        if (payload.application && payload.auditEvents) {
+          setAuditEventsByApplicationId((current) => ({
+            ...current,
+            [payload.application!.id]: payload.auditEvents ?? [],
+          }))
+        }
         setFeedback((current) => ({
           ...current,
           [application.id]: { type: "success", message: "Application workflow updated." },
@@ -172,6 +233,11 @@ export default function ApplicationReviewManager({ initialApplications, currentU
   function toggleApplication(applicationId: string) {
     setExpandedApplicationId((current) => (current === applicationId ? null : applicationId))
   }
+
+  const fullAuditApplication = fullAuditApplicationId
+    ? applications.find((application) => application.id === fullAuditApplicationId) ?? null
+    : null
+  const fullAuditEvents = fullAuditApplication ? auditEventsByApplicationId[fullAuditApplication.id] ?? [] : []
 
   function getCommunicationDraft(applicationId: string) {
     return communicationDrafts[applicationId] ?? createCommunicationDraft()
@@ -258,6 +324,7 @@ export default function ApplicationReviewManager({ initialApplications, currentU
       ) : (
         applications.map((application) => {
           const isExpanded = expandedApplicationId === application.id
+          const auditEvents = auditEventsByApplicationId[application.id] ?? []
           const communicationDraft = getCommunicationDraft(application.id)
 
           return (
@@ -1114,6 +1181,41 @@ export default function ApplicationReviewManager({ initialApplications, currentU
                       emptyMessage="No tenant communications have been recorded yet."
                     />
                   </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Dispute audit trail</div>
+                        <p className="mt-1 text-sm text-slate-600">Every saved workflow change is recorded with actor, timestamp, and before/after values.</p>
+                      </div>
+                      <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                        {auditEvents.length} event{auditEvents.length === 1 ? "" : "s"}
+                      </div>
+                    </div>
+
+                    {auditEvents.length === 0 ? (
+                      <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500">
+                        No application audit events have been recorded yet.
+                      </div>
+                    ) : (
+                      <div className="mt-4 space-y-3">
+                        {auditEvents.slice(0, 12).map((event) => (
+                          <AuditEventCard key={event.id} event={event} />
+                        ))}
+                        {auditEvents.length > 12 ? (
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+                              onClick={() => setFullAuditApplicationId(application.id)}
+                            >
+                              View full audit trail
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </section>
             </div>
@@ -1150,6 +1252,37 @@ export default function ApplicationReviewManager({ initialApplications, currentU
           )
         })
       )}
+
+      {fullAuditApplication ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-8">
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700">Full audit trail</div>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-900">{fullAuditApplication.applicantName} · {fullAuditApplication.propertyAddress}</h2>
+                <p className="mt-1 text-sm text-slate-600">Complete saved change history for this tenancy workflow.</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+                onClick={() => setFullAuditApplicationId(null)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="max-h-[calc(90vh-96px)] overflow-y-auto px-6 py-5">
+              <div className="mb-4 rounded-full bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 inline-flex">
+                {fullAuditEvents.length} event{fullAuditEvents.length === 1 ? "" : "s"}
+              </div>
+              <div className="space-y-3">
+                {fullAuditEvents.map((event) => (
+                  <AuditEventCard key={event.id} event={event} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getUserRole, isPendingApproval } from "@/lib/auth"
+import { listAuditEventsForEntity } from "@/lib/server/audit"
 import { getApplicationForApplicant, updateApplicationForApplicant, updateApplicationForReviewer } from "@/lib/server/applications"
 import { getSessionUser } from "@/lib/server/session"
 
@@ -33,7 +34,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Application not found." }, { status: 404 })
     }
 
-    return NextResponse.json({ application })
+    const auditEvents = await listAuditEventsForEntity("application", application.id)
+
+    return NextResponse.json({ application, auditEvents })
   } catch (error) {
     if (error instanceof Error && error.message === "Forbidden") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })

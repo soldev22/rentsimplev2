@@ -11,8 +11,16 @@ import {
   type PropertyImageRecord,
   type PropertyRecord,
 } from "@/lib/auth"
+import { AUDIT_ACTION_TYPES } from "@/lib/types/audit"
+import { writeAuditEvent, writeAuditEvents } from "@/lib/server/audit"
 import { getPropertiesContainer } from "@/lib/server/cosmos"
 import { deletePropertyImageAssets } from "@/lib/server/blob"
+import {
+  buildPaginatedResult,
+  fetchQueryPageWithContinuation,
+  normalizePageOptions,
+  type PageOptions,
+} from "@/lib/server/pagination"
 import { listLandlordDirectoryForUser } from "@/lib/server/users"
 
 export const DEFAULT_AFFORDABILITY_MULTIPLE = 2.5
@@ -317,6 +325,82 @@ function isPublicRentalStatus(status: string) {
   return publicRentalStatuses.includes(status.trim().toLowerCase() as (typeof publicRentalStatuses)[number])
 }
 
+function getPropertyAuditMetadata(property: PropertyRecord, user: AuthUser) {
+  return {
+    ownerId: property.ownerId,
+    propertyStatus: property.status,
+    performedByRole: getUserRole(user),
+  }
+}
+
+function buildPropertyPublishingAuditEvents(
+  previousProperty: PropertyRecord,
+  nextProperty: PropertyRecord,
+  user: AuthUser,
+) {
+  const events: Array<{
+    entityType: string
+    entityId: string
+    action: string
+    performedBy: string
+    fieldPath?: string
+    oldValue?: unknown
+    newValue?: unknown
+    metadata?: Record<string, unknown>
+    timestamp?: string
+  }> = []
+  const metadata = {
+    ...getPropertyAuditMetadata(nextProperty, user),
+    workflow: "publishing",
+  }
+
+  if (
+    previousProperty.shortDescription !== nextProperty.shortDescription ||
+    previousProperty.longDescription !== nextProperty.longDescription
+  ) {
+    events.push({
+      entityType: "property",
+      entityId: nextProperty.id,
+      action: AUDIT_ACTION_TYPES.APPROVED_BY_LANDLORD,
+      fieldPath: "listingDescription",
+      oldValue: {
+        shortDescription: previousProperty.shortDescription,
+        longDescription: previousProperty.longDescription,
+      },
+      newValue: {
+        shortDescription: nextProperty.shortDescription,
+        longDescription: nextProperty.longDescription,
+      },
+      performedBy: user.email,
+      metadata: {
+        ...metadata,
+        approvalSubject: "listing_description",
+      },
+      timestamp: nextProperty.updatedAt,
+    })
+  }
+
+  if (!isPublicRentalStatus(previousProperty.status) && isPublicRentalStatus(nextProperty.status)) {
+    events.push({
+      entityType: "property",
+      entityId: nextProperty.id,
+      action: AUDIT_ACTION_TYPES.EXECUTED_BY_SYSTEM,
+      fieldPath: "status",
+      oldValue: previousProperty.status,
+      newValue: nextProperty.status,
+      performedBy: "system",
+      metadata: {
+        ...metadata,
+        approvedBy: user.email,
+        operation: "publish_property_listing",
+      },
+      timestamp: nextProperty.updatedAt,
+    })
+  }
+
+  return events
+}
+
 async function seedIfEmpty() {
   if (!propertySeedEnabled) {
     return
@@ -370,6 +454,91 @@ export async function listPropertiesForUser(user: AuthUser, landlordId?: string)
   }
 
   return normalizedProperties
+}
+
+export async function listPropertiesForUserPage(user: AuthUser, landlordId?: string, options?: PageOptions) {
+  await seedIfEmpty()
+
+  const container = await getPropertiesContainer()
+  const role = getUserRole(user)
+  const { page, pageSize, offset } = normalizePageOptions(options, { defaultPageSize: 25, maxPageSize: 100 })
+  const ownerFilter = await buildPropertyOwnerFilter(user, landlordId, role)
+  const countQuery = `SELECT VALUE COUNT(1) FROM c${ownerFilter.whereClause}`
+  const dataQuery = `SELECT * FROM c${ownerFilter.whereClause} ORDER BY c.address OFFSET ${offset} LIMIT ${pageSize}`
+
+  const [{ resources: countRows }, { resources }] = await Promise.all([
+    container.items.query<number>({ query: countQuery, parameters: ownerFilter.parameters }).fetchAll(),
+    container.items.query<PropertyRecord>({ query: dataQuery, parameters: ownerFilter.parameters }).fetchAll(),
+  ])
+  const normalizedProperties = resources.map(normalizePropertyRecord)
+  const totalCount = countRows[0] ?? 0
+
+  return buildPaginatedResult(normalizedProperties, totalCount, page, pageSize)
+}
+
+async function buildPropertyOwnerFilter(user: AuthUser, landlordId: string | undefined, role: ReturnType<typeof getUserRole>) {
+  if (role === "admin" || role === "agent") {
+    const accessibleLandlordIds = await getAccessibleLandlordIds(user, landlordId)
+
+    if (role === "admin" && accessibleLandlordIds === null) {
+      return {
+        whereClause: "",
+        parameters: [] as Array<{ name: string; value: string }>,
+      }
+    }
+
+    const ownerIds = [...(accessibleLandlordIds ?? new Set<string>())]
+
+    if (ownerIds.length === 0) {
+      return {
+        whereClause: " WHERE 1 = 0",
+        parameters: [] as Array<{ name: string; value: string }>,
+      }
+    }
+
+    const parameters = ownerIds.map((ownerId, index) => ({ name: `@ownerId${index}`, value: ownerId }))
+    const inClause = parameters.map((parameter) => parameter.name).join(", ")
+
+    return {
+      whereClause: ` WHERE c.ownerId IN (${inClause})`,
+      parameters,
+    }
+  }
+
+  return {
+    whereClause: " WHERE c.ownerId = @ownerId",
+    parameters: [{ name: "@ownerId", value: user.id }],
+  }
+}
+
+export async function listPropertiesForUserByContinuation(
+  user: AuthUser,
+  landlordId?: string,
+  options?: {
+    continuationToken?: string
+    maxItemCount?: number
+  },
+) {
+  await seedIfEmpty()
+
+  const container = await getPropertiesContainer()
+  const role = getUserRole(user)
+  const ownerFilter = await buildPropertyOwnerFilter(user, landlordId, role)
+  const query = `SELECT * FROM c${ownerFilter.whereClause} ORDER BY c.address`
+  const page = await fetchQueryPageWithContinuation<PropertyRecord>(
+    container,
+    {
+      query,
+      parameters: ownerFilter.parameters,
+    },
+    options,
+  )
+
+  return {
+    items: page.items.map(normalizePropertyRecord),
+    continuationToken: page.continuationToken,
+    maxItemCount: page.maxItemCount,
+  }
 }
 
 export async function getPropertyForUser(user: AuthUser, propertyId: string) {
@@ -552,6 +721,13 @@ export async function updateProperty(user: AuthUser, propertyId: string, input: 
   } else {
     await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
   }
+
+  const auditEvents = buildPropertyPublishingAuditEvents(property, nextProperty, user)
+
+  if (auditEvents.length > 0) {
+    await writeAuditEvents(auditEvents)
+  }
+
   return nextProperty
 }
 

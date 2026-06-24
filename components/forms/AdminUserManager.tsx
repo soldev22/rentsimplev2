@@ -34,6 +34,7 @@ const roleOptions: Array<{ value: UserRole; label: string }> = [
 ]
 
 const approvalOptions: Array<{ value: ApprovalStatus; label: string }> = [
+  { value: "pending_verification", label: "Pending verification" },
   { value: "pending_approval", label: "Pending approval" },
   { value: "approved", label: "Approved" },
 ]
@@ -63,7 +64,15 @@ function getRoleBadgeClass(role: UserRole) {
 }
 
 function getApprovalBadgeClass(status: ApprovalStatus) {
-  return status === "approved" ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-900"
+  if (status === "approved") {
+    return "bg-emerald-100 text-emerald-900"
+  }
+
+  if (status === "pending_verification") {
+    return "bg-sky-100 text-sky-900"
+  }
+
+  return "bg-amber-100 text-amber-900"
 }
 
 function formatPreferredContactMethods(methods: AuthUser["applicantProfile"] extends infer Profile
@@ -246,16 +255,16 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
     })
   }
 
-  const pendingCount = users.filter((user) => user.approval_status === "pending_approval").length
-  const approvedCount = users.length - pendingCount
-  const pendingUsers = users.filter((user) => user.approval_status === "pending_approval")
+  const pendingCount = users.filter((user) => user.approval_status !== "approved").length
+  const approvedCount = users.filter((user) => user.approval_status === "approved").length
+  const pendingUsers = users.filter((user) => user.approval_status !== "approved")
   const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase()
   const filteredUsers = users.filter((user) => {
     const matchesView =
       selectedView === "all"
         ? true
         : selectedView === "pending"
-          ? user.approval_status === "pending_approval"
+          ? user.approval_status !== "approved"
           : user.approval_status === "approved"
 
     if (!matchesView) {
@@ -355,7 +364,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                     <div className="mt-1 text-sm text-slate-500">{user.mobile || "No mobile number"}</div>
                   </div>
                   <div className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-amber-900">
-                    Pending approval
+                    {user.approval_status === "pending_verification" ? "Pending verification" : "Pending approval"}
                   </div>
                 </div>
 
@@ -579,7 +588,11 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                   </td>
                   <td className="px-4 py-4">
                     <div className={`mb-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] ${getApprovalBadgeClass(user.approval_status)}`}>
-                      {user.approval_status === "approved" ? "Approved" : "Pending"}
+                      {user.approval_status === "approved"
+                        ? "Approved"
+                        : user.approval_status === "pending_verification"
+                          ? "Pending verification"
+                          : "Pending approval"}
                     </div>
                     <select
                       aria-label={`Approval status for ${user.email}`}

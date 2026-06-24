@@ -33,7 +33,7 @@ export async function PATCH(request: Request) {
     const body = (await request.json()) as {
       email?: string
       role?: "unallocated" | "admin" | "agent" | "landlord" | "tenant" | "applicant" | "builder"
-      approval_status?: "pending_approval" | "approved"
+      approval_status?: "pending_verification" | "pending_approval" | "approved"
       managedByAgentId?: string | null
       notificationProfile?: {
         outboundEmail?: string

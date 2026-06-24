@@ -12,14 +12,32 @@ import {
   getUserRole,
   normalizeEmail,
 } from "@/lib/auth"
+import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/server/auth-email"
+import { consumeAuthChallenge, createAuthChallenge } from "@/lib/server/auth-security"
 import { getUsersContainer } from "@/lib/server/cosmos"
+import {
+  buildPaginatedResult,
+  fetchAllQueryInBatches,
+  fetchQueryPageWithContinuation,
+  normalizePageOptions,
+  type PageOptions,
+} from "@/lib/server/pagination"
 import { hashPassword, verifyPassword } from "@/lib/server/password"
 
 type StoredUser = AuthUser & {
   passwordHash?: string
   sessionTokenHash?: string
   sessionExpiresAt?: string
+  emailVerifiedAt?: string
+  failedLoginAttempts?: number
+  lastFailedLoginAt?: string
+  lockoutUntil?: string
 }
+
+const LOGIN_LOCKOUT_THRESHOLD = 5
+const LOGIN_LOCKOUT_DURATION_MS = 1000 * 60 * 15
+const VERIFICATION_TOKEN_DURATION_MS = 1000 * 60 * 60 * 24
+const PASSWORD_RESET_TOKEN_DURATION_MS = 1000 * 60 * 30
 
 export type LandlordDirectoryEntry = {
   id: string
@@ -32,8 +50,33 @@ function isNotFoundError(error: unknown) {
 }
 
 function sanitizeUser(user: StoredUser): AuthUser {
-  const { passwordHash: _passwordHash, sessionTokenHash: _sessionTokenHash, sessionExpiresAt: _sessionExpiresAt, ...publicUser } = user
+  const {
+    passwordHash: _passwordHash,
+    sessionTokenHash: _sessionTokenHash,
+    sessionExpiresAt: _sessionExpiresAt,
+    emailVerifiedAt: _emailVerifiedAt,
+    failedLoginAttempts: _failedLoginAttempts,
+    lastFailedLoginAt: _lastFailedLoginAt,
+    lockoutUntil: _lockoutUntil,
+    ...publicUser
+  } = user
   return publicUser
+}
+
+function getPostVerificationApprovalStatus(role: UserRole): ApprovalStatus {
+  return role === "applicant" ? "approved" : "pending_approval"
+}
+
+function isUserLocked(storedUser: StoredUser) {
+  return Boolean(storedUser.lockoutUntil && Date.parse(storedUser.lockoutUntil) > Date.now())
+}
+
+function getLockoutRetryAfterSeconds(storedUser: StoredUser) {
+  if (!storedUser.lockoutUntil) {
+    return null
+  }
+
+  return Math.max(1, Math.ceil((Date.parse(storedUser.lockoutUntil) - Date.now()) / 1000))
 }
 
 function getFullName(user: Pick<AuthUser, "first_name" | "last_name" | "email">) {
@@ -190,9 +233,9 @@ export async function createUser(input: {
   const normalizedEmail = normalizeEmail(input.email)
   const existingUser = await readStoredUser(normalizedEmail)
   const requestedRole = input.requestedRole === "applicant" ? "applicant" : "unallocated"
-  const requestedApprovalStatus = requestedRole === "applicant" ? "approved" : "pending_approval"
+  const requestedApprovalStatus: ApprovalStatus = "pending_verification"
 
-  if (existingUser && !hasLocalPassword(existingUser)) {
+  if (existingUser && (!hasLocalPassword(existingUser) || existingUser.approval_status === "pending_verification")) {
     const updatedUser: StoredUser = {
       ...existingUser,
       email: normalizedEmail,
@@ -203,6 +246,10 @@ export async function createUser(input: {
       approval_status: requestedApprovalStatus,
       updatedAt: new Date().toISOString(),
       passwordHash: hashPassword(input.password),
+      emailVerifiedAt: undefined,
+      failedLoginAttempts: 0,
+      lastFailedLoginAt: undefined,
+      lockoutUntil: undefined,
     }
 
     await writeStoredUser(updatedUser)
@@ -236,19 +283,135 @@ export async function createUser(input: {
 export async function authenticateUser(input: { email: string; password: string }) {
   const storedUser = await readStoredUser(input.email)
 
+  if (storedUser && isUserLocked(storedUser)) {
+    return {
+      user: null,
+      error: "This account is temporarily locked after repeated failed sign-in attempts.",
+      errorCode: "AccountLocked" as const,
+      retryAfterSeconds: getLockoutRetryAfterSeconds(storedUser),
+    }
+  }
+
+  if (storedUser?.approval_status === "pending_verification") {
+    return {
+      user: null,
+      error: "Verify your email address before signing in.",
+      errorCode: "EmailVerificationRequired" as const,
+      retryAfterSeconds: null,
+    }
+  }
+
   if (storedUser && !hasLocalPassword(storedUser)) {
     return {
       user: null,
       error: "This account still needs a local password. Register again with the same email to finish setting one.",
+      errorCode: "PasswordUnavailable" as const,
+      retryAfterSeconds: null,
     }
   }
 
   if (!storedUser?.passwordHash || !verifyPassword(input.password, storedUser.passwordHash)) {
+    if (storedUser) {
+      storedUser.failedLoginAttempts = (storedUser.failedLoginAttempts ?? 0) + 1
+      storedUser.lastFailedLoginAt = new Date().toISOString()
+
+      if (storedUser.failedLoginAttempts >= LOGIN_LOCKOUT_THRESHOLD) {
+        storedUser.lockoutUntil = new Date(Date.now() + LOGIN_LOCKOUT_DURATION_MS).toISOString()
+      }
+
+      storedUser.updatedAt = new Date().toISOString()
+      await writeStoredUser(storedUser)
+    }
+
     return {
       user: null,
       error: "We could not sign you in with that email and password. Check the details or register an account first.",
+      errorCode: storedUser?.lockoutUntil ? ("AccountLocked" as const) : ("InvalidCredentials" as const),
+      retryAfterSeconds: storedUser?.lockoutUntil ? getLockoutRetryAfterSeconds(storedUser) : null,
     }
   }
+
+  if (storedUser.failedLoginAttempts || storedUser.lockoutUntil || storedUser.lastFailedLoginAt) {
+    storedUser.failedLoginAttempts = 0
+    storedUser.lockoutUntil = undefined
+    storedUser.lastFailedLoginAt = undefined
+    storedUser.updatedAt = new Date().toISOString()
+    await writeStoredUser(storedUser)
+  }
+
+  return { user: sanitizeUser(storedUser), error: null, errorCode: null, retryAfterSeconds: null }
+}
+
+export async function sendVerificationForUser(email: string, appOrigin: string) {
+  const storedUser = await readStoredUser(email)
+
+  if (!storedUser || storedUser.approval_status !== "pending_verification") {
+    return { verificationUrl: null, delivery: null }
+  }
+
+  const challenge = await createAuthChallenge(storedUser.email, "verification", VERIFICATION_TOKEN_DURATION_MS)
+  const verificationUrl = `${appOrigin}/login?mode=verify&token=${challenge.token}`
+  const delivery = await sendVerificationEmail(storedUser.email, verificationUrl)
+
+  return { verificationUrl, delivery }
+}
+
+export async function verifyUserEmail(token: string) {
+  const consumed = await consumeAuthChallenge("verification", token)
+
+  if (!consumed.email || consumed.error) {
+    return { user: null, error: "InvalidOrExpiredToken" as const }
+  }
+
+  const storedUser = await readStoredUser(consumed.email)
+
+  if (!storedUser) {
+    return { user: null, error: "InvalidOrExpiredToken" as const }
+  }
+
+  storedUser.approval_status = getPostVerificationApprovalStatus(storedUser.role)
+  storedUser.emailVerifiedAt = new Date().toISOString()
+  storedUser.updatedAt = new Date().toISOString()
+  await writeStoredUser(storedUser)
+
+  return { user: sanitizeUser(storedUser), error: null }
+}
+
+export async function requestPasswordReset(email: string, appOrigin: string) {
+  const storedUser = await readStoredUser(email)
+
+  if (!storedUser || !storedUser.passwordHash || storedUser.approval_status === "pending_verification") {
+    return { resetUrl: null, delivery: null }
+  }
+
+  const challenge = await createAuthChallenge(storedUser.email, "password_reset", PASSWORD_RESET_TOKEN_DURATION_MS)
+  const resetUrl = `${appOrigin}/login?mode=reset&token=${challenge.token}`
+  const delivery = await sendPasswordResetEmail(storedUser.email, resetUrl)
+
+  return { resetUrl, delivery }
+}
+
+export async function resetPasswordWithToken(token: string, password: string) {
+  const consumed = await consumeAuthChallenge("password_reset", token)
+
+  if (!consumed.email || consumed.error) {
+    return { user: null, error: "InvalidOrExpiredToken" as const }
+  }
+
+  const storedUser = await readStoredUser(consumed.email)
+
+  if (!storedUser) {
+    return { user: null, error: "InvalidOrExpiredToken" as const }
+  }
+
+  storedUser.passwordHash = hashPassword(password)
+  storedUser.failedLoginAttempts = 0
+  storedUser.lastFailedLoginAt = undefined
+  storedUser.lockoutUntil = undefined
+  storedUser.sessionTokenHash = undefined
+  storedUser.sessionExpiresAt = undefined
+  storedUser.updatedAt = new Date().toISOString()
+  await writeStoredUser(storedUser)
 
   return { user: sanitizeUser(storedUser), error: null }
 }
@@ -277,16 +440,50 @@ export async function getUserById(id: string) {
 }
 
 export async function listUsersForAdmin(user: AuthUser) {
+  const paged = await listUsersForAdminPage(user, { page: 1, pageSize: 1000 })
+  return paged.items
+}
+
+export async function listUsersForAdminPage(user: AuthUser, options?: PageOptions) {
   assertAdmin(user)
 
   const container = await getUsersContainer()
-  const { resources } = await container.items
-    .query<StoredUser>({
-      query: "SELECT * FROM c ORDER BY c.createdAt DESC",
-    })
-    .fetchAll()
+  const { page, pageSize, offset } = normalizePageOptions(options, { defaultPageSize: 25, maxPageSize: 100 })
+  const [{ resources: countRows }, { resources }] = await Promise.all([
+    container.items.query<number>({ query: "SELECT VALUE COUNT(1) FROM c" }).fetchAll(),
+    container.items
+      .query<StoredUser>({
+        query: `SELECT * FROM c ORDER BY c.createdAt DESC OFFSET ${offset} LIMIT ${pageSize}`,
+      })
+      .fetchAll(),
+  ])
 
-  return resources.map(sanitizeUser)
+  return buildPaginatedResult(resources.map(sanitizeUser), countRows[0] ?? 0, page, pageSize)
+}
+
+export async function listUsersForAdminByContinuation(
+  user: AuthUser,
+  options?: {
+    continuationToken?: string
+    maxItemCount?: number
+  },
+) {
+  assertAdmin(user)
+
+  const container = await getUsersContainer()
+  const page = await fetchQueryPageWithContinuation<StoredUser>(
+    container,
+    {
+      query: "SELECT * FROM c ORDER BY c.createdAt DESC",
+    },
+    options,
+  )
+
+  return {
+    items: page.items.map(sanitizeUser),
+    continuationToken: page.continuationToken,
+    maxItemCount: page.maxItemCount,
+  }
 }
 
 export async function updateUserForAdmin(
@@ -330,11 +527,9 @@ export async function updateUserForAdmin(
 
 async function listAllUsers() {
   const container = await getUsersContainer()
-  const { resources } = await container.items
-    .query<StoredUser>({
-      query: "SELECT * FROM c",
-    })
-    .fetchAll()
+  const resources = await fetchAllQueryInBatches<StoredUser>(container, {
+    query: "SELECT * FROM c",
+  })
 
   return resources.map(sanitizeUser)
 }

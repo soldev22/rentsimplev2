@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 
-import { canManageProperties, isPendingApproval } from "@/lib/auth"
+import { canManageProperties, getUserRole, isPendingApproval } from "@/lib/auth"
+import { AUDIT_ACTION_TYPES } from "@/lib/types/audit"
+import { writeAuditEvent } from "@/lib/server/audit"
 import { generatePropertyDescription } from "@/lib/server/ai"
+import { getPropertyForUser } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
 
 export async function POST(request: Request) {
@@ -21,6 +24,7 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as {
+      propertyId?: string
       addressLine1?: string
       addressLine2?: string
       city?: string
@@ -50,6 +54,35 @@ export async function POST(request: Request) {
       bathrooms: body.bathrooms,
       monthlyRent: body.monthlyRent,
     })
+
+    const propertyId = typeof body.propertyId === "string" ? body.propertyId.trim() : ""
+
+    if (propertyId) {
+      const property = await getPropertyForUser(user, propertyId)
+
+      if (property) {
+        await writeAuditEvent({
+          entityType: "property",
+          entityId: property.id,
+          action: AUDIT_ACTION_TYPES.SUGGESTED,
+          fieldPath: "listingDescription",
+          oldValue: {
+            shortDescription: property.shortDescription,
+            longDescription: property.longDescription,
+          },
+          newValue: description,
+          performedBy: "system",
+          metadata: {
+            ownerId: property.ownerId,
+            propertyStatus: body.status,
+            requestedBy: user.email,
+            requestedByRole: getUserRole(user),
+            workflow: "publishing",
+            source: "ai_property_description",
+          },
+        })
+      }
+    }
 
     return NextResponse.json(description)
   } catch (error) {

@@ -38,7 +38,12 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
           { name: "Tenants", href: "/dashboard/tenants" },
           { name: "Maintenance", href: "/dashboard/maintenance" },
           { name: "Settings", href: "/dashboard/settings" },
-          ...(displayRole === "admin" ? [{ name: "Users", href: "/dashboard/users" }] : []),
+          ...(displayRole === "admin"
+            ? [
+                { name: "Users", href: "/dashboard/users" },
+                { name: "Audit Log", href: "/dashboard/audit" },
+              ]
+            : []),
         ];
 
   async function handleLogout() {
@@ -149,9 +154,14 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
                 </Link>
               ) : null}
               {displayRole === "admin" ? (
-                <Link href="/dashboard/users" className="hover:text-white">
-                  Users
-                </Link>
+                <>
+                  <Link href="/dashboard/users" className="hover:text-white">
+                    Users
+                  </Link>
+                  <Link href="/dashboard/audit" className="hover:text-white">
+                    Audit Log
+                  </Link>
+                </>
               ) : null}
               {displayRole === "applicant" ? (
                 <Link href="/dashboard/applicant" className="hover:text-white">
