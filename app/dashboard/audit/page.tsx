@@ -140,6 +140,47 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 mb-3">Quick presets</p>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={buildAuditPageHref({
+                page: 1,
+                entityType: "property",
+              })}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+            >
+              Publishing events
+            </Link>
+            <Link
+              href={buildAuditPageHref({
+                page: 1,
+                action: "SUGGESTED",
+              })}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+            >
+              AI suggestions
+            </Link>
+            <Link
+              href={buildAuditPageHref({
+                page: 1,
+                action: "APPROVED_BY_LANDLORD",
+              })}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+            >
+              Landlord approvals
+            </Link>
+            <Link
+              href={buildAuditPageHref({
+                page: 1,
+                action: "EXECUTED_BY_SYSTEM",
+              })}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+            >
+              System execution
+            </Link>
+          </div>
+        </div>
         <form method="get" className="grid gap-4 md:grid-cols-4">
           <label className="block text-sm font-medium text-slate-700">
             Entity type

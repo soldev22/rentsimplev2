@@ -69,6 +69,16 @@ export default async function PropertiesPage({ searchParams }: PropertiesPagePro
         />
       ) : null}
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600 mb-4">
+          {(role === "landlord" || role === "agent") && (
+            <Link
+              href="/dashboard/landlord/bulk-upload"
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              + Bulk Upload
+            </Link>
+          )}
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
           <span>
             Showing {(pagedProperties.page - 1) * pagedProperties.pageSize + 1}-
