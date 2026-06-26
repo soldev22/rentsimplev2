@@ -4,9 +4,11 @@ import Link from "next/link"
 import { useMemo, useState, useTransition } from "react"
 
 import type { ApplicantChecklistSignOff, TenancyApplicationRecord } from "@/lib/auth"
+import type { AuditEventRecord } from "@/lib/types/audit"
 
 type ApplicantTenancyChecklistProps = {
   initialApplication: TenancyApplicationRecord
+  initialAuditEvents: AuditEventRecord[]
 }
 
 type FeedbackState =
@@ -18,6 +20,52 @@ type FeedbackState =
 
 type SignOffFormState = ApplicantChecklistSignOff & {
   agreementSigningCompleted: boolean
+}
+
+type JourneyEvent = {
+  key: string
+  label: string
+  at?: string
+  detail: string
+  status: "complete" | "pending"
+}
+
+function formatDateTime(value?: string) {
+  if (!value) {
+    return "Not recorded"
+  }
+
+  return new Date(value).toLocaleString()
+}
+
+function formatAuditAction(action: string) {
+  return action.replace(/_/g, " ")
+}
+
+function formatAuditValue(value: AuditEventRecord["oldValue"] | AuditEventRecord["newValue"]) {
+  if (value === undefined) {
+    return "Not recorded"
+  }
+
+  if (value === null) {
+    return "Cleared"
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value)
+  }
+
+  return JSON.stringify(value)
+}
+
+function getJourneyTone(status: JourneyEvent["status"]) {
+  return status === "complete"
+    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+    : "border-slate-200 bg-slate-50 text-slate-700"
+}
+
+function getJourneyBadge(status: JourneyEvent["status"]) {
+  return status === "complete" ? "Complete" : "Pending"
 }
 
 function createSignOffFormState(application: TenancyApplicationRecord): SignOffFormState {
@@ -53,8 +101,9 @@ function areRequiredTenancyDocumentsIssued(application: TenancyApplicationRecord
   )
 }
 
-export default function ApplicantTenancyChecklist({ initialApplication }: ApplicantTenancyChecklistProps) {
+export default function ApplicantTenancyChecklist({ initialApplication, initialAuditEvents }: ApplicantTenancyChecklistProps) {
   const [application, setApplication] = useState(initialApplication)
+  const [auditEvents, setAuditEvents] = useState(initialAuditEvents)
   const [formState, setFormState] = useState<SignOffFormState>(() => createSignOffFormState(initialApplication))
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [isOverviewOpen, setIsOverviewOpen] = useState(true)
@@ -130,6 +179,87 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
     [application, canAccessSignOff],
   )
 
+  const journeyEvents = useMemo<JourneyEvent[]>(() => {
+    const events: JourneyEvent[] = [
+      {
+        key: "submitted",
+        label: "Application submitted",
+        at: application.submittedAt,
+        detail: "Applicant pre-screening submission recorded.",
+        status: application.submittedAt ? "complete" : "pending",
+      },
+      {
+        key: "pre-screened",
+        label: "Pre-screening assessed",
+        at: application.preScreeningSummary.assessedAt,
+        detail: `Outcome: ${application.preScreeningSummary.outcome}.`,
+        status: application.preScreeningSummary.assessedAt ? "complete" : "pending",
+      },
+      {
+        key: "decision",
+        label: "Approval decision",
+        at: application.approvalDecision.certificateIssuedAt,
+        detail:
+          application.approvalDecision.outcome === "pending"
+            ? "Decision pending."
+            : `Decision: ${application.approvalDecision.outcome.replaceAll("_", " ")}.`,
+        status: application.approvalDecision.outcome === "pending" ? "pending" : "complete",
+      },
+      {
+        key: "offer-letter",
+        label: "Offer letter issued",
+        at: application.tenancyAgreement.offerLetter.sentAt,
+        detail: application.tenancyAgreement.offerLetter.reference
+          ? `Reference: ${application.tenancyAgreement.offerLetter.reference}.`
+          : "Offer reference not set.",
+        status: application.tenancyAgreement.offerLetter.sent ? "complete" : "pending",
+      },
+      {
+        key: "lease-issued",
+        label: "Lease issued",
+        at: application.tenancyAgreement.leaseDocument.sentAt,
+        detail: `Legal framework: ${application.tenancyAgreement.legalFramework === "england_wales" ? "England and Wales" : application.tenancyAgreement.legalFramework === "scotland" ? "Scotland" : "Not selected"}. Tenancy type: ${application.tenancyAgreement.tenancyType || "Not selected"}.`,
+        status: application.tenancyAgreement.leaseDocument.sent ? "complete" : "pending",
+      },
+      {
+        key: "lease-signed",
+        label: "Lease signed",
+        at: application.tenancyAgreement.leaseDocument.signedCopyReceivedAt || application.tenancyAgreement.agreementSignedAt,
+        detail: "Signed lease confirmation and agreement completion.",
+        status: application.tenancyAgreement.leaseDocument.signedCopyReceived || application.tenancyAgreement.agreementSigned ? "complete" : "pending",
+      },
+      {
+        key: "applicant-signoff",
+        label: "Applicant sign-off",
+        at: application.applicantChecklist.signedAt,
+        detail: application.applicantChecklist.signedFullName
+          ? `Signed by ${application.applicantChecklist.signedFullName}.`
+          : "Applicant sign-off not completed yet.",
+        status: application.applicantChecklist.signedAt ? "complete" : "pending",
+      },
+      {
+        key: "deposit-protected",
+        label: "Deposit protection",
+        at: application.depositProtection.certificateUploaded ? application.updatedAt : undefined,
+        detail: application.depositProtection.protectedWithinThirtyDays
+          ? "Deposit protection marked complete."
+          : "Deposit protection still pending.",
+        status: application.depositProtection.protectedWithinThirtyDays ? "complete" : "pending",
+      },
+      {
+        key: "tenant-active",
+        label: "Tenant activated",
+        at: application.status === "active_tenant" ? application.updatedAt : undefined,
+        detail: application.status === "active_tenant"
+          ? "Applicant transitioned to active tenant."
+          : "Applicant has not transitioned to tenant yet.",
+        status: application.status === "active_tenant" ? "complete" : "pending",
+      },
+    ]
+
+    return events
+  }, [application])
+
   const signOffReady =
     formState.applicationInformationConfirmed &&
     formState.moveInFundsConfirmed &&
@@ -170,6 +300,7 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
 
         const payload = (await response.json()) as {
           application?: TenancyApplicationRecord
+          auditEvents?: AuditEventRecord[]
           error?: string
         }
 
@@ -178,6 +309,9 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
         }
 
         setApplication(payload.application)
+        if (payload.auditEvents) {
+          setAuditEvents(payload.auditEvents)
+        }
         setFormState(createSignOffFormState(payload.application))
         setFeedback({
           type: "success",
@@ -238,6 +372,14 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
             <div className="mt-1 text-sm text-slate-600">
               {application.tenancyAgreement.agreementProvider || "Provider not set yet"}
             </div>
+            <div className="mt-1 text-xs text-slate-500">
+              {application.tenancyAgreement.legalFramework === "england_wales"
+                ? "England and Wales"
+                : application.tenancyAgreement.legalFramework === "scotland"
+                  ? "Scotland"
+                  : "Legal framework not selected"}
+              {application.tenancyAgreement.tenancyType ? ` · ${application.tenancyAgreement.tenancyType}` : ""}
+            </div>
           </div>
           <div className="rounded-xl bg-slate-50 p-4">
             <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Applicant sign-off</div>
@@ -252,6 +394,70 @@ export default function ApplicantTenancyChecklist({ initialApplication }: Applic
           </div>
         </div>
         ) : null}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-semibold text-slate-900">Journey timeline</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Timestamped history of your progress from application through tenancy, including lease and document milestones.
+        </p>
+
+        <div className="mt-6 space-y-3">
+          {journeyEvents.map((event) => (
+            <article key={event.key} className={`rounded-xl border p-4 ${getJourneyTone(event.status)}`}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.14em]">{event.label}</h3>
+                <span className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em]">
+                  {getJourneyBadge(event.status)}
+                </span>
+              </div>
+              <p className="mt-2 text-sm">{event.detail}</p>
+              <p className="mt-1 text-xs opacity-80">{formatDateTime(event.at)}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-semibold text-slate-900">Detailed activity log</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Immutable audit events with actor, timestamp, and before/after values.
+        </p>
+
+        {auditEvents.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            No activity has been recorded yet.
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {auditEvents.map((event) => (
+              <article key={event.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="text-sm font-semibold capitalize text-slate-900">{formatAuditAction(event.action)}</div>
+                    <div className="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">
+                      {event.fieldPath ?? "application"}
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {formatDateTime(event.timestamp)} · {event.performedBy}
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                  <div className="rounded-md bg-white px-3 py-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Before</div>
+                    <div className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-700">{formatAuditValue(event.oldValue)}</div>
+                  </div>
+                  <div className="rounded-md bg-emerald-50 px-3 py-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">After</div>
+                    <div className="mt-1 whitespace-pre-wrap break-words text-xs text-emerald-900">{formatAuditValue(event.newValue)}</div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

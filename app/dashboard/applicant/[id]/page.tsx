@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 
 import ApplicantTenancyChecklist from "@/components/forms/ApplicantTenancyChecklist"
 import { getUserRole, isPendingApproval } from "@/lib/auth"
+import { listAuditEventsForEntity } from "@/lib/server/audit"
 import { getApplicationForApplicant } from "@/lib/server/applications"
 import { getSessionUser } from "@/lib/server/session"
 
@@ -35,5 +36,7 @@ export default async function ApplicantChecklistPage({ params }: ApplicantCheckl
     redirect("/dashboard/applicant")
   }
 
-  return <ApplicantTenancyChecklist initialApplication={application} />
+  const auditEvents = await listAuditEventsForEntity("application", application.id)
+
+  return <ApplicantTenancyChecklist initialApplication={application} initialAuditEvents={auditEvents} />
 }

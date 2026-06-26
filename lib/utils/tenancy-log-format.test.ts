@@ -79,6 +79,7 @@ const application: TenancyApplicationRecord = {
     certificateIssuedAt: "2026-06-06T12:00:00.000Z",
   },
   tenancyAgreement: {
+    legalFramework: "england_wales",
     tenancyType: "AST",
     rentAmount: 1200,
     rentDueDate: "1st",

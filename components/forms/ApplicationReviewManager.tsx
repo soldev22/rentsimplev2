@@ -749,6 +749,42 @@ export default function ApplicationReviewManager({
                 <h3 className="text-lg font-semibold text-slate-900">Agreement and move-in readiness</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <label className="block text-sm font-medium text-slate-700">
+                    Legal framework
+                    <select
+                      className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                      value={application.tenancyAgreement.legalFramework || ""}
+                      onChange={(event) =>
+                        updateApplication(application.id, (current) => {
+                          const legalFramework = event.target.value as TenancyApplicationRecord["tenancyAgreement"]["legalFramework"]
+                          const tenancyType =
+                            legalFramework === "england_wales"
+                              ? current.tenancyAgreement.tenancyType === "PRT"
+                                ? "AST"
+                                : current.tenancyAgreement.tenancyType
+                              : legalFramework === "scotland"
+                                ? current.tenancyAgreement.tenancyType === "AST"
+                                  ? "PRT"
+                                  : current.tenancyAgreement.tenancyType
+                                : current.tenancyAgreement.tenancyType
+
+                          return {
+                            ...current,
+                            tenancyAgreement: {
+                              ...current.tenancyAgreement,
+                              legalFramework,
+                              tenancyType,
+                            },
+                          }
+                        })
+                      }
+                    >
+                      <option value="">Select</option>
+                      <option value="england_wales">England and Wales</option>
+                      <option value="scotland">Scotland</option>
+                    </select>
+                  </label>
+
+                  <label className="block text-sm font-medium text-slate-700">
                     Tenancy type
                     <select
                       className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
@@ -764,8 +800,12 @@ export default function ApplicationReviewManager({
                       }
                     >
                       <option value="">Select</option>
-                      <option value="AST">AST</option>
-                      <option value="PRT">PRT</option>
+                      {(application.tenancyAgreement.legalFramework === "" || application.tenancyAgreement.legalFramework === "england_wales") ? (
+                        <option value="AST">AST</option>
+                      ) : null}
+                      {(application.tenancyAgreement.legalFramework === "" || application.tenancyAgreement.legalFramework === "scotland") ? (
+                        <option value="PRT">PRT</option>
+                      ) : null}
                     </select>
                   </label>
 
@@ -977,6 +1017,8 @@ export default function ApplicationReviewManager({
 
                   <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700 md:col-span-2">
                     <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Agreement audit trail</div>
+                    <div className="mt-2">Legal framework: {application.tenancyAgreement.legalFramework === "england_wales" ? "England and Wales" : application.tenancyAgreement.legalFramework === "scotland" ? "Scotland" : "Not selected"}</div>
+                    <div className="mt-1">Tenancy type: {application.tenancyAgreement.tenancyType || "Not selected"}</div>
                     <div className="mt-2">Offer issued: {formatAuditTimestamp(application.tenancyAgreement.offerLetter.sentAt)}</div>
                     <div className="mt-1">Lease issued: {formatAuditTimestamp(application.tenancyAgreement.leaseDocument.sentAt)}</div>
                     <div className="mt-1">Lease signed copy received: {formatAuditTimestamp(application.tenancyAgreement.leaseDocument.signedCopyReceivedAt)}</div>

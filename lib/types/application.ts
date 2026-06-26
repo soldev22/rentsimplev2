@@ -99,6 +99,7 @@ export type TenancyDocumentTracking = {
 }
 
 export type TenancyAgreementPreparation = {
+  legalFramework: "england_wales" | "scotland" | ""
   tenancyType: "AST" | "PRT" | ""
   rentAmount: number
   rentDueDate: string

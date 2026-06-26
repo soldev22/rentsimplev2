@@ -240,6 +240,7 @@ function createDefaultTenancyDocumentTracking(): TenancyDocumentTracking {
 
 function createDefaultTenancyAgreement(rentAmount: number): TenancyAgreementPreparation {
   return {
+    legalFramework: "",
     tenancyType: "",
     rentAmount,
     rentDueDate: "",
@@ -1339,6 +1340,14 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
 
   if (nextApplication.tenancyAgreement.agreementSentForSignature) {
     nextApplication.tenancyAgreement.leaseDocument.sent = true
+  }
+
+  if (nextApplication.tenancyAgreement.legalFramework === "england_wales" && nextApplication.tenancyAgreement.tenancyType === "PRT") {
+    nextApplication.tenancyAgreement.tenancyType = "AST"
+  }
+
+  if (nextApplication.tenancyAgreement.legalFramework === "scotland" && nextApplication.tenancyAgreement.tenancyType === "AST") {
+    nextApplication.tenancyAgreement.tenancyType = "PRT"
   }
 
   if (nextApplication.tenancyAgreement.agreementSigned) {

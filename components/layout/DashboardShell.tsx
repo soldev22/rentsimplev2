@@ -22,15 +22,18 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
   const navItems =
     displayRole === "applicant"
       ? [
+          { name: "Onboarding", href: "/dashboard/onboarding" },
           { name: "My Applications", href: "/dashboard/applicant" },
           { name: "Settings", href: "/dashboard/settings" },
         ]
       : displayRole === "tenant" || displayRole === "builder"
         ? [
+            { name: "Onboarding", href: "/dashboard/onboarding" },
             { name: "Maintenance", href: "/dashboard/maintenance" },
             { name: "Settings", href: "/dashboard/settings" },
           ]
       : [
+          { name: "Onboarding", href: "/dashboard/onboarding" },
           { name: "Properties", href: "/dashboard/properties" },
           ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
             ? [{ name: "Applications", href: "/dashboard/bookings" }]
@@ -141,6 +144,9 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
             <div className="flex flex-wrap items-center gap-4 text-slate-300">
               <Link href="/dashboard" className="hover:text-white">
                 Overview
+              </Link>
+              <Link href="/dashboard/onboarding" className="hover:text-white">
+                Onboarding
               </Link>
               <Link href="/dashboard/properties" className="hover:text-white">
                 Properties
