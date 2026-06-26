@@ -1,7 +1,7 @@
 import "./globals.css";
 
 import Link from "next/link";
-
+//new comment
 import AppChrome from "@/components/layout/AppChrome";
 import { getSessionUser } from "@/lib/server/session";
 
