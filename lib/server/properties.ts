@@ -9,6 +9,7 @@ import {
   type AuthUser,
   type PendingPropertyImageReview,
   type PropertyImageRecord,
+  type PropertyInsurance,
   type PropertyRecord,
 } from "@/lib/auth"
 import { AUDIT_ACTION_TYPES } from "@/lib/types/audit"
@@ -242,6 +243,20 @@ function normalizePropertyImageRecord(image: PropertyImageRecord): PropertyImage
   }
 }
 
+function normalizePropertyInsurance(insurance: PropertyInsurance | undefined): PropertyInsurance | undefined {
+  if (!insurance || typeof insurance !== "object") {
+    return undefined
+  }
+
+  return {
+    isInsured: insurance.isInsured === true,
+    insurerName: typeof insurance.insurerName === "string" && insurance.insurerName.trim() ? insurance.insurerName.trim() : undefined,
+    policyNumber: typeof insurance.policyNumber === "string" && insurance.policyNumber.trim() ? insurance.policyNumber.trim() : undefined,
+    renewalDate: typeof insurance.renewalDate === "string" && insurance.renewalDate.trim() ? insurance.renewalDate.trim() : undefined,
+    notes: typeof insurance.notes === "string" && insurance.notes.trim() ? insurance.notes.trim() : undefined,
+  }
+}
+
 function normalizePropertyRecord(property: PropertyRecord) {
   const addressLine1 = typeof property.addressLine1 === "string" && property.addressLine1.trim()
     ? property.addressLine1.trim()
@@ -275,6 +290,7 @@ function normalizePropertyRecord(property: PropertyRecord) {
     monthlyRent: toNonNegativeNumber(property.monthlyRent),
     affordabilityMultiple: toNonNegativeNumber(property.affordabilityMultiple) || DEFAULT_AFFORDABILITY_MULTIPLE,
     images: Array.isArray(property.images) ? property.images.map(normalizePropertyImageRecord) : [],
+    insurance: normalizePropertyInsurance(property.insurance),
   }
 }
 
@@ -746,6 +762,47 @@ export async function deletePropertyForUser(user: AuthUser, propertyId: string) 
   const container = await getPropertiesContainer()
   await container.item(property.id, property.ownerId).delete()
   return true
+}
+
+export async function updatePropertyInsurance(
+  user: AuthUser,
+  propertyId: string,
+  insurance: PropertyInsurance,
+) {
+  const property = await getPropertyById(propertyId)
+
+  if (!property) {
+    return null
+  }
+
+  if (!(await canAccessPropertyForUser(user, property)) || !canManageProperties(user)) {
+    throw new Error("Forbidden")
+  }
+
+  const nextProperty: PropertyRecord = {
+    ...property,
+    insurance: normalizePropertyInsurance(insurance) ?? { isInsured: false },
+    updatedAt: new Date().toISOString(),
+  }
+
+  const container = await getPropertiesContainer()
+  await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
+
+  await writeAuditEvent({
+    entityType: "property",
+    entityId: nextProperty.id,
+    action: AUDIT_ACTION_TYPES.EXECUTED_BY_SYSTEM,
+    fieldPath: "insurance",
+    oldValue: property.insurance,
+    newValue: nextProperty.insurance,
+    performedBy: user.email,
+    metadata: {
+      ...getPropertyAuditMetadata(nextProperty, user),
+      operation: "update_property_insurance",
+    },
+  })
+
+  return nextProperty
 }
 
 export async function addPropertyImage(user: AuthUser, propertyId: string, image: PropertyRecord["images"][number]) {

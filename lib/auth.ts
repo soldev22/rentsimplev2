@@ -17,6 +17,7 @@ export type {
   PropertyImageModerationScores,
   PropertyImageModerationStatus,
   PropertyImageRecord,
+  PropertyInsurance,
   PropertyRecord,
 } from "./types/property"
 export type {

@@ -4,6 +4,7 @@ import Image from "next/image"
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react"
 
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
+import PropertyInsurancePanel from "@/components/properties/PropertyInsurancePanel"
 import { MAX_PROPERTY_IMAGES, getPropertyImagePath, type PendingPropertyImageReview, type PropertyRecord } from "@/lib/auth"
 
 type PropertyManagerProps = {
@@ -1586,6 +1587,17 @@ export default function PropertyManager({
                     />
                   )}
                 </div>
+
+                <PropertyInsurancePanel
+                  property={selectedProperty}
+                  canManage={canManage}
+                  onPropertyUpdate={(updated) => {
+                    setProperties((current) =>
+                      current.map((p) => (p.id === updated.id ? updated : p)),
+                    )
+                    selectProperty(updated, isEditMode)
+                  }}
+                />
               </section>
             </div>
           </div>

@@ -31,6 +31,14 @@ export type PendingPropertyImageReview = {
   image: PropertyImageRecord
 }
 
+export type PropertyInsurance = {
+  isInsured: boolean
+  insurerName?: string
+  policyNumber?: string
+  renewalDate?: string
+  notes?: string
+}
+
 export type PropertyRecord = {
   id: string
   ownerId: string
@@ -49,6 +57,7 @@ export type PropertyRecord = {
   monthlyRent: number
   affordabilityMultiple: number
   images: PropertyImageRecord[]
+  insurance?: PropertyInsurance
   createdAt: string
   updatedAt: string
 }
