@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { getSessionUser } from "@/lib/server/session"
 import { listPropertiesForUser } from "@/lib/server/properties"
 import { getCasesByProperty } from "@/lib/server/cases"
+import CaseListWrapper from "@/components/cases/CaseListWrapper"
 import type { PropertyCase } from "@/lib/auth"
 
 export const metadata = {
@@ -68,13 +69,10 @@ export default async function CasesPage() {
   allCases.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Property Cases</h1>
-        <p className="text-gray-600 mt-2">Track and manage all property cases across your portfolio</p>
-      </div>
-
+    <CaseListWrapper
+      properties={properties.map((p) => ({ id: p.id, address: p.address }))}
+      initialCases={allCases}
+    >
       {/* Cases List */}
       {allCases.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
@@ -140,7 +138,7 @@ export default async function CasesPage() {
                     <td className="px-6 py-4 text-sm text-gray-600">{formatDate(case_.createdAt)}</td>
                     <td className="px-6 py-4">
                       <a
-                        href={`/dashboard/cases/${case_.id}`}
+                        href={`/dashboard/cases/${case_.id}?propertyId=${case_.propertyId}`}
                         className="text-blue-600 hover:text-blue-700 font-medium text-sm"
                       >
                         View
@@ -176,6 +174,6 @@ export default async function CasesPage() {
           </div>
         ))}
       </div>
-    </div>
+    </CaseListWrapper>
   )
 }

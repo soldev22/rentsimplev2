@@ -55,6 +55,9 @@ export async function PUT(
       if (error.message.includes("not found")) {
         return NextResponse.json({ error: error.message }, { status: 404 })
       }
+      if (error.message.includes("require")) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
     }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

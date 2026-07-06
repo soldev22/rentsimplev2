@@ -35,6 +35,7 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
       : [
           { name: "Onboarding", href: "/dashboard/onboarding" },
           { name: "Properties", href: "/dashboard/properties" },
+          { name: "Cases", href: "/dashboard/cases" },
           ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
             ? [{ name: "Applications", href: "/dashboard/bookings" }]
             : []),

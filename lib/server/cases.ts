@@ -389,6 +389,14 @@ export async function completeCaseStage(
     throw new Error("Stage not found")
   }
 
+  // For damp cases, require inspection report
+  if (case_.caseType === "damp") {
+    const hasReport = case_.dampInspectionReports?.some((r) => r.stageId === stageId)
+    if (!hasReport) {
+      throw new Error("Damp case stages require an inspection report before completion")
+    }
+  }
+
   const now = new Date()
   stage.completedAt = now.toISOString()
   stage.status = "completed"
@@ -414,6 +422,7 @@ export async function completeCaseStage(
       caseType: case_.caseType,
       stageIndex: case_.stages.findIndex((s) => s.id === stageId),
       completionNotes,
+      hasDampReport: !!case_.dampInspectionReports?.some((r) => r.stageId === stageId),
     },
   })
 

@@ -809,6 +809,13 @@ async function getApplicationById(id: string) {
   return hydrateApplicationWithCommunications(resources[0] ?? null)
 }
 
+/**
+ * Get an application by ID (for system use, not user-scoped)
+ */
+export async function getApplicationByIdForSystem(id: string) {
+  return getApplicationById(id)
+}
+
 export async function listApplicationsForApplicant(user: AuthUser) {
   const paged = await listApplicationsForApplicantPage(user, { page: 1, pageSize: 1000 })
   return paged.items

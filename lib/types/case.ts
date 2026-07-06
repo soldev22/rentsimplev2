@@ -75,6 +75,31 @@ export type CaseMessage = {
   createdAt: string
 }
 
+export type DampInspectionReport = {
+  id: string
+  stageId: string
+  caseId: string
+  propertyId: string
+  inspectionDate: string
+  inspectorName: string
+  inspectorQualifications?: string
+  roomsAffected: string[]
+  affectedArea: string
+  visibleMoldCondensation: boolean
+  severityLevel: "none" | "minor" | "moderate" | "severe"
+  rootCause: "penetrating_damp" | "rising_damp" | "condensation" | "plumbing_leak" | "other"
+  rootCauseDescription: string
+  findings: string
+  recommendedAction: string
+  urgencyLevel: "low" | "medium" | "high" | "emergency"
+  estimatedCost?: number
+  remediationTimeline: "immediate" | "7_days" | "14_days" | "28_days" | "other"
+  remediationNotes?: string
+  reportSubmittedBy: string
+  reportSubmittedAt: string
+  attachmentIds: string[]
+}
+
 export type PropertyCase = {
   id: string
   propertyId: string
@@ -91,6 +116,7 @@ export type PropertyCase = {
   attachmentCount: number
   archived: boolean
   lastMessageAt?: string
+  dampInspectionReports?: DampInspectionReport[]
 }
 
 export type ContractorInviteRole = "contractor" | "advisor"
