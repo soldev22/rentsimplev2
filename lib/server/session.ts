@@ -72,10 +72,19 @@ export async function getSessionUser() {
 
   const user = await getUserBySession(session.email, hashSessionToken(session.token))
 
+  // Don't delete the cookie here - it can only be deleted in Server Actions/Route Handlers
+  // Return null if user is invalid; let the logout handler clean up
   if (!user) {
-    cookieStore.delete(SESSION_COOKIE_NAME)
     return null
   }
 
   return user
+}
+
+/**
+ * Clear an invalid session cookie (must be called from a Route Handler or Server Action)
+ */
+export async function clearInvalidSessionCookie() {
+  const cookieStore = await cookies()
+  cookieStore.delete(SESSION_COOKIE_NAME)
 }
