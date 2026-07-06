@@ -39,6 +39,34 @@ export type PropertyInsurance = {
   notes?: string
 }
 
+export type PropertyFinancials = {
+  propertyValue: number
+  annualAppreciationRate: number
+  estimatedAnnualCosts: number
+}
+
+export type ComplianceType =
+  | "electrical"
+  | "gas"
+  | "fire_alarm"
+  | "legionella"
+  | "epc"
+  | "damp_survey"
+  | "asbestos_survey"
+  | "pest_control"
+  | "boiler_service"
+
+export type PropertyCompliance = {
+  id: string
+  type: ComplianceType
+  lastCheckedDate: string
+  expirationDate: string
+  certificateNumber?: string
+  provider?: string
+  documentUrl?: string
+  notes?: string
+}
+
 export type PropertyRecord = {
   id: string
   ownerId: string
@@ -58,6 +86,8 @@ export type PropertyRecord = {
   affordabilityMultiple: number
   images: PropertyImageRecord[]
   insurance?: PropertyInsurance
+  financials?: PropertyFinancials
+  compliance?: PropertyCompliance[]
   createdAt: string
   updatedAt: string
 }

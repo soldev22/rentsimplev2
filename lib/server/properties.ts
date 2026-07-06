@@ -8,9 +8,12 @@ import {
   canManageProperties,
   type AuthUser,
   type PendingPropertyImageReview,
+  type PropertyFinancials,
   type PropertyImageRecord,
   type PropertyInsurance,
   type PropertyRecord,
+  type PropertyCompliance,
+  type ComplianceType,
 } from "@/lib/auth"
 import { AUDIT_ACTION_TYPES } from "@/lib/types/audit"
 import { writeAuditEvent, writeAuditEvents } from "@/lib/server/audit"
@@ -257,6 +260,26 @@ function normalizePropertyInsurance(insurance: PropertyInsurance | undefined): P
   }
 }
 
+function normalizePropertyFinancials(financials: PropertyFinancials | undefined): PropertyFinancials | undefined {
+  if (!financials || typeof financials !== "object") {
+    return undefined
+  }
+
+  const propertyValue = typeof financials.propertyValue === "number" ? Math.max(0, financials.propertyValue) : 0
+  const annualAppreciationRate = typeof financials.annualAppreciationRate === "number" ? Math.max(-100, financials.annualAppreciationRate) : 0
+  const estimatedAnnualCosts = typeof financials.estimatedAnnualCosts === "number" ? Math.max(0, financials.estimatedAnnualCosts) : 0
+
+  if (propertyValue === 0) {
+    return undefined
+  }
+
+  return {
+    propertyValue,
+    annualAppreciationRate,
+    estimatedAnnualCosts,
+  }
+}
+
 function normalizePropertyRecord(property: PropertyRecord) {
   const addressLine1 = typeof property.addressLine1 === "string" && property.addressLine1.trim()
     ? property.addressLine1.trim()
@@ -291,6 +314,8 @@ function normalizePropertyRecord(property: PropertyRecord) {
     affordabilityMultiple: toNonNegativeNumber(property.affordabilityMultiple) || DEFAULT_AFFORDABILITY_MULTIPLE,
     images: Array.isArray(property.images) ? property.images.map(normalizePropertyImageRecord) : [],
     insurance: normalizePropertyInsurance(property.insurance),
+    financials: normalizePropertyFinancials(property.financials),
+    compliance: normalizePropertyComplianceArray(property.compliance),
   }
 }
 
@@ -799,6 +824,239 @@ export async function updatePropertyInsurance(
     metadata: {
       ...getPropertyAuditMetadata(nextProperty, user),
       operation: "update_property_insurance",
+    },
+  })
+
+  return nextProperty
+}
+
+export async function updatePropertyFinancials(
+  user: AuthUser,
+  propertyId: string,
+  financials: PropertyFinancials,
+) {
+  const property = await getPropertyById(propertyId)
+
+  if (!property) {
+    return null
+  }
+
+  if (!(await canAccessPropertyForUser(user, property)) || !canManageProperties(user)) {
+    throw new Error("Forbidden")
+  }
+
+  const nextProperty: PropertyRecord = {
+    ...property,
+    financials: normalizePropertyFinancials(financials),
+    updatedAt: new Date().toISOString(),
+  }
+
+  const container = await getPropertiesContainer()
+  await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
+
+  await writeAuditEvent({
+    entityType: "property",
+    entityId: nextProperty.id,
+    action: AUDIT_ACTION_TYPES.EXECUTED_BY_SYSTEM,
+    fieldPath: "financials",
+    oldValue: property.financials,
+    newValue: nextProperty.financials,
+    performedBy: user.email,
+    metadata: {
+      ...getPropertyAuditMetadata(nextProperty, user),
+      operation: "update_property_financials",
+    },
+  })
+
+  return nextProperty
+}
+
+function normalizePropertyCompliance(compliance: PropertyCompliance | undefined): PropertyCompliance | undefined {
+  if (!compliance || typeof compliance !== "object") {
+    return undefined
+  }
+
+  const type = compliance.type as ComplianceType
+
+  return {
+    id: typeof compliance.id === "string" && compliance.id.trim() ? compliance.id : randomUUID(),
+    type,
+    lastCheckedDate: typeof compliance.lastCheckedDate === "string" && compliance.lastCheckedDate.trim() 
+      ? compliance.lastCheckedDate.trim() 
+      : new Date().toISOString(),
+    expirationDate: typeof compliance.expirationDate === "string" && compliance.expirationDate.trim() 
+      ? compliance.expirationDate.trim() 
+      : "",
+    certificateNumber: typeof compliance.certificateNumber === "string" && compliance.certificateNumber.trim() 
+      ? compliance.certificateNumber.trim() 
+      : undefined,
+    provider: typeof compliance.provider === "string" && compliance.provider.trim() 
+      ? compliance.provider.trim() 
+      : undefined,
+    documentUrl: typeof compliance.documentUrl === "string" && compliance.documentUrl.trim() 
+      ? compliance.documentUrl.trim() 
+      : undefined,
+    notes: typeof compliance.notes === "string" && compliance.notes.trim() 
+      ? compliance.notes.trim() 
+      : undefined,
+  }
+}
+
+function normalizePropertyComplianceArray(compliance: PropertyCompliance[] | undefined): PropertyCompliance[] {
+  if (!Array.isArray(compliance)) {
+    return []
+  }
+
+  return compliance
+    .map(normalizePropertyCompliance)
+    .filter((c): c is PropertyCompliance => c !== undefined)
+}
+
+export async function addPropertyCompliance(
+  user: AuthUser,
+  propertyId: string,
+  compliance: PropertyCompliance,
+) {
+  const property = await getPropertyById(propertyId)
+
+  if (!property) {
+    return null
+  }
+
+  if (!(await canAccessPropertyForUser(user, property)) || !canManageProperties(user)) {
+    throw new Error("Forbidden")
+  }
+
+  const normalizedCompliance = normalizePropertyCompliance(compliance)
+  if (!normalizedCompliance) {
+    return null
+  }
+
+  const currentCompliance = normalizePropertyComplianceArray(property.compliance)
+  const nextCompliance = [...currentCompliance, normalizedCompliance]
+
+  const nextProperty: PropertyRecord = {
+    ...property,
+    compliance: nextCompliance,
+    updatedAt: new Date().toISOString(),
+  }
+
+  const container = await getPropertiesContainer()
+  await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
+
+  await writeAuditEvent({
+    entityType: "property",
+    entityId: nextProperty.id,
+    action: AUDIT_ACTION_TYPES.EXECUTED_BY_SYSTEM,
+    fieldPath: "compliance",
+    oldValue: property.compliance,
+    newValue: nextProperty.compliance,
+    performedBy: user.email,
+    metadata: {
+      ...getPropertyAuditMetadata(nextProperty, user),
+      operation: "add_property_compliance",
+      complianceType: normalizedCompliance.type,
+    },
+  })
+
+  return nextProperty
+}
+
+export async function updatePropertyCompliance(
+  user: AuthUser,
+  propertyId: string,
+  complianceId: string,
+  compliance: PropertyCompliance,
+) {
+  const property = await getPropertyById(propertyId)
+
+  if (!property) {
+    return null
+  }
+
+  if (!(await canAccessPropertyForUser(user, property)) || !canManageProperties(user)) {
+    throw new Error("Forbidden")
+  }
+
+  const normalizedCompliance = normalizePropertyCompliance(compliance)
+  if (!normalizedCompliance) {
+    return null
+  }
+
+  normalizedCompliance.id = complianceId
+
+  const currentCompliance = normalizePropertyComplianceArray(property.compliance)
+  const nextCompliance = currentCompliance.map((c) => (c.id === complianceId ? normalizedCompliance : c))
+
+  const nextProperty: PropertyRecord = {
+    ...property,
+    compliance: nextCompliance,
+    updatedAt: new Date().toISOString(),
+  }
+
+  const container = await getPropertiesContainer()
+  await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
+
+  await writeAuditEvent({
+    entityType: "property",
+    entityId: nextProperty.id,
+    action: AUDIT_ACTION_TYPES.EXECUTED_BY_SYSTEM,
+    fieldPath: "compliance",
+    oldValue: property.compliance,
+    newValue: nextProperty.compliance,
+    performedBy: user.email,
+    metadata: {
+      ...getPropertyAuditMetadata(nextProperty, user),
+      operation: "update_property_compliance",
+      complianceType: normalizedCompliance.type,
+      complianceId,
+    },
+  })
+
+  return nextProperty
+}
+
+export async function removePropertyCompliance(
+  user: AuthUser,
+  propertyId: string,
+  complianceId: string,
+) {
+  const property = await getPropertyById(propertyId)
+
+  if (!property) {
+    return null
+  }
+
+  if (!(await canAccessPropertyForUser(user, property)) || !canManageProperties(user)) {
+    throw new Error("Forbidden")
+  }
+
+  const currentCompliance = normalizePropertyComplianceArray(property.compliance)
+  const removedItem = currentCompliance.find((c) => c.id === complianceId)
+  const nextCompliance = currentCompliance.filter((c) => c.id !== complianceId)
+
+  const nextProperty: PropertyRecord = {
+    ...property,
+    compliance: nextCompliance,
+    updatedAt: new Date().toISOString(),
+  }
+
+  const container = await getPropertiesContainer()
+  await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
+
+  await writeAuditEvent({
+    entityType: "property",
+    entityId: nextProperty.id,
+    action: AUDIT_ACTION_TYPES.EXECUTED_BY_SYSTEM,
+    fieldPath: "compliance",
+    oldValue: property.compliance,
+    newValue: nextProperty.compliance,
+    performedBy: user.email,
+    metadata: {
+      ...getPropertyAuditMetadata(nextProperty, user),
+      operation: "remove_property_compliance",
+      complianceType: removedItem?.type,
+      complianceId,
     },
   })
 

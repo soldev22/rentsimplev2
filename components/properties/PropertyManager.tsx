@@ -5,6 +5,8 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition }
 
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
 import PropertyInsurancePanel from "@/components/properties/PropertyInsurancePanel"
+import PropertyFinancialsPanel from "@/components/properties/PropertyFinancialsPanel"
+import PropertyCompliancePanel from "@/components/properties/PropertyCompliancePanel"
 import { MAX_PROPERTY_IMAGES, getPropertyImagePath, type PendingPropertyImageReview, type PropertyRecord } from "@/lib/auth"
 
 type PropertyManagerProps = {
@@ -1589,6 +1591,28 @@ export default function PropertyManager({
                 </div>
 
                 <PropertyInsurancePanel
+                  property={selectedProperty}
+                  canManage={canManage}
+                  onPropertyUpdate={(updated) => {
+                    setProperties((current) =>
+                      current.map((p) => (p.id === updated.id ? updated : p)),
+                    )
+                    selectProperty(updated, isEditMode)
+                  }}
+                />
+
+                <PropertyFinancialsPanel
+                  property={selectedProperty}
+                  canManage={canManage}
+                  onPropertyUpdate={(updated) => {
+                    setProperties((current) =>
+                      current.map((p) => (p.id === updated.id ? updated : p)),
+                    )
+                    selectProperty(updated, isEditMode)
+                  }}
+                />
+
+                <PropertyCompliancePanel
                   property={selectedProperty}
                   canManage={canManage}
                   onPropertyUpdate={(updated) => {

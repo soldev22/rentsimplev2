@@ -14,11 +14,14 @@ export type {
 } from "./types/user"
 export type {
   PendingPropertyImageReview,
+  PropertyFinancials,
   PropertyImageModerationScores,
   PropertyImageModerationStatus,
   PropertyImageRecord,
   PropertyInsurance,
   PropertyRecord,
+  ComplianceType,
+  PropertyCompliance,
 } from "./types/property"
 export type {
   ApplicantChecklistSignOff,
