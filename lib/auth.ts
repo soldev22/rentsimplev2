@@ -59,6 +59,32 @@ export type {
   MaintenanceIssueStatus,
   MaintenancePriority,
 } from "./types/maintenance"
+export type {
+  CaseType,
+  CaseStatus,
+  StageStatus,
+  EscalationLevel,
+  CaseMessageSenderRole,
+  LegalTimerRequirement,
+  LegalTimerConfiguration,
+  EscalationEvent,
+  CaseStage,
+  CaseAttachment,
+  CaseMessage,
+  CaseMessageRead,
+  PropertyCase,
+  ContractorInviteRole,
+  ContractorInvite,
+  ThreadSummary,
+  CaseAnalytics,
+  AnalyticsMetrics,
+  ContractorPerformanceMetric,
+  TimeSeriesDataPoint,
+  AdvisoryNotification,
+  WebhookEventType,
+  WebhookDeliveryAttempt,
+  WebhookEvent,
+} from "./types/case"
 
 export const MAX_PROPERTY_IMAGES = 30
 

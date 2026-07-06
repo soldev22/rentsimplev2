@@ -850,6 +850,8 @@ export default function PropertyManager({
                 value={createForm.ownerId}
                 onChange={(event) => updateCreateField("ownerId", event.target.value)}
                 required
+                aria-label="Select landlord owner"
+                title="Select the landlord who owns this property"
               >
                 {landlordOptions.map((option) => (
                   <option key={option.id} value={option.id}>
@@ -910,6 +912,8 @@ export default function PropertyManager({
               value={createForm.type}
               onChange={(event) => updateCreateField("type", event.target.value)}
               required
+              aria-label="Select property type"
+              title="Select the type of property"
             >
               {propertyTypeOptions.map((option) => (
                 <option key={option} value={option}>
@@ -926,6 +930,8 @@ export default function PropertyManager({
               value={createForm.status}
               onChange={(event) => updateCreateField("status", event.target.value)}
               required
+              aria-label="Select listing status"
+              title="Select the current listing status of the property"
             >
               {propertyStatusOptions.map((option) => (
                 <option key={option} value={option}>

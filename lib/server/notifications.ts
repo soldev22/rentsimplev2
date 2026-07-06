@@ -203,3 +203,100 @@ export async function deliverTenantCommunicationNotification(
     },
   }
 }
+
+// ==================== CASE ESCALATION NOTIFICATIONS ====================
+
+type EscalationNotificationParams = {
+  caseId: string
+  caseTitle: string
+  propertyId: string
+  stageName: string
+  escalationLevel: "alert_24h" | "alert_72h" | "alert_5d"
+  dueAt: string
+  recipientEmail: string
+}
+
+/**
+ * Send escalation notification for overdue case stages
+ */
+export async function sendEscalationNotification(params: EscalationNotificationParams): Promise<boolean> {
+  const smtpConfig = getSmtpConfig()
+  if (!smtpConfig) {
+    console.warn("SMTP not configured - cannot send escalation notification")
+    return false
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    })
+
+    const dueDate = new Date(params.dueAt)
+    const now = new Date()
+    const daysOverdue = Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+
+    const escalationLevelLabels = {
+      alert_24h: "24 hours",
+      alert_72h: "3 days",
+      alert_5d: "5 days",
+    }
+
+    const subjectPrefix =
+      params.escalationLevel === "alert_24h" ? "🔔 URGENT" : params.escalationLevel === "alert_72h" ? "⚠️ WARNING" : "🚨 CRITICAL"
+
+    const subject = `${subjectPrefix}: Case Deadline Approaching - ${params.caseTitle}`
+
+    const html = `
+      <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: ${params.escalationLevel === "alert_24h" ? "#dc2626" : params.escalationLevel === "alert_72h" ? "#ea580c" : "#7c2d12"};">
+              ${subjectPrefix} – Case Deadline Alert
+            </h2>
+
+            <p style="color: #374151; margin-bottom: 16px;">
+              Hi,
+            </p>
+
+            <p style="color: #374151; margin-bottom: 16px;">
+              The following case stage has ${params.escalationLevel === "alert_24h" ? "LESS THAN 24 HOURS" : params.escalationLevel === "alert_72h" ? "LESS THAN 72 HOURS" : "LESS THAN 5 DAYS"} remaining before it is overdue:
+            </p>
+
+            <div style="background: #f3f4f6; border-left: 4px solid ${params.escalationLevel === "alert_24h" ? "#dc2626" : params.escalationLevel === "alert_72h" ? "#ea580c" : "#7c2d12"}; padding: 16px; margin-bottom: 24px;">
+              <p style="margin: 0 0 8px 0; color: #111827;"><strong>Case:</strong> ${params.caseTitle}</p>
+              <p style="margin: 0 0 8px 0; color: #111827;"><strong>Stage:</strong> ${params.stageName}</p>
+              <p style="margin: 0 0 8px 0; color: #111827;"><strong>Due Date:</strong> ${dueDate.toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "numeric" })}</p>
+              ${daysOverdue > 0 ? `<p style="margin: 0; color: #dc2626;"><strong>Status:</strong> ${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} OVERDUE</p>` : ""}
+            </div>
+
+            <p style="color: #374151; margin-bottom: 16px;">
+              Please take immediate action to complete this stage or contact your advisor if you need assistance.
+            </p>
+
+            <p style="color: #6b7280; font-size: 14px;">
+              ${new Date().toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+            </p>
+          </div>
+        </body>
+      </html>
+    `
+
+    await transporter.sendMail({
+      from: formatMailbox(smtpConfig.from, "RentSimple Cases"),
+      to: params.recipientEmail,
+      subject,
+      html,
+    })
+
+    return true
+  } catch (error) {
+    console.error("Error sending escalation notification:", error)
+    return false
+  }
+}

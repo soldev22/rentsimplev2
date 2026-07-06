@@ -134,3 +134,94 @@ export async function downloadPropertyImage(blobName: string) {
     lastModified: download.lastModified,
   }
 }
+
+// ==================== CASE ATTACHMENTS ====================
+
+const caseAttachmentsContainerName = process.env.CASE_ATTACHMENTS_CONTAINER?.trim() || "case-attachments"
+
+async function getCaseAttachmentsContainerClient() {
+  const serviceClient = getBlobServiceClient()
+  const containerClient = serviceClient.getContainerClient(caseAttachmentsContainerName)
+  await containerClient.createIfNotExists()
+  return containerClient
+}
+
+const ALLOWED_MIME_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "text/csv",
+]
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
+export async function uploadCaseAttachment(input: {
+  caseId: string
+  fileName: string
+  fileBuffer: Buffer
+  mimeType: string
+  uploadedBy: string
+}) {
+  // Validate file size
+  if (input.fileBuffer.length > MAX_FILE_SIZE) {
+    throw new Error(`File size exceeds maximum of 10MB`)
+  }
+
+  // Validate MIME type
+  if (!ALLOWED_MIME_TYPES.includes(input.mimeType)) {
+    throw new Error(`File type not allowed: ${input.mimeType}`)
+  }
+
+  const containerClient = await getCaseAttachmentsContainerClient()
+
+  // Create unique blob name: caseId/timestamp-uuid-filename
+  const timestamp = Date.now()
+  const uuid = randomUUID().slice(0, 8)
+  const sanitized = sanitizeFileName(input.fileName)
+  const blobName = `${input.caseId}/${timestamp}-${uuid}-${sanitized}`
+
+  const blobClient = containerClient.getBlockBlobClient(blobName)
+
+  await blobClient.uploadData(input.fileBuffer, {
+    blobHTTPHeaders: {
+      blobContentType: input.mimeType,
+    },
+  })
+
+  return {
+    blobName,
+    url: blobClient.url,
+    size: input.fileBuffer.length,
+  }
+}
+
+export async function downloadCaseAttachment(blobName: string) {
+  const containerClient = await getCaseAttachmentsContainerClient()
+  const blobClient = containerClient.getBlobClient(blobName)
+  const download = await blobClient.download()
+
+  if (!download.readableStreamBody) {
+    throw new Error("Blob stream unavailable")
+  }
+
+  return {
+    stream: Readable.toWeb(download.readableStreamBody as Readable) as ReadableStream,
+    contentType: download.contentType || "application/octet-stream",
+    contentLength: download.contentLength,
+    fileName: blobName.split("/").pop() || blobName,
+  }
+}
+
+export async function deleteCaseAttachment(blobName: string) {
+  const containerClient = await getCaseAttachmentsContainerClient()
+  const blobClient = containerClient.getBlobClient(blobName)
+  await blobClient.delete()
+}
+

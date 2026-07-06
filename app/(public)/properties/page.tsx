@@ -147,7 +147,7 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                 <label htmlFor="sort" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Sort
                 </label>
-                <select id="sort" name="sort" defaultValue={sort} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+                <select id="sort" name="sort" defaultValue={sort} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" title="Sort properties by">
                   <option value="recommended">Recommended</option>
                   <option value="price_asc">Lowest rent</option>
                   <option value="price_desc">Highest rent</option>
@@ -256,7 +256,7 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                   </div>
                   <div>
                     <label htmlFor="sidebar-type" className="mb-2 block text-sm font-medium text-slate-700">Property type</label>
-                    <select id="sidebar-type" name="type" defaultValue={type} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none focus:border-sky-500">
+                    <select id="sidebar-type" name="type" defaultValue={type} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none focus:border-sky-500" title="Select property type">
                       <option value="">Any type</option>
                       {typeOptions.map((option) => (
                         <option key={option} value={option}>{option}</option>
@@ -266,7 +266,7 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label htmlFor="sidebar-beds" className="mb-2 block text-sm font-medium text-slate-700">Bedrooms</label>
-                      <select id="sidebar-beds" name="beds" defaultValue={beds} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none focus:border-sky-500">
+                      <select id="sidebar-beds" name="beds" defaultValue={beds} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none focus:border-sky-500" title="Select minimum bedrooms">
                         <option value="">Any</option>
                         <option value="1">1+</option>
                         <option value="2">2+</option>
@@ -276,7 +276,7 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                     </div>
                     <div>
                       <label htmlFor="sidebar-rent" className="mb-2 block text-sm font-medium text-slate-700">Max rent</label>
-                      <select id="sidebar-rent" name="maxRent" defaultValue={maxRent} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none focus:border-sky-500">
+                      <select id="sidebar-rent" name="maxRent" defaultValue={maxRent} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none focus:border-sky-500" title="Select maximum rent budget">
                         <option value="">Any</option>
                         <option value="1000">£1,000</option>
                         <option value="1500">£1,500</option>

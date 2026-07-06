@@ -527,6 +527,8 @@ export default function ApplicantTenancyWorkflow({
               onChange={(event) => updateField("propertyId", event.target.value)}
               required
               disabled={Boolean(editingApplicationId)}
+              aria-label="Select a property for your application"
+              title="Select a property for your application"
             >
               <option value="">Select a property</option>
               {availableProperties.map((property) => (
@@ -550,6 +552,8 @@ export default function ApplicantTenancyWorkflow({
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
               value={formState.employmentStatus}
               onChange={(event) => updateField("employmentStatus", event.target.value as EmploymentStatus)}
+              aria-label="Select your employment status"
+              title="Select your employment status"
             >
               {employmentOptions.map((option) => (
                 <option key={option.value} value={option.value}>

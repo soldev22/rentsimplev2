@@ -49,6 +49,8 @@ export default function LandlordScopePicker({
             className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
             value={selectedLandlordId ?? ""}
             onChange={(event) => handleChange(event.target.value)}
+            aria-label="Select a landlord from your portfolio"
+            title="Select a landlord from your portfolio"
           >
             <option value="">{allLabel}</option>
             {landlords.map((landlord) => (

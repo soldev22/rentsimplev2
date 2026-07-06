@@ -310,7 +310,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
             <form className="mt-6 grid gap-4 lg:grid-cols-2" onSubmit={submitTenantIssue}>
               <label className="text-sm font-medium text-slate-700 lg:col-span-2">
                 Property
-                <select className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" value={issueForm.propertyId} onChange={(event) => setIssueForm((current) => ({ ...current, propertyId: event.target.value }))}>
+                <select className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" value={issueForm.propertyId} onChange={(event) => setIssueForm((current) => ({ ...current, propertyId: event.target.value }))} aria-label="Select property" title="Select a property for this maintenance issue">
                   {reportableProperties.map((property) => (
                     <option key={property.id} value={property.id}>{property.address}</option>
                   ))}
@@ -322,7 +322,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
               </label>
               <label className="text-sm font-medium text-slate-700">
                 Category
-                <select className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" value={issueForm.category} onChange={(event) => setIssueForm((current) => ({ ...current, category: event.target.value as MaintenanceIssueCategory }))}>
+                <select className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" value={issueForm.category} onChange={(event) => setIssueForm((current) => ({ ...current, category: event.target.value as MaintenanceIssueCategory }))} aria-label="Select category" title="Select maintenance issue category">
                   {categoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
@@ -426,7 +426,19 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
                           <label className="text-sm font-medium text-slate-700">Response due<input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" type="date" value={issue.responseDueAt ?? ""} onChange={(event) => updateIssue(issue.id, (current) => ({ ...current, responseDueAt: event.target.value || undefined }))} /></label>
                           <label className="text-sm font-medium text-slate-700">Resolution due<input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" type="date" value={issue.resolutionDueAt ?? ""} onChange={(event) => updateIssue(issue.id, (current) => ({ ...current, resolutionDueAt: event.target.value || undefined }))} /></label>
                           <label className="text-sm font-medium text-slate-700">Bidding closes<input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" type="date" value={issue.biddingClosesAt ?? ""} onChange={(event) => updateIssue(issue.id, (current) => ({ ...current, biddingClosesAt: event.target.value || undefined }))} /></label>
-                          <label className="text-sm font-medium text-slate-700">Select builder<select className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" value={issue.selectedBuilderId ?? ""} onChange={(event) => updateIssue(issue.id, (current) => ({ ...current, selectedBuilderId: event.target.value || undefined }))}><option value="">Unassigned</option>{issue.bids.map((bid) => <option key={bid.id} value={bid.builderId}>{bid.builderName} · £{bid.amount.toLocaleString()}</option>)}</select></label>
+                          <label className="text-sm font-medium text-slate-700">
+                            Select builder
+                            <select
+                              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                              value={issue.selectedBuilderId ?? ""}
+                              onChange={(event) => updateIssue(issue.id, (current) => ({ ...current, selectedBuilderId: event.target.value || undefined }))}
+                              aria-label="Select builder for this maintenance issue"
+                              title="Select a builder to assign this maintenance issue to"
+                            >
+                              <option value="">Unassigned</option>
+                              {issue.bids.map((bid) => <option key={bid.id} value={bid.builderId}>{bid.builderName} · £{bid.amount.toLocaleString()}</option>)}
+                            </select>
+                          </label>
                         </div>
                       </section>
 

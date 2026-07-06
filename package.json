@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "latest",
     "@azure/cosmos": "^4.9.3",
     "@azure/identity": "^4.13.1",
     "@azure/storage-blob": "^12.31.0",

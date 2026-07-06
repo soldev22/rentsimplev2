@@ -182,7 +182,7 @@ export default function BuilderProfileSettingsForm({ initialBuilderProfile }: Bu
 
         <label className="block text-sm font-medium text-slate-700">
           Primary trade
-          <select className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500" value={formState.primaryTrade} onChange={(event) => updateField("primaryTrade", event.target.value as BuilderTrade)}>
+          <select className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500" value={formState.primaryTrade} onChange={(event) => updateField("primaryTrade", event.target.value as BuilderTrade)} aria-label="Select your primary trade" title="Select your primary trade">
             {tradeOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}

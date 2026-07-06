@@ -1,0 +1,16 @@
+.container {
+  --progress-width: 0%;
+  width: 8rem;
+  background-color: #e5e7eb;
+  border-radius: 9999px;
+  height: 0.5rem;
+  overflow: hidden;
+}
+
+.fill {
+  background-color: #2563eb;
+  height: 0.5rem;
+  border-radius: 9999px;
+  transition: width 0.3s ease-in-out;
+  width: var(--progress-width);
+}

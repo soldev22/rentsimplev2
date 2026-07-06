@@ -753,6 +753,8 @@ export default function ApplicationReviewManager({
                     <select
                       className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
                       value={application.tenancyAgreement.legalFramework || ""}
+                      aria-label="Select legal framework"
+                      title="Select legal framework for tenancy agreement"
                       onChange={(event) =>
                         updateApplication(application.id, (current) => {
                           const legalFramework = event.target.value as TenancyApplicationRecord["tenancyAgreement"]["legalFramework"]

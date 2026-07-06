@@ -20,6 +20,8 @@ const applicationCommunicationsContainerId =
 const auditEventsContainerId = process.env.COSMOSDB_AUDIT_EVENTS_CONTAINER?.trim() || "audit-events"
 const authSecurityContainerId = process.env.COSMOSDB_AUTH_SECURITY_CONTAINER?.trim() || "auth-security"
 const maintenanceContainerId = process.env.COSMOSDB_MAINTENANCE_CONTAINER?.trim() || "maintenance"
+const casesContainerId = process.env.COSMOSDB_CASES_CONTAINER?.trim() || "cases"
+const caseMessagesContainerId = process.env.COSMOSDB_CASE_MESSAGES_CONTAINER?.trim() || "case-messages"
 
 function createCosmosClient() {
   if (!endpoint) {
@@ -152,5 +154,19 @@ export async function getMaintenanceContainer(): Promise<Container> {
   return createContainerIfNeeded({
     id: maintenanceContainerId,
     partitionKeyPath: "/propertyId",
+  })
+}
+
+export async function getCasesContainer(): Promise<Container> {
+  return createContainerIfNeeded({
+    id: casesContainerId,
+    partitionKeyPath: "/propertyId",
+  })
+}
+
+export async function getCaseMessagesContainer(): Promise<Container> {
+  return createContainerIfNeeded({
+    id: caseMessagesContainerId,
+    partitionKeyPath: "/caseId",
   })
 }

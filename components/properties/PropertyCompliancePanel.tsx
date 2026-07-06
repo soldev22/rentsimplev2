@@ -274,6 +274,8 @@ export default function PropertyCompliancePanel({
                 value={formState.type}
                 onChange={(e) => setFormState({ ...formState, type: e.target.value as ComplianceType })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Select compliance type"
+                title="Select the type of compliance to track"
               >
                 {COMPLIANCE_TYPES.map((type) => (
                   <option key={type} value={type}>
@@ -291,6 +293,8 @@ export default function PropertyCompliancePanel({
                   value={formState.lastCheckedDate}
                   onChange={(e) => setFormState({ ...formState, lastCheckedDate: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Date of last compliance check"
+                  title="When was this compliance requirement last checked"
                 />
               </div>
               <div>
@@ -300,6 +304,8 @@ export default function PropertyCompliancePanel({
                   value={formState.expirationDate}
                   onChange={(e) => setFormState({ ...formState, expirationDate: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Compliance expiration date"
+                  title="When does this compliance requirement expire"
                 />
               </div>
             </div>

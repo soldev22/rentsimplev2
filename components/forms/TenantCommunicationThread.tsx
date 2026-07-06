@@ -167,6 +167,8 @@ export default function TenantCommunicationThread({
                 className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
                 value={composerDraft.channel}
                 onChange={(event) => handleDraftChange("channel", event.target.value as TenantCommunicationChannel)}
+                aria-label="Select communication channel"
+                title="Select the communication channel (email, phone, SMS, etc.)"
               >
                 {communicationChannelOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -182,6 +184,8 @@ export default function TenantCommunicationThread({
                 className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
                 value={composerDraft.direction}
                 onChange={(event) => handleDraftChange("direction", event.target.value as TenantCommunicationDirection)}
+                aria-label="Select communication direction"
+                title="Select whether this is incoming or outgoing communication"
               >
                 {communicationDirectionOptions.map((option) => (
                   <option key={option.value} value={option.value}>
