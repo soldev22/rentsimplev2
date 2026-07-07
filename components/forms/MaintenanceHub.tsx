@@ -10,6 +10,8 @@ import type {
   MaintenancePriority,
   UserRole,
 } from "@/lib/auth"
+import { CameraCapture } from "@/components/pwa/CameraCapture"
+import { PhotoGallery } from "@/components/maintenance/PhotoGallery"
 
 type ReportableProperty = {
   id: string
@@ -116,6 +118,9 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
   const [issueForm, setIssueForm] = useState<TenantIssueFormState>(() => createEmptyIssueForm(reportableProperties))
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(initialIssues[0]?.id ?? null)
   const [isPending, startTransition] = useTransition()
+  const [showCamera, setShowCamera] = useState(false)
+  const [capturedPhotos, setCapturedPhotos] = useState<Array<{ blob: Blob; preview: string }>>([])
+  const [uploadingPhotoIds, setUploadingPhotoIds] = useState<Set<string>>(new Set())
 
   const sortedIssues = useMemo(
     () => [...issues].sort((left, right) => Date.parse(right.reportedAt) - Date.parse(left.reportedAt)),
@@ -198,7 +203,14 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
 
         setIssues((current) => [payload.issue as MaintenanceIssueRecord, ...current])
         setExpandedIssueId(payload.issue.id)
+        
+        // Upload any captured photos
+        if (capturedPhotos.length > 0) {
+          uploadPhotosForIssue(payload.issue.id, capturedPhotos)
+        }
+        
         setIssueForm(createEmptyIssueForm(reportableProperties))
+        setCapturedPhotos([])
         setFeedback({ type: "success", message: "Fault reported. The maintenance case is now in the workflow." })
       } catch (error) {
         setFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to report fault." })
@@ -232,6 +244,87 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
         setFeedback({ type: "success", message: "Builder bid submitted." })
       } catch (error) {
         setFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to submit builder bid." })
+      }
+    })
+  }
+
+  function handlePhotoCapture(blob: Blob) {
+    const preview = URL.createObjectURL(blob)
+    setCapturedPhotos((current) => [...current, { blob, preview }])
+    setShowCamera(false)
+  }
+
+  function removePhoto(index: number) {
+    setCapturedPhotos((current) => {
+      const updated = current.filter((_, i) => i !== index)
+      URL.revokeObjectURL(current[index].preview)
+      return updated
+    })
+  }
+
+  function uploadPhotosForIssue(issueId: string, photos: Array<{ blob: Blob }>) {
+    photos.forEach(async ({ blob }, index) => {
+      const photoId = `${issueId}-${index}-${Date.now()}`
+      setUploadingPhotoIds((current) => new Set([...current, photoId]))
+
+      try {
+        const formData = new FormData()
+        formData.append("file", blob, `photo-${index}.jpg`)
+
+        const response = await fetch(`/api/maintenance/${issueId}/photos`, {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to upload photo")
+        }
+
+        // Update the issue with the new photo
+        setIssues((current) =>
+          current.map((issue) =>
+            issue.id === issueId
+              ? {
+                  ...issue,
+                  photoUrls: [...(issue.photoUrls || []), (await response.json()).photo],
+                }
+              : issue,
+          ),
+        )
+      } catch (error) {
+        console.error("Photo upload failed:", error)
+      } finally {
+        setUploadingPhotoIds((current) => {
+          const updated = new Set(current)
+          updated.delete(photoId)
+          return updated
+        })
+      }
+    })
+  }
+
+  function deletePhoto(issueId: string, photoId: string) {
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/maintenance/${issueId}/photos`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photoId }),
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to delete photo")
+        }
+
+        setIssues((current) =>
+          current.map((issue) =>
+            issue.id === issueId
+              ? { ...issue, photoUrls: (issue.photoUrls || []).filter((p) => p.id !== photoId) }
+              : issue,
+          ),
+        )
+      } catch (error) {
+        setFeedback({ type: "error", message: "Failed to delete photo" })
       }
     })
   }
@@ -344,13 +437,50 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
                 Fault description
                 <textarea className="mt-2 min-h-32 w-full rounded-md border border-slate-300 px-3 py-2" value={issueForm.description} onChange={(event) => setIssueForm((current) => ({ ...current, description: event.target.value }))} required />
               </label>
+
+              {/* Photo Capture & Preview */}
+              <div className="lg:col-span-2 space-y-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCamera(true)}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    📷 Take photo
+                  </button>
+                  {capturedPhotos.length > 0 && (
+                    <span className="text-sm text-slate-600">{capturedPhotos.length} photo{capturedPhotos.length !== 1 ? "s" : ""} ready to upload</span>
+                  )}
+                </div>
+
+                {/* Photo Preview Thumbnails */}
+                {capturedPhotos.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {capturedPhotos.map((photo, index) => (
+                      <div key={index} className="relative">
+                        <img src={photo.preview} alt={`Captured ${index + 1}`} className="h-20 w-20 rounded-lg object-cover border border-slate-200" />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(index)}
+                          className="absolute -right-2 -top-2 rounded-full bg-red-600 w-6 h-6 flex items-center justify-center text-white text-xs hover:bg-red-700"
+                          title="Remove photo"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="lg:col-span-2 flex justify-end">
                 <button type="submit" disabled={isPending} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{isPending ? "Submitting..." : "Report fault"}</button>
               </div>
             </form>
           )}
         </section>
-      ) : null}
+
+      {showCamera && <CameraCapture onPhotoCapture={handlePhotoCapture} onCancel={() => setShowCamera(false)} />}
 
       {sortedIssues.length === 0 ? (
         <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600 shadow-sm">
@@ -399,6 +529,15 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
                       {selectedBid ? <div className="mt-2">Accepted bid: £{selectedBid.amount.toLocaleString()}</div> : null}
                     </div>
                   </div>
+
+                  {/* Photo Gallery */}
+                  {issue.photoUrls && issue.photoUrls.length > 0 && (
+                    <PhotoGallery 
+                      photos={issue.photoUrls}
+                      onDeletePhoto={(photoId) => deletePhoto(issue.id, photoId)}
+                      isLoading={isPending}
+                    />
+                  )}
 
                   {role === "builder" ? (
                     <form key={`${issue.id}-${myBid?.updatedAt ?? "new"}`} className="grid gap-4 rounded-xl border border-slate-200 p-4 lg:grid-cols-2" onSubmit={(event) => { event.preventDefault(); submitBuilderBid(issue.id, new FormData(event.currentTarget)); }}>

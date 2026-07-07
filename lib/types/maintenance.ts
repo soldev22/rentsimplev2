@@ -76,6 +76,8 @@ export type MaintenanceIssueRecord = {
   selectedBuilderEmail?: string
   accreditationChecklist: MaintenanceAccreditationChecklist
   bids: MaintenanceBuilderBid[]
+  photoIds?: string[]
+  photoUrls?: Array<{ id: string; url: string; uploadedAt: string }>
   createdAt: string
   updatedAt: string
 }
