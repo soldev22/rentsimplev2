@@ -4,8 +4,11 @@ import { useEffect } from "react"
 
 export function ServiceWorkerRegister() {
   useEffect(() => {
-    // Only register in production
-    if (process.env.NODE_ENV !== "production" && !process.env.NEXT_PUBLIC_FORCE_SW) {
+    // Register in production or when explicitly enabled for testing
+    const shouldRegister = process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_FORCE_SW === "true"
+    
+    if (!shouldRegister) {
+      console.log("Service Worker registration disabled (dev mode). Set NEXT_PUBLIC_FORCE_SW=true to enable.")
       return
     }
 
