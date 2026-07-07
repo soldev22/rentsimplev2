@@ -23,6 +23,16 @@
 - ✅ User profile settings
 - ✅ Audit trail viewing
 
+### Mobile & PWA
+- ✅ Progressive Web App (PWA) support
+- ✅ Install to home screen (iOS & Android)
+- ✅ Offline support with service worker
+- ✅ Offline fallback page
+- ✅ Cache-first strategy for assets
+- ✅ Network-first strategy for API calls
+- ✅ App shortcuts (Dashboard, Properties, Maintenance)
+- ✅ Responsive mobile design
+
 ---
 
 ## Landlord Features
@@ -241,6 +251,19 @@
 - ✅ Visual stage status feedback (red/orange/green panels)
 - ✅ Overdue stage highlighting
 - ✅ Comprehensive audit logging for legal evidence
+
+## Recent Additions (Phase 6)
+
+### PWA Conversion
+- ✅ Progressive Web App support
+- ✅ Home screen installation (iOS & Android)
+- ✅ Service worker with offline support
+- ✅ Offline-first caching strategy
+- ✅ App shortcuts (Dashboard, Properties, Maintenance)
+- ✅ Web app manifest with metadata
+- ✅ PWA install prompt component
+- ✅ Manual service worker registration (Turbopack compatible)
+- ✅ App icons directory with generation guide
 
 ---
 
