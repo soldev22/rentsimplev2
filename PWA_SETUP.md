@@ -3,6 +3,7 @@
 ## Overview
 
 RentSimple has been converted to a Progressive Web App (PWA), enabling users to:
+
 - Install the app on mobile devices (iOS & Android)
 - Access it offline with cached content
 - Receive push notifications
@@ -11,28 +12,33 @@ RentSimple has been converted to a Progressive Web App (PWA), enabling users to:
 ## What's Included
 
 ### 1. **Service Worker** (`public/sw.js`)
+
 - Handles offline caching with cache-first strategy for assets
 - Uses network-first strategy for API calls
 - Automatically updates content when online
 - Cleans up old cache versions
 
 ### 2. **Web App Manifest** (`public/manifest.json`)
+
 - Defines app metadata (name, icons, colors, theme)
 - Enables home screen installation
 - Configures app shortcuts (Dashboard, Properties, Maintenance)
 - Sets display mode to "standalone" (full-screen app experience)
 
 ### 3. **PWA Components**
+
 - `components/pwa/ServiceWorkerRegister.tsx` - Registers and manages the service worker
 - `components/pwa/PWAInstallPrompt.tsx` - Shows install prompt when available (iOS & Android)
 
 ### 4. **Meta Tags** (in `app/layout.tsx`)
+
 - Apple mobile web app configuration
 - Theme color and status bar styling
 - Viewport configuration for mobile devices
 - Mobile web app capable detection
 
 ### 5. **Offline Page** (`app/offline/page.tsx`)
+
 - Fallback page shown when offline (currently unused but available)
 
 ## How It Works
@@ -40,12 +46,14 @@ RentSimple has been converted to a Progressive Web App (PWA), enabling users to:
 ### Installation Flow
 
 **Android:**
+
 1. User visits RentSimple in Chrome/Edge
 2. Browser shows "Install" prompt
 3. User clicks "Install"
 4. App is added to home screen and installed
 
 **iOS:**
+
 1. User visits RentSimple in Safari
 2. User taps Share → Add to Home Screen
 3. App appears on home screen
@@ -65,6 +73,7 @@ RentSimple has been converted to a Progressive Web App (PWA), enabling users to:
 ### App Shortcuts
 
 Users can long-press the app icon to access quick shortcuts:
+
 - **Dashboard** - Go to main dashboard
 - **Properties** - View properties
 - **Maintenance** - View maintenance requests
@@ -72,12 +81,14 @@ Users can long-press the app icon to access quick shortcuts:
 ## Installation for Users
 
 ### Android
+
 1. Open RentSimple in Chrome/Edge/Firefox
 2. Look for the "Install" button/prompt
 3. Tap "Install"
 4. App is now on your home screen
 
 ### iOS
+
 1. Open RentSimple in Safari
 2. Tap the Share button (box with arrow)
 3. Tap "Add to Home Screen"
@@ -89,6 +100,7 @@ Users can long-press the app icon to access quick shortcuts:
 To make the app production-ready, you need to generate app icons:
 
 **Required icons in `public/icons/`:**
+
 - `icon-192.png` - 192x192 standard icon
 - `icon-192-maskable.png` - 192x192 maskable icon
 - `icon-512.png` - 512x512 splash screen icon
@@ -97,22 +109,25 @@ To make the app production-ready, you need to generate app icons:
 - `screenshot-*.png` - Screenshots for app stores
 
 **Generate icons using:**
+
 ```bash
 npx pwa-asset-generator logo.png ./public/icons/
 ```
 
-Or use: https://www.pwabuilder.com/imageGenerator
+Or use: [PWA Builder Image Generator](https://www.pwabuilder.com/imageGenerator)
 
 ## Service Worker Configuration
 
 The service worker uses two caching strategies:
 
 ### Cache-First (for assets)
+
 - Check cache first, use cached version if available
 - Fall back to network if not cached
 - Good for: JS, CSS, images, fonts
 
 ### Network-First (for API)
+
 - Try to fetch fresh data from network
 - Fall back to cache if offline
 - Good for: API calls, dynamic content
@@ -128,6 +143,7 @@ NEXT_PUBLIC_FORCE_SW=1 npm run dev
 ```
 
 Or in production:
+
 ```bash
 npm run build
 npm run start
@@ -145,19 +161,20 @@ navigator.serviceWorker.controller?.postMessage({
 
 ## Browser Support
 
-| Feature | Chrome | Edge | Firefox | Safari | iOS Safari |
-|---------|--------|------|---------|--------|-----------|
-| PWA Install | ✅ | ✅ | ✅ | ❌ | ⚠️ Limited |
-| Service Worker | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Offline Support | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Add to Home Screen | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Push Notifications | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Feature            | Chrome | Edge | Firefox | Safari | iOS Safari |
+| ------------------ | ------ | ---- | ------- | ------ | ---------- |
+| PWA Install        | ✅     | ✅   | ✅      | ❌     | ⚠️ Limited |
+| Service Worker     | ✅     | ✅   | ✅      | ✅     | ✅         |
+| Offline Support    | ✅     | ✅   | ✅      | ✅     | ✅         |
+| Add to Home Screen | ✅     | ✅   | ✅      | ✅     | ✅         |
+| Push Notifications | ✅     | ✅   | ✅      | ❌     | ❌         |
 
 ## Debugging
 
 ### Check Service Worker Status
 
 Open DevTools and go to Application → Service Workers:
+
 - Shows registered service workers
 - Displays scope and status
 - Option to unregister or skip waiting
@@ -165,6 +182,7 @@ Open DevTools and go to Application → Service Workers:
 ### Check Cache
 
 Go to Application → Cache Storage:
+
 - See what's cached
 - Check cache size
 - Manually delete cache entries
@@ -172,6 +190,7 @@ Go to Application → Cache Storage:
 ### Console Logs
 
 Service worker logs appear in:
+
 1. Main app console (messages from UI)
 2. Service Worker console (in DevTools Application tab)
 
@@ -192,17 +211,20 @@ Service worker logs appear in:
 ## Troubleshooting
 
 ### Service Worker not registering
+
 - Check browser console for errors
 - Verify `/public/sw.js` exists
 - Ensure HTTPS is enabled (required in production)
 - Try clearing cache and restarting browser
 
 ### Offline not working
+
 - Verify service worker is registered
 - Check Application tab → Cache Storage
 - Service worker must be uninterrupted during install
 
 ### Push notifications not working
+
 - iOS Safari doesn't support Web Push (iOS 16+)
 - Android requires opt-in from user
 - HTTPS is required

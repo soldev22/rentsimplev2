@@ -3,6 +3,7 @@
 ## Core Platform
 
 ### Authentication & User Management
+
 - ✅ User registration with email
 - ✅ User login with email/password
 - ✅ HTTP-only cookie session management
@@ -17,6 +18,7 @@
 - ✅ Admin ability to "act as" other users
 
 ### Dashboard & Navigation
+
 - ✅ Role-based dashboard routing
 - ✅ Shared dashboard layout/chrome
 - ✅ Sidebar navigation
@@ -24,6 +26,7 @@
 - ✅ Audit trail viewing
 
 ### Mobile & PWA
+
 - ✅ Progressive Web App (PWA) support
 - ✅ Install to home screen (iOS & Android)
 - ✅ Offline support with service worker
@@ -38,6 +41,7 @@
 ## Landlord Features
 
 ### Property Management
+
 - ✅ Create properties
 - ✅ View property list
 - ✅ View property details
@@ -50,6 +54,7 @@
 - ✅ Property scope picker for multi-property landlords
 
 ### Case Management
+
 - ✅ Create legal timeline cases (for damp, flood, complaints, etc.)
 - ✅ Track case status with legal deadline timers
 - ✅ Multi-stage case workflows with color-coded status (red/orange/green)
@@ -62,12 +67,14 @@
 - ✅ Case audit logging for tribunal evidence
 
 ### Tenant Management
+
 - ✅ View tenant list
 - ✅ Tenant communication/messaging thread
 - ✅ Send messages to tenants
 - ✅ View tenant profiles
 
 ### Maintenance
+
 - ✅ View maintenance requests
 - ✅ Create maintenance requests
 - ✅ Assign maintenance to contractors
@@ -75,6 +82,7 @@
 - ✅ Maintenance communication with tenants
 
 ### Bookings
+
 - ✅ View property bookings
 - ✅ Create/manage bookings
 
@@ -83,12 +91,14 @@
 ## Tenant Features
 
 ### Tenancy Management
+
 - ✅ View current tenancy details
 - ✅ Access tenancy information
 - ✅ Tenancy checklists and workflows
 - ✅ Apply tenancy workflows (create/edit/submit)
 
 ### Maintenance Requests
+
 - ✅ Raise maintenance requests
 - ✅ Track maintenance request status
 - ✅ Communicate with landlord about maintenance
@@ -96,6 +106,7 @@
 - ✅ Priority classification (low/medium/high)
 
 ### Notifications
+
 - ✅ Tenant communication thread notifications
 - ✅ Preferred contact method settings (email, phone, SMS, WhatsApp)
 - ✅ Notification delivery via email
@@ -106,12 +117,14 @@
 ## Applicant Features
 
 ### Property Discovery
+
 - ✅ Browse available properties
 - ✅ View property details and photos
 - ✅ View property quick-apply cards
 - ✅ Search/filter properties (by amenities, price, location)
 
 ### Application Workflow
+
 - ✅ Submit tenancy applications
 - ✅ Application form with required fields
 - ✅ Application status tracking
@@ -119,6 +132,7 @@
 - ✅ Application checklist completion
 
 ### Profile Management
+
 - ✅ Complete applicant profile
 - ✅ Preferred contact method settings
 - ✅ Profile verification status
@@ -128,6 +142,7 @@
 ## Builder Features
 
 ### Property Builder
+
 - ⏳ Property creation wizard
 - ⏳ Template-based property setup
 - ⏳ Draft property management
@@ -137,6 +152,7 @@
 ## Agent Features
 
 ### Agent Dashboard
+
 - ⏳ Agent workspace
 - ⏳ Case assignment
 - ⏳ Performance metrics
@@ -146,6 +162,7 @@
 ## Admin Features
 
 ### User Management
+
 - ✅ View all users
 - ✅ Assign user roles
 - ✅ Approve pending users
@@ -154,6 +171,7 @@
 - ✅ Reset user workspace
 
 ### System Administration
+
 - ✅ Admin dashboard
 - ✅ System-wide user management
 - ✅ Workspace reset capability
@@ -163,6 +181,7 @@
 ## Audit & Compliance
 
 ### Audit Logging
+
 - ✅ Immutable audit trail for all actions
 - ✅ Entity-based audit events (property, case, application, etc.)
 - ✅ Field-level change tracking
@@ -172,6 +191,7 @@
 - ✅ Export audit logs
 
 ### Data & Legal
+
 - ✅ GDPR-compliant data handling
 - ✅ Case completion evidence for tribunal
 - ✅ Immutable inspection reports
@@ -182,6 +202,7 @@
 ## API Features
 
 ### Data Access
+
 - ✅ RESTful API endpoints
 - ✅ Pagination support (offset and continuation token modes)
 - ✅ Landlord-scoped queries
@@ -190,6 +211,7 @@
 - ✅ Request validation
 
 ### Integration
+
 - ✅ Email delivery (SMTP via Nodemailer)
 - ✅ Image storage (Azure Blob Storage)
 - ✅ Image moderation (Azure Content Safety)
@@ -200,6 +222,7 @@
 ## Technical Features
 
 ### Performance
+
 - ✅ Server-side rendering with Next.js 16
 - ✅ Turbopack compilation (~3-5s builds)
 - ✅ Server components for data fetching
@@ -208,6 +231,7 @@
 - ✅ Memory cleanup (isMounted pattern)
 
 ### Development
+
 - ✅ TypeScript strict mode
 - ✅ ESLint configuration
 - ✅ Vitest for testing
@@ -215,6 +239,7 @@
 - ✅ Prettier formatting
 
 ### Security
+
 - ✅ HTTP-only session cookies
 - ✅ CSRF protection ready
 - ✅ Rate limiting
@@ -236,6 +261,7 @@
 ## Recent Additions (Phase 4-5)
 
 ### Inspection & Reporting
+
 - ✅ Damp inspection form with 9 fieldsets
 - ✅ Severity/urgency classification
 - ✅ Root cause diagnosis
@@ -246,15 +272,19 @@
 - ✅ Contact preference validation
 
 ### Workflow Improvements
+
 - ✅ Two-step damp case completion (form → completion)
 - ✅ Report prerequisite gating
 - ✅ Visual stage status feedback (red/orange/green panels)
 - ✅ Overdue stage highlighting
 - ✅ Comprehensive audit logging for legal evidence
 
+---
+
 ## Recent Additions (Phase 6)
 
 ### PWA Conversion
+
 - ✅ Progressive Web App support
 - ✅ Home screen installation (iOS & Android)
 - ✅ Service worker with offline support
