@@ -423,3 +423,115 @@ export async function sendEscalationNotification(params: EscalationNotificationP
     return false
   }
 }
+
+type SiteVisitInviteNotificationParams = {
+  toEmail: string
+  applicantName: string
+  requestedByEmail: string
+  requestedAt: string
+  propertyAddress: string
+  applicationId: string
+  scheduledAt?: string
+  assigneeName?: string
+  meetingConfirmationUrl: string
+}
+
+type SiteVisitInviteDeliveryResult = {
+  sent: boolean
+  error?: string
+  messageId?: string
+  accepted?: string[]
+  rejected?: string[]
+}
+
+export async function sendSiteVisitMeetingInviteNotification(
+  params: SiteVisitInviteNotificationParams,
+): Promise<SiteVisitInviteDeliveryResult> {
+  const smtpConfig = getSmtpConfig()
+
+  if (!smtpConfig) {
+    console.warn("SMTP not configured - cannot send site visit invite notification")
+    return {
+      sent: false,
+      error: "SMTP is not configured on this environment.",
+    }
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    })
+
+    const formattedSchedule = params.scheduledAt
+      ? new Date(params.scheduledAt).toLocaleString("en-GB")
+      : "to be confirmed"
+    const subject = `Please confirm your RentSimple site visit for ${params.propertyAddress}`
+    const text = [
+      `Hello ${params.applicantName},`,
+      "",
+      "Your tenancy team would like to arrange your site visit and needs your confirmation.",
+      "",
+      `Application ID: ${params.applicationId}`,
+      `Property: ${params.propertyAddress}`,
+      `Proposed meeting time: ${formattedSchedule}`,
+      params.assigneeName ? `Host: ${params.assigneeName}` : "",
+      `Requested by: ${params.requestedByEmail}`,
+      `Requested at: ${new Date(params.requestedAt).toLocaleString("en-GB")}`,
+      "",
+      "Review the meeting details and confirm using your secure link:",
+      params.meetingConfirmationUrl,
+      "",
+      "This secure link can only be used once.",
+    ]
+      .filter(Boolean)
+      .join("\n")
+
+    const delivery = await transporter.sendMail({
+      from: formatMailbox(smtpConfig.from, "RentSimple Viewings"),
+      to: params.toEmail,
+      subject,
+      text,
+    })
+
+    const accepted = (delivery.accepted ?? []).map((value) => String(value).trim().toLowerCase())
+    const rejected = (delivery.rejected ?? []).map((value) => String(value).trim().toLowerCase())
+    const normalizedTarget = params.toEmail.trim().toLowerCase()
+    const targetAccepted = accepted.includes(normalizedTarget)
+    const targetRejected = rejected.includes(normalizedTarget)
+
+    if (!targetAccepted || targetRejected) {
+      const reason = targetRejected
+        ? `Recipient rejected by SMTP provider: ${params.toEmail}`
+        : `SMTP did not confirm recipient acceptance: ${params.toEmail}`
+
+      return {
+        sent: false,
+        error: reason,
+        messageId: delivery.messageId,
+        accepted,
+        rejected,
+      }
+    }
+
+    return {
+      sent: true,
+      messageId: delivery.messageId,
+      accepted,
+      rejected,
+    }
+  } catch (error) {
+    console.error("Error sending site visit invite notification:", error)
+    const detail = error instanceof Error && error.message ? error.message : "Unknown SMTP delivery error."
+
+    return {
+      sent: false,
+      error: detail,
+    }
+  }
+}

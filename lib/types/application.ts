@@ -191,12 +191,21 @@ export type ApplicantChecklistSignOff = {
 
 export type SiteVisitStatus = "not_scheduled" | "scheduled" | "completed" | "no_access" | "cancelled"
 
+export type SiteVisitInviteStatus = "not_sent" | "sent" | "confirmed" | "declined" | "expired" | "failed"
+
 export type SiteVisitDetails = {
   status: SiteVisitStatus
   scheduledAt?: string
   completedAt?: string
+  alternativeSuggestedAt?: string
   assigneeName: string
   notes: string
+  inviteStatus: SiteVisitInviteStatus
+  inviteRequestId?: string
+  inviteRequestedAt?: string
+  inviteSentAt?: string
+  inviteRespondedAt?: string
+  inviteLastError?: string
 }
 
 export type PreMoveInCompliance = {

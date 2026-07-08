@@ -144,6 +144,12 @@ const application: TenancyApplicationRecord = {
       completedAt: undefined,
       assigneeName: "Operations Team",
       notes: "Initial pre move-in visit booked.",
+      inviteStatus: "sent",
+      inviteRequestId: "invite-1",
+      inviteRequestedAt: "2026-06-11T10:00:00.000Z",
+      inviteSentAt: "2026-06-11T10:00:00.000Z",
+      inviteRespondedAt: undefined,
+      inviteLastError: undefined,
     },
   },
   moveInChecklist: {

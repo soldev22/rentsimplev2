@@ -187,6 +187,7 @@ export default function ApplicationReviewManager({
   const [feedback, setFeedback] = useState<FeedbackState>({})
   const [globalFeedback, setGlobalFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
   const [communicationDrafts, setCommunicationDrafts] = useState<Record<string, CommunicationDraft>>({})
+  const [siteVisitInviteLinksByApplicationId, setSiteVisitInviteLinksByApplicationId] = useState<Record<string, string>>({})
   const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(null)
   const [fullAuditApplicationId, setFullAuditApplicationId] = useState<string | null>(null)
   const [verificationUploadStateBySlot, setVerificationUploadStateBySlot] = useState<Record<string, boolean>>({})
@@ -407,6 +408,51 @@ export default function ApplicationReviewManager({
     })
   }
 
+  async function copySiteVisitInviteLink(applicationId: string) {
+    const link = siteVisitInviteLinksByApplicationId[applicationId]?.trim()
+
+    if (!link) {
+      setFeedback((current) => ({
+        ...current,
+        [applicationId]: {
+          type: "error",
+          message: "No invite link is available yet. Send or resend invite first.",
+        },
+      }))
+      return
+    }
+
+    if (!navigator?.clipboard?.writeText) {
+      setFeedback((current) => ({
+        ...current,
+        [applicationId]: {
+          type: "error",
+          message: "Clipboard access is unavailable in this browser.",
+        },
+      }))
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(link)
+      setFeedback((current) => ({
+        ...current,
+        [applicationId]: {
+          type: "success",
+          message: "Invite link copied to clipboard.",
+        },
+      }))
+    } catch {
+      setFeedback((current) => ({
+        ...current,
+        [applicationId]: {
+          type: "error",
+          message: "Unable to copy invite link to clipboard.",
+        },
+      }))
+    }
+  }
+
   function toggleApplication(applicationId: string) {
     setExpandedApplicationId((current) => (current === applicationId ? null : applicationId))
   }
@@ -605,6 +651,111 @@ export default function ApplicationReviewManager({
     })
   }
 
+  function requestSiteVisitInvite(
+    application: TenancyApplicationRecord,
+    options?: {
+      forceResend?: boolean
+    },
+  ) {
+    const applicationId = application.id
+    const forceResend = options?.forceResend === true
+    setFeedback((current) => ({ ...current, [applicationId]: null }))
+
+    startTransition(async () => {
+      try {
+        const persistResponse = await fetch(`/api/applications/${applicationId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            currentStage: application.currentStage,
+            status: application.status,
+            referencingInstruction: application.referencingInstruction,
+            referencingReport: application.referencingReport,
+            approvalDecision: application.approvalDecision,
+            tenancyAgreement: application.tenancyAgreement,
+            preMoveInCompliance: application.preMoveInCompliance,
+            moveInChecklist: application.moveInChecklist,
+            depositProtection: application.depositProtection,
+            postMoveInManagement: application.postMoveInManagement,
+          }),
+        })
+
+        const persistPayload = (await persistResponse.json().catch(() => null)) as
+          | {
+              application?: TenancyApplicationRecord
+              error?: string
+            }
+          | null
+
+        if (!persistResponse.ok || !persistPayload?.application) {
+          throw new Error(persistPayload?.error || "Save the site visit schedule before sending the invite.")
+        }
+
+        const response = await fetch(`/api/applications/${applicationId}/site-visit-invite`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ forceResend }),
+        })
+
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              application?: TenancyApplicationRecord
+              auditEvents?: AuditEventRecord[]
+              message?: string
+              error?: string
+              failedCount?: number
+              confirmationUrl?: string
+            }
+          | null
+
+        if (!response.ok || !payload?.application) {
+          throw new Error(payload?.error || "Unable to send site visit invite.")
+        }
+
+        const updatedApplication = payload.application
+
+        setApplications((current) =>
+          current.map((candidate) => (candidate.id === updatedApplication.id ? updatedApplication : candidate)),
+        )
+
+        if (payload.auditEvents) {
+          const updatedAuditEvents = payload.auditEvents
+          setAuditEventsByApplicationId((current) => ({
+            ...current,
+            [updatedApplication.id]: updatedAuditEvents,
+          }))
+        }
+
+        if (payload.confirmationUrl) {
+          setSiteVisitInviteLinksByApplicationId((current) => ({
+            ...current,
+            [updatedApplication.id]: payload.confirmationUrl as string,
+          }))
+        }
+
+        setFeedback((current) => ({
+          ...current,
+          [applicationId]: {
+            type: payload.failedCount && payload.failedCount > 0 ? "error" : "success",
+            message: payload.message || (forceResend ? "Site visit invite email resent." : "Site visit invite email sent."),
+          },
+        }))
+      } catch (error) {
+        setFeedback((current) => ({
+          ...current,
+          [applicationId]: {
+            type: "error",
+            message: error instanceof Error ? error.message : "Unable to send site visit invite.",
+          },
+        }))
+      }
+    })
+  }
+
   function deleteApplicationPermanently(applicationId: string) {
     if (!isAdmin) {
       return
@@ -773,6 +924,11 @@ export default function ApplicationReviewManager({
           const siteVisitCompletedAt = application.preMoveInCompliance.siteVisit?.completedAt ?? ""
           const siteVisitAssigneeName = application.preMoveInCompliance.siteVisit?.assigneeName ?? ""
           const siteVisitNotes = application.preMoveInCompliance.siteVisit?.notes ?? ""
+          const siteVisitInviteStatus = application.preMoveInCompliance.siteVisit?.inviteStatus ?? "not_sent"
+          const siteVisitInviteSentAt = application.preMoveInCompliance.siteVisit?.inviteSentAt ?? ""
+          const siteVisitInviteRespondedAt = application.preMoveInCompliance.siteVisit?.inviteRespondedAt ?? ""
+          const siteVisitInviteLastError = application.preMoveInCompliance.siteVisit?.inviteLastError ?? ""
+          const siteVisitConfirmationUrl = siteVisitInviteLinksByApplicationId[application.id] ?? ""
           const latestRequestByRefereeId = new Map<string, TenancyReferenceRequest>()
 
           for (const request of referenceRequests) {
@@ -1122,6 +1278,220 @@ export default function ApplicationReviewManager({
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
+              <section className="rounded-xl border border-slate-200 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-lg font-semibold text-slate-900">Schedule site visit</h3>
+                  <span className={`rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-[0.12em] ${getSiteVisitTone(siteVisitStatus)}`}>
+                    {formatSiteVisitStatus(siteVisitStatus)}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Site visit status
+                    <select
+                      className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                      value={siteVisitStatus}
+                      onChange={(event) => {
+                        const nextStatus = event.target.value as TenancyApplicationRecord["preMoveInCompliance"]["siteVisit"]["status"]
+
+                        updateApplication(application.id, (current) => ({
+                          ...current,
+                          preMoveInCompliance: {
+                            ...current.preMoveInCompliance,
+                            checkInScheduled: nextStatus === "scheduled" || nextStatus === "completed",
+                            siteVisit: {
+                              ...(current.preMoveInCompliance.siteVisit ?? {
+                                status: "not_scheduled",
+                                assigneeName: "",
+                                notes: "",
+                                inviteStatus: "not_sent",
+                              }),
+                              status: nextStatus,
+                              completedAt:
+                                nextStatus === "completed"
+                                  ? current.preMoveInCompliance.siteVisit?.completedAt || new Date().toISOString()
+                                  : undefined,
+                            },
+                          },
+                        }))
+                      }}
+                    >
+                      <option value="not_scheduled">Not scheduled</option>
+                      <option value="scheduled">Scheduled</option>
+                      <option value="completed">Completed</option>
+                      <option value="no_access">No access</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </label>
+
+                  <label className="block text-sm font-medium text-slate-700">
+                    Assigned to
+                    <input
+                      className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                      value={siteVisitAssigneeName}
+                      onChange={(event) =>
+                        updateApplication(application.id, (current) => ({
+                          ...current,
+                          preMoveInCompliance: {
+                            ...current.preMoveInCompliance,
+                            siteVisit: {
+                              ...(current.preMoveInCompliance.siteVisit ?? {
+                                status: "not_scheduled",
+                                assigneeName: "",
+                                notes: "",
+                                inviteStatus: "not_sent",
+                              }),
+                              assigneeName: event.target.value,
+                            },
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="block text-sm font-medium text-slate-700">
+                    Scheduled for
+                    <input
+                      className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                      type="datetime-local"
+                      value={siteVisitScheduledAt ? siteVisitScheduledAt.slice(0, 16) : ""}
+                      onChange={(event) =>
+                        updateApplication(application.id, (current) => ({
+                          ...current,
+                          preMoveInCompliance: {
+                            ...current.preMoveInCompliance,
+                            checkInScheduled: Boolean(event.target.value) || current.preMoveInCompliance.checkInScheduled,
+                            siteVisit: {
+                              ...(current.preMoveInCompliance.siteVisit ?? {
+                                status: "not_scheduled",
+                                assigneeName: "",
+                                notes: "",
+                                inviteStatus: "not_sent",
+                              }),
+                              scheduledAt: event.target.value ? new Date(event.target.value).toISOString() : undefined,
+                              status:
+                                event.target.value && current.preMoveInCompliance.siteVisit?.status === "not_scheduled"
+                                  ? "scheduled"
+                                  : (current.preMoveInCompliance.siteVisit?.status ?? "not_scheduled"),
+                            },
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="block text-sm font-medium text-slate-700">
+                    Completed at
+                    <input
+                      className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                      type="datetime-local"
+                      value={siteVisitCompletedAt ? siteVisitCompletedAt.slice(0, 16) : ""}
+                      onChange={(event) =>
+                        updateApplication(application.id, (current) => ({
+                          ...current,
+                          preMoveInCompliance: {
+                            ...current.preMoveInCompliance,
+                            checkInScheduled: current.preMoveInCompliance.checkInScheduled || Boolean(event.target.value),
+                            siteVisit: {
+                              ...(current.preMoveInCompliance.siteVisit ?? {
+                                status: "not_scheduled",
+                                assigneeName: "",
+                                notes: "",
+                                inviteStatus: "not_sent",
+                              }),
+                              completedAt: event.target.value ? new Date(event.target.value).toISOString() : undefined,
+                              status: event.target.value ? "completed" : (current.preMoveInCompliance.siteVisit?.status ?? "not_scheduled"),
+                            },
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label className="block text-sm font-medium text-slate-700 md:col-span-2">
+                    Site visit notes
+                    <textarea
+                      className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2"
+                      value={siteVisitNotes}
+                      onChange={(event) =>
+                        updateApplication(application.id, (current) => ({
+                          ...current,
+                          preMoveInCompliance: {
+                            ...current.preMoveInCompliance,
+                            siteVisit: {
+                              ...(current.preMoveInCompliance.siteVisit ?? {
+                                status: "not_scheduled",
+                                assigneeName: "",
+                                notes: "",
+                                inviteStatus: "not_sent",
+                              }),
+                              notes: event.target.value,
+                            },
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      Invite status: <strong className={getSiteVisitInviteTone(siteVisitInviteStatus)}>{formatSiteVisitInviteStatus(siteVisitInviteStatus)}</strong>
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="rounded-md border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-800 hover:bg-cyan-100 disabled:opacity-60"
+                        onClick={() => requestSiteVisitInvite(application)}
+                        disabled={isPending || !siteVisitScheduledAt}
+                      >
+                        Send invite email
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                        onClick={() => requestSiteVisitInvite(application, { forceResend: true })}
+                        disabled={isPending || !siteVisitScheduledAt || siteVisitInviteStatus === "not_sent"}
+                      >
+                        Resend invite
+                      </button>
+                    </div>
+                  </div>
+
+                  {siteVisitInviteSentAt ? (
+                    <div className="mt-2">Invite sent: {new Date(siteVisitInviteSentAt).toLocaleString()}</div>
+                  ) : null}
+                  {siteVisitConfirmationUrl ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <a
+                        className="rounded-md border border-cyan-300 bg-white px-2.5 py-1 font-semibold text-cyan-800 hover:bg-cyan-50"
+                        href={siteVisitConfirmationUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open invite page
+                      </a>
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-300 bg-white px-2.5 py-1 font-semibold text-slate-700 hover:bg-slate-100"
+                        onClick={() => {
+                          void copySiteVisitInviteLink(application.id)
+                        }}
+                      >
+                        Copy invite link
+                      </button>
+                    </div>
+                  ) : null}
+                  {siteVisitInviteRespondedAt ? (
+                    <div className="mt-1">Applicant responded: {new Date(siteVisitInviteRespondedAt).toLocaleString()}</div>
+                  ) : null}
+                  {siteVisitInviteLastError ? <div className="mt-1 text-rose-700">Last error: {siteVisitInviteLastError}</div> : null}
+                  {!siteVisitScheduledAt ? <div className="mt-1 text-amber-700">Set a scheduled time before sending the invite.</div> : null}
+                </div>
+              </section>
+
               <section className="rounded-xl border border-slate-200 p-4">
                 <h3 className="text-lg font-semibold text-slate-900">Decision and approval</h3>
                 <div className="mt-4 grid gap-4">
@@ -1669,158 +2039,6 @@ export default function ApplicationReviewManager({
                     <div className="mt-1">Applicant sign-off: {application.applicantChecklist.signedAt ? `${application.applicantChecklist.signedFullName || application.applicantName} on ${new Date(application.applicantChecklist.signedAt).toLocaleString()}` : "Pending"}</div>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 md:col-span-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h4 className="text-sm font-semibold text-slate-900">Site visit workflow</h4>
-                      <span className={`rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-[0.12em] ${getSiteVisitTone(siteVisitStatus)}`}>
-                        {formatSiteVisitStatus(siteVisitStatus)}
-                      </span>
-                    </div>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      <label className="block text-sm font-medium text-slate-700">
-                        Site visit status
-                        <select
-                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
-                          value={siteVisitStatus}
-                          onChange={(event) => {
-                            const nextStatus = event.target.value as TenancyApplicationRecord["preMoveInCompliance"]["siteVisit"]["status"]
-
-                            updateApplication(application.id, (current) => ({
-                              ...current,
-                              preMoveInCompliance: {
-                                ...current.preMoveInCompliance,
-                                checkInScheduled: nextStatus === "scheduled" || nextStatus === "completed",
-                                siteVisit: {
-                                  ...(current.preMoveInCompliance.siteVisit ?? {
-                                    status: "not_scheduled",
-                                    assigneeName: "",
-                                    notes: "",
-                                  }),
-                                  status: nextStatus,
-                                  completedAt:
-                                    nextStatus === "completed"
-                                      ? current.preMoveInCompliance.siteVisit?.completedAt || new Date().toISOString()
-                                      : undefined,
-                                },
-                              },
-                            }))
-                          }}
-                        >
-                          <option value="not_scheduled">Not scheduled</option>
-                          <option value="scheduled">Scheduled</option>
-                          <option value="completed">Completed</option>
-                          <option value="no_access">No access</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                      </label>
-
-                      <label className="block text-sm font-medium text-slate-700">
-                        Assigned to
-                        <input
-                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
-                          value={siteVisitAssigneeName}
-                          onChange={(event) =>
-                            updateApplication(application.id, (current) => ({
-                              ...current,
-                              preMoveInCompliance: {
-                                ...current.preMoveInCompliance,
-                                siteVisit: {
-                                  ...(current.preMoveInCompliance.siteVisit ?? {
-                                    status: "not_scheduled",
-                                    assigneeName: "",
-                                    notes: "",
-                                  }),
-                                  assigneeName: event.target.value,
-                                },
-                              },
-                            }))
-                          }
-                        />
-                      </label>
-
-                      <label className="block text-sm font-medium text-slate-700">
-                        Scheduled for
-                        <input
-                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
-                          type="datetime-local"
-                          value={siteVisitScheduledAt ? siteVisitScheduledAt.slice(0, 16) : ""}
-                          onChange={(event) =>
-                            updateApplication(application.id, (current) => ({
-                              ...current,
-                              preMoveInCompliance: {
-                                ...current.preMoveInCompliance,
-                                checkInScheduled: Boolean(event.target.value) || current.preMoveInCompliance.checkInScheduled,
-                                siteVisit: {
-                                  ...(current.preMoveInCompliance.siteVisit ?? {
-                                    status: "not_scheduled",
-                                    assigneeName: "",
-                                    notes: "",
-                                  }),
-                                  scheduledAt: event.target.value ? new Date(event.target.value).toISOString() : undefined,
-                                  status:
-                                    event.target.value && current.preMoveInCompliance.siteVisit?.status === "not_scheduled"
-                                      ? "scheduled"
-                                      : (current.preMoveInCompliance.siteVisit?.status ?? "not_scheduled"),
-                                },
-                              },
-                            }))
-                          }
-                        />
-                      </label>
-
-                      <label className="block text-sm font-medium text-slate-700">
-                        Completed at
-                        <input
-                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
-                          type="datetime-local"
-                          value={siteVisitCompletedAt ? siteVisitCompletedAt.slice(0, 16) : ""}
-                          onChange={(event) =>
-                            updateApplication(application.id, (current) => ({
-                              ...current,
-                              preMoveInCompliance: {
-                                ...current.preMoveInCompliance,
-                                checkInScheduled: current.preMoveInCompliance.checkInScheduled || Boolean(event.target.value),
-                                siteVisit: {
-                                  ...(current.preMoveInCompliance.siteVisit ?? {
-                                    status: "not_scheduled",
-                                    assigneeName: "",
-                                    notes: "",
-                                  }),
-                                  completedAt: event.target.value ? new Date(event.target.value).toISOString() : undefined,
-                                  status: event.target.value ? "completed" : (current.preMoveInCompliance.siteVisit?.status ?? "not_scheduled"),
-                                },
-                              },
-                            }))
-                          }
-                        />
-                      </label>
-
-                      <label className="block text-sm font-medium text-slate-700 md:col-span-2">
-                        Site visit notes
-                        <textarea
-                          className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2"
-                          value={siteVisitNotes}
-                          onChange={(event) =>
-                            updateApplication(application.id, (current) => ({
-                              ...current,
-                              preMoveInCompliance: {
-                                ...current.preMoveInCompliance,
-                                siteVisit: {
-                                  ...(current.preMoveInCompliance.siteVisit ?? {
-                                    status: "not_scheduled",
-                                    assigneeName: "",
-                                    notes: "",
-                                  }),
-                                  notes: event.target.value,
-                                },
-                              },
-                            }))
-                          }
-                        />
-                      </label>
-                    </div>
-                  </div>
-
                   {[
                     ["offerLetterSent", "Offer letter issued"],
                     ["offerLetterSigned", "Signed offer letter received"],
@@ -2161,4 +2379,24 @@ function getSiteVisitTone(status: TenancyApplicationRecord["preMoveInCompliance"
   }
 
   return "bg-slate-100 text-slate-700"
+}
+
+function formatSiteVisitInviteStatus(status: TenancyApplicationRecord["preMoveInCompliance"]["siteVisit"]["inviteStatus"]) {
+  return status.replaceAll("_", " ")
+}
+
+function getSiteVisitInviteTone(status: TenancyApplicationRecord["preMoveInCompliance"]["siteVisit"]["inviteStatus"]) {
+  if (status === "confirmed") {
+    return "text-emerald-800"
+  }
+
+  if (status === "declined" || status === "failed" || status === "expired") {
+    return "text-rose-800"
+  }
+
+  if (status === "sent") {
+    return "text-cyan-800"
+  }
+
+  return "text-slate-700"
 }

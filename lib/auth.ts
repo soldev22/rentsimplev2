@@ -44,6 +44,7 @@ export type {
   TenantCommunicationNotificationStatus,
   TenancyCreditReportRequest,
   TenantDecisionOutcome,
+  SiteVisitInviteStatus,
   TenancyAgreementPreparation,
   TenancyApplicationRecord,
   TenancyApplicationStage,

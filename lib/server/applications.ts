@@ -45,6 +45,7 @@ import {
   deliverTenantCommunicationNotification,
   sendCreditReportRequestNotification,
   sendGuarantorReferenceRequestNotification,
+  sendSiteVisitMeetingInviteNotification,
 } from "@/lib/server/notifications"
 import { DEFAULT_AFFORDABILITY_MULTIPLE, getPublicAvailableProperty, listPropertiesForUser } from "@/lib/server/properties"
 import { setUserRoleForWorkflow } from "@/lib/server/users"
@@ -118,6 +119,7 @@ const TENANCY_VERIFICATION_DOCUMENT_CATEGORIES: TenancyVerificationDocumentCateg
 ]
 
 const GUARANTOR_REFERENCE_TOKEN_DURATION_MS = 1000 * 60 * 60 * 24 * 7
+const SITE_VISIT_CONFIRMATION_TOKEN_DURATION_MS = 1000 * 60 * 60 * 24 * 7
 
 function assertApplicant(user: AuthUser) {
   if (getUserRole(user) !== "applicant") {
@@ -383,8 +385,15 @@ function createDefaultPreMoveInCompliance(): PreMoveInCompliance {
       status: "not_scheduled",
       scheduledAt: undefined,
       completedAt: undefined,
+      alternativeSuggestedAt: undefined,
       assigneeName: "",
       notes: "",
+      inviteStatus: "not_sent",
+      inviteRequestId: undefined,
+      inviteRequestedAt: undefined,
+      inviteSentAt: undefined,
+      inviteRespondedAt: undefined,
+      inviteLastError: undefined,
     },
   }
 }
@@ -816,6 +825,38 @@ function hydrateStoredApplication(application: TenancyApplicationRecord): Tenanc
           typeof application.preMoveInCompliance?.siteVisit?.notes === "string"
             ? application.preMoveInCompliance.siteVisit.notes.trim()
             : "",
+        alternativeSuggestedAt:
+          typeof application.preMoveInCompliance?.siteVisit?.alternativeSuggestedAt === "string"
+            ? application.preMoveInCompliance.siteVisit.alternativeSuggestedAt
+            : undefined,
+        inviteStatus:
+          application.preMoveInCompliance?.siteVisit?.inviteStatus === "sent" ||
+          application.preMoveInCompliance?.siteVisit?.inviteStatus === "confirmed" ||
+          application.preMoveInCompliance?.siteVisit?.inviteStatus === "declined" ||
+          application.preMoveInCompliance?.siteVisit?.inviteStatus === "expired" ||
+          application.preMoveInCompliance?.siteVisit?.inviteStatus === "failed"
+            ? application.preMoveInCompliance.siteVisit.inviteStatus
+            : "not_sent",
+        inviteRequestId:
+          typeof application.preMoveInCompliance?.siteVisit?.inviteRequestId === "string"
+            ? application.preMoveInCompliance.siteVisit.inviteRequestId
+            : undefined,
+        inviteRequestedAt:
+          typeof application.preMoveInCompliance?.siteVisit?.inviteRequestedAt === "string"
+            ? application.preMoveInCompliance.siteVisit.inviteRequestedAt
+            : undefined,
+        inviteSentAt:
+          typeof application.preMoveInCompliance?.siteVisit?.inviteSentAt === "string"
+            ? application.preMoveInCompliance.siteVisit.inviteSentAt
+            : undefined,
+        inviteRespondedAt:
+          typeof application.preMoveInCompliance?.siteVisit?.inviteRespondedAt === "string"
+            ? application.preMoveInCompliance.siteVisit.inviteRespondedAt
+            : undefined,
+        inviteLastError:
+          typeof application.preMoveInCompliance?.siteVisit?.inviteLastError === "string"
+            ? application.preMoveInCompliance.siteVisit.inviteLastError
+            : undefined,
       },
     },
     applicantProfile: normalizeQuestionnaire({
@@ -1975,6 +2016,12 @@ function getRefereeRequestExpiry(requestedAtIso: string) {
   return requestedAt.toISOString()
 }
 
+function getSiteVisitInviteExpiry(requestedAtIso: string) {
+  const requestedAt = new Date(requestedAtIso)
+  requestedAt.setDate(requestedAt.getDate() + 7)
+  return requestedAt.toISOString()
+}
+
 function hasActiveReferenceRequest(requests: TenancyReferenceRequest[], refereeId: string) {
   return requests.some(
     (request) =>
@@ -2379,5 +2426,257 @@ export async function requestCreditReportForApplication(user: AuthUser, applicat
     application: nextApplication,
     notificationSent,
     alreadyRequested: false,
+  }
+}
+
+export async function requestSiteVisitMeetingInviteForApplication(
+  user: AuthUser,
+  applicationId: string,
+  options?: {
+    forceResend?: boolean
+    appOrigin?: string
+  },
+) {
+  assertReviewer(user)
+
+  const forceResend = options?.forceResend === true
+  const appOrigin = options?.appOrigin?.trim() || process.env.NEXT_PUBLIC_BASE_URL?.trim() || "http://localhost:3000"
+  const existingApplication = await getApplicationById(applicationId)
+
+  if (!existingApplication) {
+    return null
+  }
+
+  const scheduledAt = existingApplication.preMoveInCompliance.siteVisit.scheduledAt
+
+  if (!scheduledAt) {
+    throw new Error("SiteVisitScheduleRequired")
+  }
+
+  const applicantEmail = existingApplication.applicantEmail?.trim()
+
+  if (!applicantEmail) {
+    throw new Error("ApplicantEmailRequired")
+  }
+
+  if (existingApplication.preMoveInCompliance.siteVisit.inviteStatus === "sent" && !forceResend) {
+    return {
+      application: existingApplication,
+      alreadyRequested: true,
+      notificationSent: false,
+      failedCount: 0,
+    }
+  }
+
+  const now = new Date().toISOString()
+  const requestId = randomUUID()
+  const challenge = await createAuthChallenge(applicantEmail, "site_visit_confirmation", SITE_VISIT_CONFIRMATION_TOKEN_DURATION_MS, {
+    applicationId: existingApplication.id,
+    requestId,
+  })
+  const meetingConfirmationUrl = `${appOrigin}/site-visit/confirm?token=${encodeURIComponent(challenge.token)}`
+  const delivery = await sendSiteVisitMeetingInviteNotification({
+    toEmail: applicantEmail,
+    applicantName: existingApplication.applicantName,
+    requestedByEmail: user.email,
+    requestedAt: now,
+    propertyAddress: existingApplication.propertyAddress,
+    applicationId: existingApplication.id,
+    scheduledAt,
+    assigneeName: existingApplication.preMoveInCompliance.siteVisit.assigneeName,
+    meetingConfirmationUrl,
+  })
+  const notificationSent = delivery.sent
+
+  const nextApplication: TenancyApplicationRecord = {
+    ...existingApplication,
+    updatedAt: now,
+    preMoveInCompliance: {
+      ...existingApplication.preMoveInCompliance,
+      checkInScheduled: true,
+      siteVisit: {
+        ...existingApplication.preMoveInCompliance.siteVisit,
+        status:
+          existingApplication.preMoveInCompliance.siteVisit.status === "not_scheduled"
+            ? "scheduled"
+            : existingApplication.preMoveInCompliance.siteVisit.status,
+        inviteStatus: notificationSent ? "sent" : "failed",
+        inviteRequestId: requestId,
+        inviteRequestedAt: now,
+        inviteSentAt: notificationSent ? now : undefined,
+        inviteRespondedAt: undefined,
+        inviteLastError: notificationSent
+          ? undefined
+          : delivery.error
+            ? `${delivery.error}${delivery.messageId ? ` (message id: ${delivery.messageId})` : ""}`
+            : "Notification could not be sent.",
+      },
+    },
+  }
+
+  const container = await getApplicationsContainer()
+  await syncStoredCommunicationEntries(nextApplication, nextApplication.postMoveInManagement.communicationEntries)
+  await container.item(nextApplication.id, nextApplication.applicantId).replace(stripStoredCommunicationEntries(nextApplication))
+
+  const auditEvents = [
+    ...buildApplicationAuditEvents(existingApplication, nextApplication, user),
+    {
+      entityType: "application",
+      entityId: nextApplication.id,
+      action: notificationSent ? "site_visit_invite_sent" : "site_visit_invite_failed",
+      fieldPath: "preMoveInCompliance.siteVisit",
+      oldValue: existingApplication.preMoveInCompliance.siteVisit,
+      newValue: nextApplication.preMoveInCompliance.siteVisit,
+      performedBy: user.email,
+      metadata: {
+        ...getAuditMetadata(nextApplication, user),
+        expiresAt: getSiteVisitInviteExpiry(now),
+      },
+      timestamp: now,
+    },
+  ]
+
+  if (auditEvents.length > 0) {
+    await writeAuditEvents(auditEvents)
+  }
+
+  return {
+    application: nextApplication,
+    alreadyRequested: false,
+    notificationSent,
+    failedCount: notificationSent ? 0 : 1,
+    deliveryError: delivery.error,
+    deliveryMessageId: delivery.messageId,
+    acceptedRecipients: delivery.accepted,
+    rejectedRecipients: delivery.rejected,
+    confirmationUrl: meetingConfirmationUrl,
+  }
+}
+
+export async function getSiteVisitMeetingConsentContext(token: string) {
+  const inspected = await inspectAuthChallenge("site_visit_confirmation", token)
+
+  if (inspected.error || !inspected.applicationId || !inspected.requestId) {
+    return { context: null, error: "InvalidToken" as const }
+  }
+
+  const application = await getApplicationById(inspected.applicationId)
+
+  if (!application) {
+    return { context: null, error: "ApplicationNotFound" as const }
+  }
+
+  const siteVisit = application.preMoveInCompliance.siteVisit
+
+  if (siteVisit.inviteRequestId !== inspected.requestId) {
+    return { context: null, error: "RequestNotFound" as const }
+  }
+
+  const canRespond = !inspected.isExpired && !inspected.consumedAt && siteVisit.inviteStatus === "sent"
+
+  return {
+    context: {
+      applicationId: application.id,
+      applicantName: application.applicantName,
+      applicantEmail: application.applicantEmail,
+      propertyAddress: application.propertyAddress,
+      scheduledAt: siteVisit.scheduledAt ?? null,
+      assigneeName: siteVisit.assigneeName,
+      notes: siteVisit.notes,
+      alternativeSuggestedAt: siteVisit.alternativeSuggestedAt ?? null,
+      requestedAt: siteVisit.inviteRequestedAt ?? null,
+      inviteStatus: siteVisit.inviteStatus,
+      respondedAt: siteVisit.inviteRespondedAt ?? null,
+      expiresAt: inspected.expiresAt,
+      tokenConsumedAt: inspected.consumedAt,
+      tokenExpired: inspected.isExpired,
+      canRespond,
+    },
+    error: null,
+  }
+}
+
+export async function recordSiteVisitMeetingDecision(input: {
+  applicationId: string
+  requestId: string
+  responderEmail: string
+  decision: "agree" | "decline"
+  alternativeSuggestedAt?: string
+}) {
+  const existingApplication = await getApplicationById(input.applicationId)
+
+  if (!existingApplication) {
+    return { application: null, error: "ApplicationNotFound" as const }
+  }
+
+  const currentSiteVisit = existingApplication.preMoveInCompliance.siteVisit
+
+  if (currentSiteVisit.inviteRequestId !== input.requestId) {
+    return { application: null, error: "RequestNotFound" as const }
+  }
+
+  if (currentSiteVisit.inviteStatus === "confirmed" || currentSiteVisit.inviteStatus === "declined") {
+    return {
+      application: existingApplication,
+      alreadyResponded: true,
+      existingStatus: currentSiteVisit.inviteStatus,
+      error: null,
+    }
+  }
+
+  const now = new Date().toISOString()
+  const nextInviteStatus = input.decision === "agree" ? "confirmed" : "declined"
+  const nextApplication: TenancyApplicationRecord = {
+    ...existingApplication,
+    updatedAt: now,
+    preMoveInCompliance: {
+      ...existingApplication.preMoveInCompliance,
+      checkInScheduled:
+        input.decision === "agree"
+          ? true
+          : existingApplication.preMoveInCompliance.checkInScheduled,
+      siteVisit: {
+        ...currentSiteVisit,
+        status:
+          input.decision === "agree" && currentSiteVisit.status === "not_scheduled"
+            ? "scheduled"
+            : currentSiteVisit.status,
+        alternativeSuggestedAt:
+          input.decision === "decline"
+            ? input.alternativeSuggestedAt ?? currentSiteVisit.alternativeSuggestedAt
+            : currentSiteVisit.alternativeSuggestedAt,
+        inviteStatus: nextInviteStatus,
+        inviteRespondedAt: now,
+        inviteLastError: undefined,
+      },
+    },
+  }
+
+  const container = await getApplicationsContainer()
+  await syncStoredCommunicationEntries(nextApplication, nextApplication.postMoveInManagement.communicationEntries)
+  await container.item(nextApplication.id, nextApplication.applicantId).replace(stripStoredCommunicationEntries(nextApplication))
+
+  await writeAuditEvents([
+    {
+      entityType: "application",
+      entityId: nextApplication.id,
+      action: input.decision === "agree" ? "site_visit_invite_confirmed" : "site_visit_invite_declined",
+      fieldPath: "preMoveInCompliance.siteVisit",
+      oldValue: currentSiteVisit,
+      newValue: nextApplication.preMoveInCompliance.siteVisit,
+      performedBy: input.responderEmail,
+      metadata: {
+        applicantId: nextApplication.applicantId,
+        propertyId: nextApplication.propertyId,
+      },
+      timestamp: now,
+    },
+  ])
+
+  return {
+    application: nextApplication,
+    alreadyResponded: false,
+    existingStatus: null,
+    error: null,
   }
 }
