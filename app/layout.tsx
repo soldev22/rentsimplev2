@@ -71,22 +71,17 @@ export default async function RootLayout({
 
   const authControls = user ? (
     <div className="flex items-center gap-3">
-      <Link
-        href="/dashboard"
-        className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900"
-      >
-        Dashboard
-      </Link>
+      <form action="/api/auth/logout" method="POST">
+        <button
+          type="submit"
+          className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900"
+        >
+          Logout
+        </button>
+      </form>
     </div>
   ) : (
     <div className="flex items-center gap-3">
-      <Link
-        href="/login?mode=register"
-        className="rounded border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white"
-      >
-        Register
-      </Link>
-
       <Link
         href="/login"
         className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900"

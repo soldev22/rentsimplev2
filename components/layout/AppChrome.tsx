@@ -13,6 +13,7 @@ export default function AppChrome({
   const pathname = usePathname()
   const isDashboardRoute = pathname.startsWith("/dashboard")
   const isHomeRoute = pathname === "/"
+  const isPropertiesRoute = pathname === "/properties" || pathname.startsWith("/properties/")
 
   if (isDashboardRoute) {
     return <>{children}</>
@@ -21,53 +22,25 @@ export default function AppChrome({
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       {isHomeRoute ? (
-        <header className="brand-surface overflow-hidden rounded-b-[2rem] shadow-lg">
+        <header className="brand-surface overflow-hidden rounded-[2rem] shadow-lg">
           <div className="brand-accent-orb right-10 top-10 h-24 w-24" />
           <div className="mx-auto max-w-6xl px-6 pb-14 pt-4">
             <div className="flex items-center justify-between gap-4">
               <Link href="/" className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-200">
-                  RentSimple
+                <p className="text-2xl font-semibold tracking-[0.06em] text-sky-200">
+                  rentsimple
                 </p>
                 <h1 className="text-lg font-semibold text-white">
-                  Property management, refined.
+                  we manage the property you build your home.
                 </h1>
               </Link>
 
               <div className="flex items-center gap-3">
-                <Link href="/properties" className="rounded border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                  Search properties
-                </Link>
                 {authControls ?? (
                   <Link href="/login" className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900">
                     Login
                   </Link>
                 )}
-              </div>
-            </div>
-
-            <div className="mt-16 max-w-4xl pb-2">
-                <p className="text-sm font-semibold uppercase tracking-[0.35em] text-sky-200">
-                Property Ops, Refined
-              </p>
-              <h2 className="mt-6 text-4xl font-bold leading-tight text-white md:text-5xl">
-                Property management made simple, without looking basic.
-              </h2>
-
-              <p className="mt-5 max-w-3xl text-lg text-slate-200">
-                Manage xxxxx properties, tenants, applications, and maintenance from a single workspace that feels fast, focused, and built for real operations.
-              </p>
-
-              <div className="mt-8 flex flex-wrap gap-4">
-                {authControls ?? (
-                  <Link href="/login" className="rounded bg-white px-6 py-3 font-semibold text-slate-900">
-                    Get Started
-                  </Link>
-                )}
-
-                <Link href="/properties" className="rounded border border-white/30 bg-white/10 px-6 py-3 text-white">
-                  Search & Filter Homes
-                </Link>
               </div>
             </div>
           </div>
@@ -85,9 +58,11 @@ export default function AppChrome({
             </Link>
 
             <div className="flex items-center gap-3">
-              <Link href="/properties" className="rounded border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                Search properties
-              </Link>
+              {!isPropertiesRoute ? (
+                <Link href="/properties" className="rounded border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white">
+                  Search properties
+                </Link>
+              ) : null}
               {authControls ?? (
                 <Link href="/login" className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900">
                   Login
