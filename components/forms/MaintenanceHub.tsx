@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 
 import type {
   BuilderProfileDefaults,
@@ -10,7 +10,6 @@ import type {
   MaintenancePriority,
   UserRole,
 } from "@/lib/auth"
-import { CameraCapture } from "@/components/pwa/CameraCapture"
 import { PhotoGallery } from "@/components/maintenance/PhotoGallery"
 
 type ReportableProperty = {
@@ -118,9 +117,14 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
   const [issueForm, setIssueForm] = useState<TenantIssueFormState>(() => createEmptyIssueForm(reportableProperties))
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [showCamera, setShowCamera] = useState(false)
   const [capturedPhotos, setCapturedPhotos] = useState<Array<{ blob: Blob; preview: string }>>([])
   const [uploadingPhotoIds, setUploadingPhotoIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    return () => {
+      capturedPhotos.forEach((photo) => URL.revokeObjectURL(photo.preview))
+    }
+  }, [capturedPhotos])
 
   const sortedIssues = useMemo(
     () => [...issues].sort((left, right) => Date.parse(right.reportedAt) - Date.parse(left.reportedAt)),
@@ -210,7 +214,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
         }
         
         setIssueForm(createEmptyIssueForm(reportableProperties))
-        setCapturedPhotos([])
+        clearCapturedPhotos()
         setFeedback({ type: "success", message: "Fault reported. The maintenance case is now in the workflow." })
       } catch (error) {
         setFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to report fault." })
@@ -248,10 +252,24 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
     })
   }
 
-  function handlePhotoCapture(blob: Blob) {
-    const preview = URL.createObjectURL(blob)
-    setCapturedPhotos((current) => [...current, { blob, preview }])
-    setShowCamera(false)
+  function handlePhotoSelection(files: FileList | null) {
+    if (!files || files.length === 0) {
+      return
+    }
+
+    const nextPhotos = Array.from(files).map((file) => ({
+      blob: file,
+      preview: URL.createObjectURL(file),
+    }))
+
+    setCapturedPhotos((current) => [...current, ...nextPhotos])
+  }
+
+  function clearCapturedPhotos() {
+    setCapturedPhotos((current) => {
+      current.forEach((photo) => URL.revokeObjectURL(photo.preview))
+      return []
+    })
   }
 
   function removePhoto(index: number) {
@@ -451,13 +469,19 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
               {/* Photo Capture & Preview */}
               <div className="lg:col-span-2 space-y-3">
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCamera(true)}
-                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    📷 Take photo
-                  </button>
+                  <label className="cursor-pointer rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                    Add photos
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(event) => {
+                        handlePhotoSelection(event.target.files)
+                        event.currentTarget.value = ""
+                      }}
+                    />
+                  </label>
                   {capturedPhotos.length > 0 && (
                     <span className="text-sm text-slate-600">{capturedPhotos.length} photo{capturedPhotos.length !== 1 ? "s" : ""} ready to upload</span>
                   )}
@@ -490,8 +514,6 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
           )}
         </section>
       ) : null}
-
-      {showCamera && <CameraCapture onPhotoCapture={handlePhotoCapture} onCancel={() => setShowCamera(false)} />}
 
       {sortedIssues.length === 0 ? (
         <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600 shadow-sm">

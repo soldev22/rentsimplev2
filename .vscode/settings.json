@@ -1,3 +1,25 @@
 {
-  "html.validate.meta": false
+  "html.validate.meta": false,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.tsserver.maxTsServerMemory": 4096,
+  "typescript.tsserver.watchOptions": {
+    "watchFile": "useFsEventsOnParentDirectory",
+    "watchDirectory": "useFsEvents",
+    "fallbackPolling": "dynamicPriority",
+    "synchronousWatchDirectory": false,
+    "excludeDirectories": [
+      "**/node_modules",
+      "**/.next",
+      "**/.git"
+    ]
+  },
+  "search.exclude": {
+    "**/.next": true
+  },
+  "files.watcherExclude": {
+    "**/.next/**": true,
+    "**/node_modules/**": true,
+    "**/.git/**": true
+  }
 }

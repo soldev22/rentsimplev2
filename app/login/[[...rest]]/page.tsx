@@ -78,6 +78,21 @@ export default function LoginPage() {
   const [developmentActionUrl, setDevelopmentActionUrl] = useState<string | null>(null)
 
   useEffect(() => {
+    const hasSensitiveQueryParams = searchParams.has("email") || searchParams.has("password")
+
+    if (!hasSensitiveQueryParams) {
+      return
+    }
+
+    const sanitizedParams = new URLSearchParams(searchParams.toString())
+    sanitizedParams.delete("email")
+    sanitizedParams.delete("password")
+
+    const nextQuery = sanitizedParams.toString()
+    router.replace(nextQuery ? `/login?${nextQuery}` : "/login")
+  }, [router, searchParams])
+
+  useEffect(() => {
     let isActive = true
 
     async function checkSession() {
