@@ -928,6 +928,8 @@ export default function ApplicationReviewManager({
           const siteVisitInviteSentAt = application.preMoveInCompliance.siteVisit?.inviteSentAt ?? ""
           const siteVisitInviteRespondedAt = application.preMoveInCompliance.siteVisit?.inviteRespondedAt ?? ""
           const siteVisitInviteLastError = application.preMoveInCompliance.siteVisit?.inviteLastError ?? ""
+          const siteVisitAlternativeSuggestedAt = application.preMoveInCompliance.siteVisit?.alternativeSuggestedAt ?? ""
+          const siteVisitInviteRecipientEmail = application.applicantEmail?.trim() ?? ""
           const siteVisitConfirmationUrl = siteVisitInviteLinksByApplicationId[application.id] ?? ""
           const latestRequestByRefereeId = new Map<string, TenancyReferenceRequest>()
 
@@ -1460,6 +1462,8 @@ export default function ApplicationReviewManager({
                     </div>
                   </div>
 
+                  <div className="mt-2">Invite recipient: {siteVisitInviteRecipientEmail || "No applicant email"}</div>
+
                   {siteVisitInviteSentAt ? (
                     <div className="mt-2">Invite sent: {new Date(siteVisitInviteSentAt).toLocaleString()}</div>
                   ) : null}
@@ -1486,6 +1490,9 @@ export default function ApplicationReviewManager({
                   ) : null}
                   {siteVisitInviteRespondedAt ? (
                     <div className="mt-1">Applicant responded: {new Date(siteVisitInviteRespondedAt).toLocaleString()}</div>
+                  ) : null}
+                  {siteVisitAlternativeSuggestedAt ? (
+                    <div className="mt-1">Alternative suggested: {new Date(siteVisitAlternativeSuggestedAt).toLocaleString()}</div>
                   ) : null}
                   {siteVisitInviteLastError ? <div className="mt-1 text-rose-700">Last error: {siteVisitInviteLastError}</div> : null}
                   {!siteVisitScheduledAt ? <div className="mt-1 text-amber-700">Set a scheduled time before sending the invite.</div> : null}
