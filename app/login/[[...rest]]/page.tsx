@@ -302,7 +302,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-[calc(100dvh-4rem)] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_#e0ecff_0%,_#f6f8fc_45%,_#f1f5f9_100%)] px-4 py-8">
+    <div className="relative flex min-h-[calc(100dvh-4rem)] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#e0ecff_0%,#f6f8fc_45%,#f1f5f9_100%)] px-4 py-8">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white/95 p-6 shadow-2xl shadow-slate-300/40 backdrop-blur-sm sm:p-7">
         <div className="mb-5 text-center">
           <p className="text-[0.72rem] font-semibold tracking-[0.3em] text-slate-500">rentsimple</p>

@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { redirect } from "next/navigation"
 
 import { getUserRole, isPendingApproval } from "@/lib/auth"
@@ -15,6 +16,32 @@ function formatCurrency(value: number) {
 
 function formatPercent(value: number) {
   return `${value.toFixed(1)}%`
+}
+
+function getProgressWidthClass(value: number) {
+  const clamped = Math.max(4, Math.min(100, value))
+
+  if (clamped <= 5) return "w-[5%]"
+  if (clamped <= 10) return "w-[10%]"
+  if (clamped <= 15) return "w-[15%]"
+  if (clamped <= 20) return "w-[20%]"
+  if (clamped <= 25) return "w-[25%]"
+  if (clamped <= 30) return "w-[30%]"
+  if (clamped <= 35) return "w-[35%]"
+  if (clamped <= 40) return "w-[40%]"
+  if (clamped <= 45) return "w-[45%]"
+  if (clamped <= 50) return "w-[50%]"
+  if (clamped <= 55) return "w-[55%]"
+  if (clamped <= 60) return "w-[60%]"
+  if (clamped <= 65) return "w-[65%]"
+  if (clamped <= 70) return "w-[70%]"
+  if (clamped <= 75) return "w-[75%]"
+  if (clamped <= 80) return "w-[80%]"
+  if (clamped <= 85) return "w-[85%]"
+  if (clamped <= 90) return "w-[90%]"
+  if (clamped <= 95) return "w-[95%]"
+
+  return "w-full"
 }
 
 function getRiskBand(score: number) {
@@ -45,6 +72,10 @@ function getRiskBand(score: number) {
 }
 
 export default async function LandlordDashboardPage() {
+  const now = new Date()
+  const inThirtyDays = new Date(now)
+  inThirtyDays.setDate(inThirtyDays.getDate() + 30)
+
   const user = await getSessionUser()
 
   if (!user) {
@@ -119,11 +150,9 @@ export default async function LandlordDashboardPage() {
   )
 
   const complianceDueSoon = properties.reduce((count, property) => {
-    const now = Date.now()
-    const inThirtyDays = now + 1000 * 60 * 60 * 24 * 30
     const dueItems = (property.compliance ?? []).filter((item) => {
       const expiry = Date.parse(item.expirationDate)
-      return Number.isFinite(expiry) && expiry <= inThirtyDays
+      return Number.isFinite(expiry) && expiry <= inThirtyDays.getTime()
     })
 
     return count + dueItems.length
@@ -133,6 +162,9 @@ export default async function LandlordDashboardPage() {
     100,
     analytics.overdueCases * 12 + urgentMaintenance.length * 10 + outstandingMaintenance.length * 4 + complianceDueSoon * 8 + vacancyRate * 0.4,
   )
+  const riskScoreWidthClass = getProgressWidthClass(riskScore)
+  const occupancyRateWidthClass = getProgressWidthClass(occupancyRate)
+  const vacancyRateWidthClass = getProgressWidthClass(vacancyRate)
   const riskBand = getRiskBand(riskScore)
 
   const kpis = [
@@ -155,12 +187,13 @@ export default async function LandlordDashboardPage() {
       label: "Open application pipeline",
       value: String(pendingApplications.length),
       helper: `${applications.length} total applications`,
+      href: "/dashboard/applications",
     },
   ]
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 p-4 text-white shadow-sm">
+      <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-linear-to-br from-slate-900 via-slate-800 to-slate-700 p-4 text-white shadow-sm">
         <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-400/15 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-16 left-1/3 h-44 w-44 rounded-full bg-sky-300/10 blur-2xl" />
 
@@ -172,9 +205,19 @@ export default async function LandlordDashboardPage() {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {kpis.map((kpi) => (
           <article key={kpi.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{kpi.label}</p>
-            <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{kpi.value}</p>
-            <p className="mt-2 text-sm text-slate-600">{kpi.helper}</p>
+            {kpi.href ? (
+              <Link href={kpi.href} className="block rounded-xl transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{kpi.label}</p>
+                <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{kpi.value}</p>
+                <p className="mt-2 text-sm text-slate-600">{kpi.helper}</p>
+              </Link>
+            ) : (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{kpi.label}</p>
+                <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{kpi.value}</p>
+                <p className="mt-2 text-sm text-slate-600">{kpi.helper}</p>
+              </>
+            )}
           </article>
         ))}
       </section>
@@ -192,7 +235,7 @@ export default async function LandlordDashboardPage() {
               <span className={`font-semibold ${riskBand.tone}`}>{riskScore.toFixed(0)}/100</span>
             </div>
             <div className="mt-2 h-2 rounded-full bg-slate-100">
-              <div className={`h-2 rounded-full ${riskBand.bar}`} style={{ width: `${Math.max(4, Math.min(100, riskScore))}%` }} />
+              <div className={`h-2 rounded-full ${riskBand.bar} ${riskScoreWidthClass}`} />
             </div>
           </div>
 
@@ -226,7 +269,7 @@ export default async function LandlordDashboardPage() {
                 <span className="font-semibold text-slate-900">{formatPercent(occupancyRate)}</span>
               </div>
               <div className="mt-2 h-2 rounded-full bg-slate-100">
-                <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.max(4, Math.min(100, occupancyRate))}%` }} />
+                <div className={`h-2 rounded-full bg-emerald-500 ${occupancyRateWidthClass}`} />
               </div>
             </div>
 
@@ -236,7 +279,7 @@ export default async function LandlordDashboardPage() {
                 <span className="font-semibold text-slate-900">{formatPercent(vacancyRate)}</span>
               </div>
               <div className="mt-2 h-2 rounded-full bg-slate-100">
-                <div className="h-2 rounded-full bg-amber-500" style={{ width: `${Math.max(4, Math.min(100, vacancyRate))}%` }} />
+                <div className={`h-2 rounded-full bg-amber-500 ${vacancyRateWidthClass}`} />
               </div>
             </div>
 
