@@ -20,6 +20,25 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
   const [displayRole] = useState(initialUser.displayRole);
   const isApplicantRole = displayRole === "applicant";
 
+  function getDesignationLabel(role: string) {
+    switch (role) {
+      case "admin":
+        return "Administrator";
+      case "agent":
+        return "Agent";
+      case "landlord":
+        return "Landlord";
+      case "applicant":
+        return "Applicant";
+      case "tenant":
+        return "Tenant";
+      case "builder":
+        return "Builder";
+      default:
+        return "User";
+    }
+  }
+
   const navItems =
     displayRole === "applicant"
       ? [
@@ -91,9 +110,8 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
               </div>
 
               <div className="flex items-center justify-between gap-3 md:justify-end">
-                <div className="text-right text-sm text-slate-200">
-                  <div>{displayName}</div>
-                  <div className="text-xs uppercase tracking-[0.2em] text-cyan-200">{displayRole}</div>
+                <div className="whitespace-nowrap text-xs font-medium text-slate-200/80">
+                  {displayName} <span className="text-slate-300/60">·</span> {getDesignationLabel(displayRole)}
                 </div>
                 <Link
                   href="/dashboard"
@@ -165,9 +183,8 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
             <span className="mt-1 block text-lg font-semibold text-white">Portfolio overview</span>
           </div>
           <div className="flex items-center gap-4 text-right text-sm text-slate-200">
-            <div>
-              <div>Logged in as: {displayName}</div>
-              <div className="text-xs uppercase tracking-[0.2em] text-cyan-200">{displayRole}</div>
+            <div className="whitespace-nowrap text-xs font-medium text-slate-200/80">
+              {displayName} <span className="text-slate-300/60">·</span> {getDesignationLabel(displayRole)}
             </div>
             <Link
               href="/dashboard"

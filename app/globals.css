@@ -55,6 +55,7 @@ body {
 
 .brand-accent-orb {
   position: absolute;
+  pointer-events: none;
   border-radius: 9999px;
   border: 1px solid rgb(255 255 255 / 0.22);
   background: radial-gradient(circle at 30% 30%, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0.08));

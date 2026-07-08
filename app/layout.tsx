@@ -3,6 +3,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 
 import AppChrome from "@/components/layout/AppChrome";
+import { getUserRole } from "@/lib/auth";
 import { getSessionUser } from "@/lib/server/session";
 import { ServiceWorkerRegister } from "@/components/pwa/ServiceWorkerRegister";
 import { PWAInstallPrompt } from "@/components/pwa/PWAInstallPrompt";
@@ -61,12 +62,20 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const user = await getSessionUser();
+  const initialUser = user
+    ? {
+        displayName: `${user.first_name} ${user.last_name}`.trim() || "User",
+        displayRole: getUserRole(user),
+      }
+    : undefined;
 
   return (
     <html lang="en">
@@ -85,7 +94,7 @@ export default async function RootLayout({
       </head>
 
       <body>
-        <AppChrome isAuthenticated={Boolean(user)}>
+        <AppChrome isAuthenticated={Boolean(user)} initialUser={initialUser}>
           {children}
         </AppChrome>
 
