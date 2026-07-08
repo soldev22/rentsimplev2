@@ -280,13 +280,23 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
           throw new Error("Failed to upload photo")
         }
 
+        const payload = (await response.json()) as {
+          photo?: { id: string; url: string; uploadedAt: string }
+        }
+
+        if (!payload.photo) {
+          throw new Error("Photo upload response is invalid")
+        }
+
+        const uploadedPhoto = payload.photo
+
         // Update the issue with the new photo
         setIssues((current) =>
           current.map((issue) =>
             issue.id === issueId
               ? {
                   ...issue,
-                  photoUrls: [...(issue.photoUrls || []), (await response.json()).photo],
+                  photoUrls: [...(issue.photoUrls || []), uploadedPhoto],
                 }
               : issue,
           ),
@@ -479,6 +489,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
             </form>
           )}
         </section>
+      ) : null}
 
       {showCamera && <CameraCapture onPhotoCapture={handlePhotoCapture} onCancel={() => setShowCamera(false)} />}
 

@@ -8,14 +8,6 @@ import { isPendingApproval, getUserRole } from "@/lib/auth"
 import { getMaintenanceContainer } from "@/lib/server/cosmos"
 import { uploadToBlob, getBlobUrl } from "@/lib/server/blob"
 
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "10mb", // Allow up to 10MB for photo uploads
-    },
-  },
-}
-
 type RouteContext = {
   params: Promise<{ id: string }>
 }

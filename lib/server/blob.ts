@@ -35,6 +35,28 @@ async function getPropertyImagesContainerClient() {
   return containerClient
 }
 
+export async function uploadToBlob(blobName: string, data: ArrayBuffer, contentType: string) {
+  const containerClient = await getPropertyImagesContainerClient()
+  const blobClient = containerClient.getBlockBlobClient(blobName)
+
+  await blobClient.uploadData(Buffer.from(data), {
+    blobHTTPHeaders: {
+      blobContentType: contentType || "application/octet-stream",
+    },
+  })
+}
+
+export function getBlobUrl(blobName: string) {
+  const serviceClient = storageConnectionString
+    ? BlobServiceClient.fromConnectionString(storageConnectionString)
+    : new BlobServiceClient(
+        `https://${storageAccountName}.blob.core.windows.net`,
+        new DefaultAzureCredential(),
+      )
+
+  return serviceClient.getContainerClient(propertyImagesContainerName).getBlobClient(blobName).url
+}
+
 function sanitizeFileName(fileName: string) {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, "-")
 }
