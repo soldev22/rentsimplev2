@@ -1,7 +1,6 @@
 import type { ApplicantProfileDefaults } from "./user"
 
 export type TenancyApplicationStage =
-  | "pre_screening"
   | "referencing_instruction"
   | "full_referencing"
   | "decision"
@@ -13,8 +12,6 @@ export type TenancyApplicationStage =
 
 export type TenancyApplicationStatus =
   | "submitted"
-  | "pre_screen_failed"
-  | "pre_screen_passed"
   | "referencing_in_progress"
   | "referencing_complete"
   | "approved"
@@ -27,24 +24,14 @@ export type TenancyApplicationStatus =
   | "deposit_protected"
   | "active_tenant"
 
-export type PreScreeningOutcome = "pass" | "fail"
-
 export type ReferencingOutcome = "pending" | "pass" | "fail" | "guarantor_required"
 
 export type TenantDecisionOutcome = "pending" | "approved" | "approved_with_guarantor" | "declined"
 
-export type PreScreeningQuestionnaire = ApplicantProfileDefaults & {
+export type ApplicationQuestionnaire = ApplicantProfileDefaults & {
   creditCheckConsentGiven: boolean
   creditCheckConsentGivenAt: string
   creditCheckConsentVersion: string
-}
-
-export type PreScreeningSummary = {
-  outcome: PreScreeningOutcome
-  affordabilityTarget: number
-  affordabilityRatio: number
-  reasons: string[]
-  assessedAt: string
 }
 
 export type ReferencingInstruction = {
@@ -210,8 +197,7 @@ export type TenancyApplicationRecord = {
   submittedAt: string
   createdAt: string
   updatedAt: string
-  preScreening: PreScreeningQuestionnaire
-  preScreeningSummary: PreScreeningSummary
+  applicantProfile: ApplicationQuestionnaire
   referencingInstruction: ReferencingInstruction
   referencingReport: ReferencingReport
   approvalDecision: ApprovalDecision

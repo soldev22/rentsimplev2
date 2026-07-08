@@ -70,15 +70,6 @@ function createTimelineEntries(application: TenancyApplicationRecord) {
     },
   ]
 
-  if (application.preScreeningSummary.assessedAt) {
-    entries.push({
-      occurredAt: application.preScreeningSummary.assessedAt,
-      title: "Pre-screening assessed",
-      detail: `Outcome: ${application.preScreeningSummary.outcome}. Ratio: ${application.preScreeningSummary.affordabilityRatio.toFixed(2)}x.`,
-      category: "event",
-    })
-  }
-
   if (application.referencingReport.completedAt) {
     entries.push({
       occurredAt: application.referencingReport.completedAt,
@@ -191,7 +182,7 @@ export function buildTenancyLogText(application: TenancyApplicationRecord) {
     "",
     "Summary",
     `- Monthly rent: GBP ${application.monthlyRent.toLocaleString()}`,
-    `- Preferred contact methods: ${application.preScreening.preferredContactMethods.join(", ") || "Not provided"}`,
+    `- Preferred contact methods: ${application.applicantProfile.preferredContactMethods.join(", ") || "Not provided"}`,
     `- Approval outcome: ${application.approvalDecision.outcome.replaceAll("_", " ")}`,
     `- Agreement provider: ${application.tenancyAgreement.agreementProvider || "Not set"}`,
     `- Maintenance notes: ${application.postMoveInManagement.maintenanceLogNotes || "None recorded"}`,

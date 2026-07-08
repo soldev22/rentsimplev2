@@ -77,32 +77,32 @@ function createInitialFormState(preselectedPropertyId?: string, applicantProfile
 function createFormStateFromApplication(application: TenancyApplicationRecord): FormState {
   return {
     propertyId: application.propertyId,
-    employmentStatus: application.preScreening.employmentStatus,
-    annualIncome: String(application.preScreening.annualIncome || ""),
-    moveInDate: application.preScreening.moveInDate,
-    preferredContactMethods: application.preScreening.preferredContactMethods ?? [],
-    hasPets: application.preScreening.hasPets,
-    petDetails: application.preScreening.petDetails,
-    smokes: application.preScreening.smokes,
-    occupantCount: String(application.preScreening.occupantCount || 1),
-    hasAdverseCredit: application.preScreening.hasAdverseCredit,
-    adverseCreditDetails: application.preScreening.adverseCreditDetails,
-    creditCheckConsentGiven: application.preScreening.creditCheckConsentGiven,
+    employmentStatus: application.applicantProfile.employmentStatus,
+    annualIncome: String(application.applicantProfile.annualIncome || ""),
+    moveInDate: application.applicantProfile.moveInDate,
+    preferredContactMethods: application.applicantProfile.preferredContactMethods ?? [],
+    hasPets: application.applicantProfile.hasPets,
+    petDetails: application.applicantProfile.petDetails,
+    smokes: application.applicantProfile.smokes,
+    occupantCount: String(application.applicantProfile.occupantCount || 1),
+    hasAdverseCredit: application.applicantProfile.hasAdverseCredit,
+    adverseCreditDetails: application.applicantProfile.adverseCreditDetails,
+    creditCheckConsentGiven: application.applicantProfile.creditCheckConsentGiven,
   }
 }
 
 function createApplicantProfileFromApplication(application: TenancyApplicationRecord): ApplicantProfileDefaults {
   return {
-    employmentStatus: application.preScreening.employmentStatus,
-    annualIncome: application.preScreening.annualIncome,
-    moveInDate: application.preScreening.moveInDate,
-    preferredContactMethods: application.preScreening.preferredContactMethods ?? [],
-    hasPets: application.preScreening.hasPets,
-    petDetails: application.preScreening.petDetails,
-    smokes: application.preScreening.smokes,
-    occupantCount: application.preScreening.occupantCount,
-    hasAdverseCredit: application.preScreening.hasAdverseCredit,
-    adverseCreditDetails: application.preScreening.adverseCreditDetails,
+    employmentStatus: application.applicantProfile.employmentStatus,
+    annualIncome: application.applicantProfile.annualIncome,
+    moveInDate: application.applicantProfile.moveInDate,
+    preferredContactMethods: application.applicantProfile.preferredContactMethods ?? [],
+    hasPets: application.applicantProfile.hasPets,
+    petDetails: application.applicantProfile.petDetails,
+    smokes: application.applicantProfile.smokes,
+    occupantCount: application.applicantProfile.occupantCount,
+    hasAdverseCredit: application.applicantProfile.hasAdverseCredit,
+    adverseCreditDetails: application.applicantProfile.adverseCreditDetails,
   }
 }
 
@@ -133,7 +133,6 @@ function getStatusTone(status: TenancyApplicationRecord["status"]) {
       return "bg-emerald-100 text-emerald-900"
     case "declined":
     case "withdrawn":
-    case "pre_screen_failed":
       return "bg-rose-100 text-rose-900"
     default:
       return "bg-amber-100 text-amber-900"
@@ -721,7 +720,7 @@ export default function ApplicantTenancyWorkflow({
                             Your submitted details are attached to this application.
                           </p>
                           <p className="mt-2 text-sm text-slate-600">
-                            Preferred contact: {formatPreferredContactMethods(application.preScreening.preferredContactMethods)}
+                            Preferred contact: {formatPreferredContactMethods(application.applicantProfile.preferredContactMethods)}
                           </p>
                         </div>
                       </div>
@@ -737,8 +736,8 @@ export default function ApplicantTenancyWorkflow({
                       ) : null}
 
                       <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
-                        {application.preScreening.creditCheckConsentGivenAt
-                          ? `Credit check consent recorded at ${new Date(application.preScreening.creditCheckConsentGivenAt).toLocaleString()}.`
+                        {application.applicantProfile.creditCheckConsentGivenAt
+                          ? `Credit check consent recorded at ${new Date(application.applicantProfile.creditCheckConsentGivenAt).toLocaleString()}.`
                           : "Credit check consent has not been recorded on this application yet."}
                       </div>
 

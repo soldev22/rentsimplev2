@@ -771,7 +771,7 @@ export default function PropertyManager({
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               {pendingImageReviews.map((review) => (
                 <div key={review.image.id} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                  <div className="relative aspect-[4/3] bg-slate-100">
+                  <div className="relative aspect-4/3 bg-slate-100">
                     <Image
                       src={getPropertyImagePath(review.propertyId, review.image.id, "thumbnail")}
                       alt={review.image.originalFileName || review.image.blobName}
@@ -984,7 +984,7 @@ export default function PropertyManager({
               value={createForm.affordabilityMultiple}
               onChange={(event) => updateCreateField("affordabilityMultiple", event.target.value)}
             />
-            <span className="mt-1 block text-xs text-slate-500">Common UK screening tends to land around 2.5x to 3.0x annual rent.</span>
+            <span className="mt-1 block text-xs text-slate-500">Common UK affordability benchmarks are typically around 2.5x to 3.0x annual rent.</span>
           </label>
 
           <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">

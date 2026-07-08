@@ -34,7 +34,6 @@ type CommunicationDraft = {
 }
 
 const stageOptions: Array<{ value: TenancyApplicationStage; label: string }> = [
-  { value: "pre_screening", label: "Pre-screening" },
   { value: "referencing_instruction", label: "Referencing instruction" },
   { value: "full_referencing", label: "Full referencing" },
   { value: "decision", label: "Decision" },
@@ -47,8 +46,6 @@ const stageOptions: Array<{ value: TenancyApplicationStage; label: string }> = [
 
 const statusOptions: Array<{ value: TenancyApplicationStatus; label: string }> = [
   { value: "submitted", label: "Submitted" },
-  { value: "pre_screen_failed", label: "Pre-screen failed" },
-  { value: "pre_screen_passed", label: "Pre-screen passed" },
   { value: "referencing_in_progress", label: "Referencing in progress" },
   { value: "referencing_complete", label: "Referencing complete" },
   { value: "approved", label: "Approved" },
@@ -94,14 +91,13 @@ function getStatusTone(status: TenancyApplicationStatus) {
       return "bg-emerald-100 text-emerald-900"
     case "declined":
     case "withdrawn":
-    case "pre_screen_failed":
       return "bg-rose-100 text-rose-900"
     default:
       return "bg-amber-100 text-amber-900"
   }
 }
 
-function formatPreferredContactMethods(methods: TenancyApplicationRecord["preScreening"]["preferredContactMethods"] | undefined) {
+function formatPreferredContactMethods(methods: TenancyApplicationRecord["applicantProfile"]["preferredContactMethods"] | undefined) {
   return methods && methods.length > 0 ? methods.join(", ") : "Not provided"
 }
 
@@ -144,11 +140,11 @@ function AuditEventCard({ event }: { event: AuditEventRecord }) {
       <div className="mt-3 grid gap-2 lg:grid-cols-2">
         <div className="rounded-md bg-slate-50 px-3 py-2">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Before</div>
-          <div className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-700">{formatAuditValue(event.oldValue)}</div>
+          <div className="mt-1 whitespace-pre-wrap wrap-break-word text-xs text-slate-700">{formatAuditValue(event.oldValue)}</div>
         </div>
         <div className="rounded-md bg-emerald-50 px-3 py-2">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">After</div>
-          <div className="mt-1 whitespace-pre-wrap break-words text-xs text-emerald-900">{formatAuditValue(event.newValue)}</div>
+          <div className="mt-1 whitespace-pre-wrap wrap-break-word text-xs text-emerald-900">{formatAuditValue(event.newValue)}</div>
         </div>
       </div>
     </article>
@@ -366,7 +362,7 @@ export default function ApplicationReviewManager({
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Applications</p>
             <h1 className="mt-2 text-3xl font-bold text-slate-900">Tenancy pipeline review</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              Review pre-screening, collect referencing evidence, document the decision, and carry the tenancy through to deposit protection and post move-in logging.
+              Review applicant details, collect referencing evidence, document the decision, and carry the tenancy through to deposit protection and post move-in logging.
             </p>
           </div>
           <div className="rounded-xl bg-slate-50 px-4 py-3">
@@ -484,12 +480,11 @@ export default function ApplicationReviewManager({
               </label>
 
               <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Pre-screening summary</div>
-                <div className="mt-2 font-semibold text-slate-900">{application.preScreeningSummary.outcome}</div>
-                <div className="mt-2">Income: £{application.preScreening.annualIncome.toLocaleString()} annual</div>
-                <div className="mt-1">Occupants: {application.preScreening.occupantCount}</div>
-                <div className="mt-1">Preferred contact: {formatPreferredContactMethods(application.preScreening.preferredContactMethods)}</div>
-                <div className="mt-1">Credit consent: {application.preScreening.creditCheckConsentGiven ? "Yes" : "No"}</div>
+                <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Applicant profile</div>
+                <div className="mt-2">Income: £{application.applicantProfile.annualIncome.toLocaleString()} annual</div>
+                <div className="mt-1">Occupants: {application.applicantProfile.occupantCount}</div>
+                <div className="mt-1">Preferred contact: {formatPreferredContactMethods(application.applicantProfile.preferredContactMethods)}</div>
+                <div className="mt-1">Credit consent: {application.applicantProfile.creditCheckConsentGiven ? "Yes" : "No"}</div>
               </div>
             </div>
 

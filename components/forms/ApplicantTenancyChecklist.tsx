@@ -82,7 +82,6 @@ function getStatusTone(status: TenancyApplicationRecord["status"]) {
     case "active_tenant":
       return "bg-emerald-100 text-emerald-900"
     case "declined":
-    case "pre_screen_failed":
       return "bg-rose-100 text-rose-900"
     default:
       return "bg-amber-100 text-amber-900"
@@ -205,11 +204,11 @@ export default function ApplicantTenancyChecklist({ initialApplication, initialA
         status: application.submittedAt ? "complete" : "pending",
       },
       {
-        key: "pre-screened",
+        key: "queued-for-review",
         label: "Application queued for review",
-        at: application.preScreeningSummary.assessedAt,
+        at: application.submittedAt,
         detail: "Application moved into manual review by the lettings team.",
-        status: application.preScreeningSummary.assessedAt ? "complete" : "pending",
+        status: application.submittedAt ? "complete" : "pending",
       },
       {
         key: "decision",
@@ -464,11 +463,11 @@ export default function ApplicantTenancyChecklist({ initialApplication, initialA
                 <div className="mt-3 grid gap-2 lg:grid-cols-2">
                   <div className="rounded-md bg-white px-3 py-2">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Before</div>
-                    <div className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-700">{formatAuditValue(event.oldValue)}</div>
+                    <div className="mt-1 whitespace-pre-wrap wrap-break-word text-xs text-slate-700">{formatAuditValue(event.oldValue)}</div>
                   </div>
                   <div className="rounded-md bg-emerald-50 px-3 py-2">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">After</div>
-                    <div className="mt-1 whitespace-pre-wrap break-words text-xs text-emerald-900">{formatAuditValue(event.newValue)}</div>
+                    <div className="mt-1 whitespace-pre-wrap wrap-break-word text-xs text-emerald-900">{formatAuditValue(event.newValue)}</div>
                   </div>
                 </div>
               </article>

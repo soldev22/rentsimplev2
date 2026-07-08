@@ -15,8 +15,7 @@ import {
   type PostMoveInManagement,
   type PreferredContactMethod,
   type PreMoveInCompliance,
-  type PreScreeningQuestionnaire,
-  type PreScreeningSummary,
+  type ApplicationQuestionnaire,
   type ReferencingInstruction,
   type ReferencingReport,
   type TenancyDocumentTracking,
@@ -49,11 +48,11 @@ type ApplicationCommunicationRecord = TenantCommunicationEntry & {
   updatedAt: string
 }
 
-type CreateTenancyApplicationInput = PreScreeningQuestionnaire & {
+type CreateTenancyApplicationInput = ApplicationQuestionnaire & {
   propertyId: string
 }
 
-type ApplicantUpdateInput = Partial<PreScreeningQuestionnaire> &
+type ApplicantUpdateInput = Partial<ApplicationQuestionnaire> &
   Partial<{
     applicantChecklist: Partial<ApplicantChecklistSignOff>
     agreementSigned: boolean
@@ -77,8 +76,7 @@ type ReviewerUpdateInput = Partial<{
 const APPLICATION_AUDIT_FIELDS = [
   { path: "currentStage", action: "stage_changed" },
   { path: "status", action: "status_changed" },
-  { path: "preScreening", action: "pre_screening_updated" },
-  { path: "preScreeningSummary", action: "pre_screening_summary_updated" },
+  { path: "applicantProfile", action: "applicant_profile_updated" },
   { path: "referencingInstruction", action: "referencing_instruction_updated" },
   { path: "referencingReport", action: "referencing_report_updated" },
   { path: "approvalDecision", action: "approval_decision_updated" },
@@ -168,38 +166,6 @@ function normalizeQuestionnaire(input: CreateTenancyApplicationInput): CreateTen
       typeof input.creditCheckConsentVersion === "string" && input.creditCheckConsentVersion.trim()
         ? input.creditCheckConsentVersion.trim()
         : "tenant-credit-check-consent-v1",
-  }
-}
-
-function buildPreScreeningSummary(
-  questionnaire: CreateTenancyApplicationInput,
-  monthlyRent: number,
-  affordabilityMultiple: number,
-): PreScreeningSummary {
-  const affordabilityTarget = monthlyRent * 12 * affordabilityMultiple
-  const affordabilityRatio = affordabilityTarget > 0 ? questionnaire.annualIncome / affordabilityTarget : 0
-  const reasons: string[] = []
-
-  if (questionnaire.annualIncome < affordabilityTarget) {
-    reasons.push(
-      `Income below the ${affordabilityMultiple.toFixed(1)}x affordability threshold (£${Math.round(affordabilityTarget).toLocaleString()} annually).`,
-    )
-  }
-
-  if (questionnaire.hasAdverseCredit) {
-    reasons.push("Applicant disclosed CCJs or other adverse credit that requires manual review.")
-  }
-
-  if (!questionnaire.moveInDate) {
-    reasons.push("Move-in date is missing.")
-  }
-
-  return {
-    outcome: reasons.length > 0 ? "fail" : "pass",
-    affordabilityTarget,
-    affordabilityRatio,
-    reasons,
-    assessedAt: new Date().toISOString(),
   }
 }
 
@@ -663,21 +629,21 @@ function hydrateStoredApplication(application: TenancyApplicationRecord): Tenanc
           ? application.applicantChecklist.signedFullName.trim()
           : "",
     },
-    preScreening: normalizeQuestionnaire({
+    applicantProfile: normalizeQuestionnaire({
       propertyId: application.propertyId,
-      employmentStatus: application.preScreening?.employmentStatus ?? "other",
-      annualIncome: application.preScreening?.annualIncome ?? 0,
-      moveInDate: application.preScreening?.moveInDate ?? "",
-      preferredContactMethods: application.preScreening?.preferredContactMethods ?? [],
-      hasPets: application.preScreening?.hasPets ?? false,
-      petDetails: application.preScreening?.petDetails ?? "",
-      smokes: application.preScreening?.smokes ?? false,
-      occupantCount: application.preScreening?.occupantCount ?? 1,
-      hasAdverseCredit: application.preScreening?.hasAdverseCredit ?? false,
-      adverseCreditDetails: application.preScreening?.adverseCreditDetails ?? "",
-      creditCheckConsentGiven: application.preScreening?.creditCheckConsentGiven ?? false,
-      creditCheckConsentGivenAt: application.preScreening?.creditCheckConsentGivenAt ?? "",
-      creditCheckConsentVersion: application.preScreening?.creditCheckConsentVersion ?? "tenant-credit-check-consent-v1",
+      employmentStatus: application.applicantProfile?.employmentStatus ?? "other",
+      annualIncome: application.applicantProfile?.annualIncome ?? 0,
+      moveInDate: application.applicantProfile?.moveInDate ?? "",
+      preferredContactMethods: application.applicantProfile?.preferredContactMethods ?? [],
+      hasPets: application.applicantProfile?.hasPets ?? false,
+      petDetails: application.applicantProfile?.petDetails ?? "",
+      smokes: application.applicantProfile?.smokes ?? false,
+      occupantCount: application.applicantProfile?.occupantCount ?? 1,
+      hasAdverseCredit: application.applicantProfile?.hasAdverseCredit ?? false,
+      adverseCreditDetails: application.applicantProfile?.adverseCreditDetails ?? "",
+      creditCheckConsentGiven: application.applicantProfile?.creditCheckConsentGiven ?? false,
+      creditCheckConsentGivenAt: application.applicantProfile?.creditCheckConsentGivenAt ?? "",
+      creditCheckConsentVersion: application.applicantProfile?.creditCheckConsentVersion ?? "tenant-credit-check-consent-v1",
     }),
     postMoveInManagement: hydratePostMoveInManagement(application.postMoveInManagement, {
       includeLegacyCommunicationEntry: false,
@@ -1078,11 +1044,6 @@ export async function createTenancyApplication(user: AuthUser, input: CreateTena
     throw new Error("ApplicationAlreadyExists")
   }
 
-  const preScreeningSummary = buildPreScreeningSummary(
-    questionnaire,
-    property.monthlyRent,
-    property.affordabilityMultiple || DEFAULT_AFFORDABILITY_MULTIPLE,
-  )
   const now = new Date().toISOString()
   const application: TenancyApplicationRecord = {
     id: randomUUID(),
@@ -1094,13 +1055,12 @@ export async function createTenancyApplication(user: AuthUser, input: CreateTena
     applicantId: user.id,
     applicantEmail: user.email,
     applicantName: getDisplayName(user),
-    currentStage: "pre_screening",
+    currentStage: "referencing_instruction",
     status: "submitted",
     submittedAt: now,
     createdAt: now,
     updatedAt: now,
-    preScreening: questionnaire,
-    preScreeningSummary,
+    applicantProfile: questionnaire,
     referencingInstruction: createDefaultReferencingInstruction(),
     referencingReport: createDefaultReferencingReport(),
     approvalDecision: createDefaultApprovalDecision(),
@@ -1229,7 +1189,7 @@ export async function updateApplicationForApplicant(user: AuthUser, applicationI
 
   const questionnaire = normalizeQuestionnaire({
     propertyId: existingApplication.propertyId,
-    ...existingApplication.preScreening,
+    ...existingApplication.applicantProfile,
     ...input,
   })
 
@@ -1245,16 +1205,10 @@ export async function updateApplicationForApplicant(user: AuthUser, applicationI
     questionnaire.creditCheckConsentGivenAt = new Date().toISOString()
   }
 
-  const preScreeningSummary = buildPreScreeningSummary(
-    questionnaire,
-    existingApplication.monthlyRent,
-    existingApplication.affordabilityMultiple || DEFAULT_AFFORDABILITY_MULTIPLE,
-  )
   const nextApplication: TenancyApplicationRecord = {
     ...existingApplication,
     updatedAt: new Date().toISOString(),
-    preScreening: questionnaire,
-    preScreeningSummary,
+    applicantProfile: questionnaire,
   }
 
   const container = await getApplicationsContainer()

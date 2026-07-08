@@ -18,7 +18,7 @@ const application: TenancyApplicationRecord = {
   submittedAt: "2026-06-01T09:00:00.000Z",
   createdAt: "2026-06-01T09:00:00.000Z",
   updatedAt: "2026-06-19T10:00:00.000Z",
-  preScreening: {
+  applicantProfile: {
     employmentStatus: "employed_full_time",
     annualIncome: 50000,
     moveInDate: "2026-06-15",
@@ -32,13 +32,6 @@ const application: TenancyApplicationRecord = {
     creditCheckConsentGiven: true,
     creditCheckConsentGivenAt: "2026-06-01T09:00:00.000Z",
     creditCheckConsentVersion: "tenant-credit-check-consent-v1",
-  },
-  preScreeningSummary: {
-    outcome: "pass",
-    affordabilityTarget: 36000,
-    affordabilityRatio: 3.8,
-    reasons: [],
-    assessedAt: "2026-06-01T09:30:00.000Z",
   },
   referencingInstruction: {
     providerStatus: "documents_received",
