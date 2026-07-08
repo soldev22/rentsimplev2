@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 
-import type { NotificationProfileDefaults } from "@/lib/auth"
+import type { AuthUser, NotificationProfileDefaults } from "@/lib/auth"
 
 type LandlordProfileSettingsFormProps = {
   initialProfile: {
@@ -12,6 +12,7 @@ type LandlordProfileSettingsFormProps = {
     email: string
     notificationProfile?: NotificationProfileDefaults
   }
+  initialTeamUsers: AuthUser[]
 }
 
 type FormState = {
@@ -27,6 +28,14 @@ type FeedbackState = {
   message: string
 } | null
 
+type TeamMemberCreateState = {
+  firstName: string
+  lastName: string
+  email: string
+  mobile: string
+  password: string
+}
+
 function createInitialFormState(profile: LandlordProfileSettingsFormProps["initialProfile"]): FormState {
   return {
     firstName: profile.firstName,
@@ -37,9 +46,22 @@ function createInitialFormState(profile: LandlordProfileSettingsFormProps["initi
   }
 }
 
-export default function LandlordProfileSettingsForm({ initialProfile }: LandlordProfileSettingsFormProps) {
+function createInitialTeamMemberFormState(): TeamMemberCreateState {
+  return {
+    firstName: "",
+    lastName: "",
+    email: "",
+    mobile: "",
+    password: "",
+  }
+}
+
+export default function LandlordProfileSettingsForm({ initialProfile, initialTeamUsers }: LandlordProfileSettingsFormProps) {
   const [formState, setFormState] = useState<FormState>(() => createInitialFormState(initialProfile))
   const [feedback, setFeedback] = useState<FeedbackState>(null)
+  const [teamFeedback, setTeamFeedback] = useState<FeedbackState>(null)
+  const [teamUsers, setTeamUsers] = useState(initialTeamUsers)
+  const [teamMemberForm, setTeamMemberForm] = useState<TeamMemberCreateState>(() => createInitialTeamMemberFormState())
   const [isPending, startTransition] = useTransition()
 
   function updateField<Key extends keyof FormState>(field: Key, value: FormState[Key]) {
@@ -109,6 +131,51 @@ export default function LandlordProfileSettingsForm({ initialProfile }: Landlord
   function handleReset() {
     setFeedback(null)
     setFormState(createInitialFormState(initialProfile))
+  }
+
+  function updateTeamMemberField<Key extends keyof TeamMemberCreateState>(field: Key, value: TeamMemberCreateState[Key]) {
+    setTeamMemberForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  function handleCreateTeamMember(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setTeamFeedback(null)
+
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/landlord/team-users", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(teamMemberForm),
+        })
+
+        const payload = (await response.json()) as {
+          user?: AuthUser
+          error?: string
+        }
+
+        if (!response.ok || !payload.user) {
+          throw new Error(payload.error || "Unable to create landlord team user.")
+        }
+
+        setTeamUsers((current) => [...current, payload.user!].sort((left, right) => left.email.localeCompare(right.email)))
+        setTeamMemberForm(createInitialTeamMemberFormState())
+        setTeamFeedback({
+          type: "success",
+          message: "Team member login created.",
+        })
+      } catch (error) {
+        setTeamFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to create landlord team user.",
+        })
+      }
+    })
   }
 
   return (
@@ -215,6 +282,108 @@ export default function LandlordProfileSettingsForm({ initialProfile }: Landlord
           </button>
         </div>
       </form>
+
+      <section className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+        <h2 className="text-lg font-semibold text-slate-900">Landlord team logins</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Add additional landlord users under this account. All team members have full landlord access.
+        </p>
+
+        {teamFeedback ? (
+          <div
+            className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+              teamFeedback.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "border-rose-200 bg-rose-50 text-rose-900"
+            }`}
+          >
+            {teamFeedback.message}
+          </div>
+        ) : null}
+
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current team members</div>
+          {teamUsers.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-600">No team members found.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {teamUsers.map((user) => (
+                <div key={user.id} className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 md:flex-row md:items-center md:justify-between">
+                  <div className="font-medium text-slate-900">{`${user.first_name} ${user.last_name}`.trim() || user.email}</div>
+                  <div>{user.email}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <form className="mt-4 grid gap-4 md:grid-cols-2" onSubmit={handleCreateTeamMember}>
+          <label className="block text-sm font-medium text-slate-700">
+            First name
+            <input
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+              value={teamMemberForm.firstName}
+              onChange={(event) => updateTeamMemberField("firstName", event.target.value)}
+              required
+            />
+          </label>
+
+          <label className="block text-sm font-medium text-slate-700">
+            Last name
+            <input
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+              value={teamMemberForm.lastName}
+              onChange={(event) => updateTeamMemberField("lastName", event.target.value)}
+              required
+            />
+          </label>
+
+          <label className="block text-sm font-medium text-slate-700">
+            Email
+            <input
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+              type="email"
+              value={teamMemberForm.email}
+              onChange={(event) => updateTeamMemberField("email", event.target.value)}
+              required
+            />
+          </label>
+
+          <label className="block text-sm font-medium text-slate-700">
+            Mobile (optional)
+            <input
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+              value={teamMemberForm.mobile}
+              onChange={(event) => updateTeamMemberField("mobile", event.target.value)}
+            />
+          </label>
+
+          <label className="block text-sm font-medium text-slate-700 md:col-span-2">
+            Temporary password
+            <input
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+              type="password"
+              value={teamMemberForm.password}
+              onChange={(event) => updateTeamMemberField("password", event.target.value)}
+              required
+              minLength={8}
+            />
+            <span className="mt-2 block text-xs text-slate-500">
+              Share this securely with the new user.
+            </span>
+          </label>
+
+          <div className="md:col-span-2 flex items-center gap-3">
+            <button
+              type="submit"
+              className="rounded-md bg-slate-900 px-4 py-2 font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+              disabled={isPending}
+            >
+              {isPending ? "Creating..." : "Add landlord team user"}
+            </button>
+          </div>
+        </form>
+      </section>
     </section>
   )
 }

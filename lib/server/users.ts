@@ -45,6 +45,10 @@ export type LandlordDirectoryEntry = {
   fullName: string
 }
 
+function getLandlordAccountId(user: Pick<AuthUser, "id" | "landlordAccountId">) {
+  return user.landlordAccountId?.trim().toLowerCase() || user.id
+}
+
 function isNotFoundError(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && (error as { code?: number }).code === 404
 }
@@ -517,10 +521,12 @@ export async function updateUserForAdmin(
   }
 
   const managedInput = normalizeManagedUserInput(input)
+  const nextLandlordAccountId = managedInput.role === "landlord" ? getLandlordAccountId(storedUser) : undefined
   const updatedUser: StoredUser = {
     ...storedUser,
     role: managedInput.role,
     approval_status: normalizedEmail === adminUser.email ? "approved" : managedInput.approval_status,
+    landlordAccountId: nextLandlordAccountId,
     managedByAgentId: managedInput.role === "landlord" ? managedInput.managedByAgentId : undefined,
     notificationProfile: managedInput.notificationProfile,
     updatedAt: new Date().toISOString(),
@@ -548,6 +554,7 @@ export async function listLandlordDirectoryForUser(user: AuthUser) {
   }
 
   const users = await listAllUsers()
+  const landlordAccountId = role === "landlord" ? getLandlordAccountId(user) : ""
 
   return users
     .filter((candidate) => {
@@ -563,7 +570,7 @@ export async function listLandlordDirectoryForUser(user: AuthUser) {
         return candidate.managedByAgentId === user.id
       }
 
-      return candidate.id === user.id
+      return getLandlordAccountId(candidate) === landlordAccountId
     })
     .map<LandlordDirectoryEntry>((candidate) => ({
       id: candidate.id,
@@ -600,6 +607,7 @@ export async function setUserRoleForWorkflow(email: string, role: UserRole, appr
     ...storedUser,
     role,
     approval_status,
+    landlordAccountId: role === "landlord" ? getLandlordAccountId(storedUser) : undefined,
     updatedAt: new Date().toISOString(),
   }
 
@@ -683,6 +691,63 @@ export async function updateLandlordProfile(
 
   await writeStoredUser(updatedUser)
   return sanitizeUser(updatedUser)
+}
+
+export async function listLandlordTeamUsers(user: AuthUser) {
+  assertLandlord(user)
+
+  const users = await listAllUsers()
+  const landlordAccountId = getLandlordAccountId(user)
+
+  return users
+    .filter((candidate) => candidate.role === "landlord" && getLandlordAccountId(candidate) === landlordAccountId)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+}
+
+export async function createLandlordTeamUser(
+  landlordUser: AuthUser,
+  input: {
+    email: string
+    password: string
+    firstName: string
+    lastName: string
+    mobile?: string
+  },
+) {
+  assertLandlord(landlordUser)
+
+  const normalizedEmail = normalizeEmail(input.email)
+
+  if (!normalizedEmail || !input.password || !input.firstName.trim() || !input.lastName.trim()) {
+    throw new Error("ValidationError")
+  }
+
+  const existingUser = await readStoredUser(normalizedEmail)
+
+  if (existingUser) {
+    throw new Error("UserAlreadyExists")
+  }
+
+  const now = new Date().toISOString()
+  const storedUser: StoredUser = {
+    id: normalizedEmail,
+    email: normalizedEmail,
+    first_name: input.firstName.trim(),
+    last_name: input.lastName.trim(),
+    mobile: (input.mobile ?? "").trim(),
+    role: "landlord",
+    approval_status: "approved",
+    landlordAccountId: getLandlordAccountId(landlordUser),
+    managedByAgentId: landlordUser.managedByAgentId,
+    createdAt: now,
+    updatedAt: now,
+    passwordHash: hashPassword(input.password),
+    emailVerifiedAt: now,
+    failedLoginAttempts: 0,
+  }
+
+  await writeStoredUser(storedUser)
+  return sanitizeUser(storedUser)
 }
 
 export async function setUserSession(email: string, sessionTokenHash: string, sessionExpiresAt: string) {

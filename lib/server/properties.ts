@@ -25,7 +25,7 @@ import {
   normalizePageOptions,
   type PageOptions,
 } from "@/lib/server/pagination"
-import { listLandlordDirectoryForUser } from "@/lib/server/users"
+import { listLandlordDirectoryForUser, listLandlordTeamUsers } from "@/lib/server/users"
 
 export const DEFAULT_AFFORDABILITY_MULTIPLE = 2.5
 const propertySeedEnabled = process.env.PROPERTY_DEMO_SEED_ENABLED?.trim().toLowerCase() === "true"
@@ -115,7 +115,8 @@ async function getAccessibleLandlordIds(user: AuthUser, selectedLandlordId?: str
   }
 
   if (role === "landlord") {
-    return new Set([user.id])
+    const teamUsers = await listLandlordTeamUsers(user)
+    return new Set(teamUsers.map((member) => member.id))
   }
 
   return new Set<string>()
@@ -134,6 +135,11 @@ async function canAccessPropertyForUser(user: AuthUser, property: PropertyRecord
       return false
     }
     return landlordIds.has(property.ownerId)
+  }
+
+  if (role === "landlord") {
+    const landlordIds = await getAccessibleLandlordIds(user)
+    return landlordIds?.has(property.ownerId) ?? false
   }
 
   return property.ownerId === user.id
@@ -473,7 +479,7 @@ export async function listPropertiesForUser(user: AuthUser, landlordId?: string)
   const role = getUserRole(user)
   const accessibleLandlordIds = await getAccessibleLandlordIds(user, landlordId)
   const querySpec =
-    role === "admin" || role === "agent"
+    role === "admin" || role === "agent" || role === "landlord"
       ? {
           query: "SELECT * FROM c ORDER BY c.address",
         }
@@ -491,6 +497,10 @@ export async function listPropertiesForUser(user: AuthUser, landlordId?: string)
   }
 
   if (role === "admin" || role === "agent") {
+    return normalizedProperties.filter((property) => accessibleLandlordIds?.has(property.ownerId))
+  }
+
+  if (role === "landlord") {
     return normalizedProperties.filter((property) => accessibleLandlordIds?.has(property.ownerId))
   }
 
@@ -528,6 +538,26 @@ async function buildPropertyOwnerFilter(user: AuthUser, landlordId: string | und
       }
     }
 
+    const ownerIds = [...(accessibleLandlordIds ?? new Set<string>())]
+
+    if (ownerIds.length === 0) {
+      return {
+        whereClause: " WHERE 1 = 0",
+        parameters: [] as Array<{ name: string; value: string }>,
+      }
+    }
+
+    const parameters = ownerIds.map((ownerId, index) => ({ name: `@ownerId${index}`, value: ownerId }))
+    const inClause = parameters.map((parameter) => parameter.name).join(", ")
+
+    return {
+      whereClause: ` WHERE c.ownerId IN (${inClause})`,
+      parameters,
+    }
+  }
+
+  if (role === "landlord") {
+    const accessibleLandlordIds = await getAccessibleLandlordIds(user)
     const ownerIds = [...(accessibleLandlordIds ?? new Set<string>())]
 
     if (ownerIds.length === 0) {

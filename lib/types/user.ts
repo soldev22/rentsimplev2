@@ -58,6 +58,7 @@ export type AuthUser = {
   first_name: string
   last_name: string
   mobile: string
+  landlordAccountId?: string
   applicantProfile?: ApplicantProfileDefaults
   builderProfile?: BuilderProfileDefaults
   notificationProfile?: NotificationProfileDefaults

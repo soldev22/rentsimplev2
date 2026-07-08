@@ -5,6 +5,7 @@ import BuilderProfileSettingsForm from "@/components/forms/BuilderProfileSetting
 import LandlordProfileSettingsForm from "@/components/forms/LandlordProfileSettingsForm"
 import { getUserRole, isPendingApproval } from "@/lib/auth"
 import { getSessionUser } from "@/lib/server/session"
+import { listLandlordTeamUsers } from "@/lib/server/users"
 
 export const dynamic = "force-dynamic"
 
@@ -28,6 +29,8 @@ export default async function SettingsPage() {
   }
 
   if (getUserRole(user) === "landlord") {
+    const teamUsers = await listLandlordTeamUsers(user)
+
     return (
       <LandlordProfileSettingsForm
         initialProfile={{
@@ -37,6 +40,7 @@ export default async function SettingsPage() {
           email: user.email,
           notificationProfile: user.notificationProfile,
         }}
+        initialTeamUsers={teamUsers}
       />
     )
   }
