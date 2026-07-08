@@ -177,14 +177,14 @@ export default function LoginPage() {
       })
 
       if (!response.ok) {
-        return redirectUrl
+        return redirectToParam ?? redirectUrl
       }
 
       const data = (await response.json()) as {
         user?: Pick<AuthUser, "role" | "approval_status"> | null
       }
 
-        return redirectToParam ?? getDefaultDashboardPath(data.user ?? null)
+      return redirectToParam ?? getDefaultDashboardPath(data.user ?? null)
     } catch {
       return redirectToParam ?? redirectUrl
     }
@@ -323,7 +323,6 @@ export default function LoginPage() {
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">Verifying your email...</div>
               ) : null}
               <div className="text-center text-sm">
-                <Link href="/login" className="text-sky-700 hover:underline">
                 <Link href={loginHref} className="text-sky-700 hover:underline">
                   Back to login
                 </Link>
@@ -473,7 +472,6 @@ export default function LoginPage() {
             {isRegistrationMode ? (
               <>
                 Already have an account?{" "}
-                <Link href="/login" className="text-sky-700 hover:underline">
                 <Link href={loginHref} className="text-sky-700 hover:underline">
                   Sign in
                 </Link>
@@ -481,7 +479,6 @@ export default function LoginPage() {
             ) : isForgotPasswordMode ? (
               <>
                 Remembered your password?{" "}
-                <Link href="/login" className="text-sky-700 hover:underline">
                 <Link href={loginHref} className="text-sky-700 hover:underline">
                   Sign in
                 </Link>
@@ -489,7 +486,6 @@ export default function LoginPage() {
             ) : isResetPasswordMode ? (
               <>
                 Return to{" "}
-                <Link href="/login" className="text-sky-700 hover:underline">
                 <Link href={loginHref} className="text-sky-700 hover:underline">
                   sign in
                 </Link>
@@ -497,7 +493,6 @@ export default function LoginPage() {
             ) : isVerifyRequestMode ? (
               <>
                 Already verified?{" "}
-                <Link href="/login" className="text-sky-700 hover:underline">
                 <Link href={loginHref} className="text-sky-700 hover:underline">
                   Sign in
                 </Link>

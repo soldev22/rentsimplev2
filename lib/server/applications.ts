@@ -104,15 +104,28 @@ function assertReviewer(user: AuthUser) {
   }
 }
 
+function hasFinalDecision(application: TenancyApplicationRecord) {
+  return (
+    application.approvalDecision.outcome === "approved" ||
+    application.approvalDecision.outcome === "approved_with_guarantor" ||
+    application.approvalDecision.outcome === "declined"
+  )
+}
+
 function canApplicantEditApplication(application: TenancyApplicationRecord) {
-  return application.approvalDecision.outcome === "pending" && application.status !== "withdrawn"
+  return (
+    application.status !== "withdrawn" &&
+    application.status !== "active_tenant" &&
+    application.status !== "declined" &&
+    !hasFinalDecision(application)
+  )
 }
 
 function canApplicantWithdrawApplication(application: TenancyApplicationRecord) {
   return (
-    application.approvalDecision.outcome === "pending" &&
     application.status !== "withdrawn" &&
-    application.status !== "active_tenant"
+    application.status !== "active_tenant" &&
+    !hasFinalDecision(application)
   )
 }
 

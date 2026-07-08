@@ -189,7 +189,7 @@ export default function PropertyManager({
   const [selectedPropertyId, setSelectedPropertyId] = useState("")
   const [expandedPortfolioId, setExpandedPortfolioId] = useState<string | null>(null)
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false)
-  const [isPortfolioOpen, setIsPortfolioOpen] = useState(true)
+  const [isPortfolioOpen, setIsPortfolioOpen] = useState(false)
   const [portfolioSearch, setPortfolioSearch] = useState("")
   const [createForm, setCreateForm] = useState<PropertyFormState>(emptyForm)
   const [createImageFiles, setCreateImageFiles] = useState<File[]>([])

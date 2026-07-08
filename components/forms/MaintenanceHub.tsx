@@ -116,7 +116,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
   const [issues, setIssues] = useState(initialIssues)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [issueForm, setIssueForm] = useState<TenantIssueFormState>(() => createEmptyIssueForm(reportableProperties))
-  const [expandedIssueId, setExpandedIssueId] = useState<string | null>(initialIssues[0]?.id ?? null)
+  const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [showCamera, setShowCamera] = useState(false)
   const [capturedPhotos, setCapturedPhotos] = useState<Array<{ blob: Blob; preview: string }>>([])

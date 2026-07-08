@@ -122,9 +122,9 @@ export default function ApplicantTenancyChecklist({ initialApplication, initialA
   const [auditEvents, setAuditEvents] = useState(initialAuditEvents)
   const [formState, setFormState] = useState<SignOffFormState>(() => createSignOffFormState(initialApplication))
   const [feedback, setFeedback] = useState<FeedbackState>(null)
-  const [isOverviewOpen, setIsOverviewOpen] = useState(true)
-  const [isChecklistOpen, setIsChecklistOpen] = useState(true)
-  const [isSignOffOpen, setIsSignOffOpen] = useState(true)
+  const [isOverviewOpen, setIsOverviewOpen] = useState(false)
+  const [isChecklistOpen, setIsChecklistOpen] = useState(false)
+  const [isSignOffOpen, setIsSignOffOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const canAccessSignOff = isApplicantApprovalReady(application)

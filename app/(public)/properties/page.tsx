@@ -194,7 +194,7 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                     tone: "border-cyan-200 bg-cyan-50 text-cyan-900",
                     message: "Register as an applicant to apply for this flat with Quick Apply.",
                     ctaHref: "/login?mode=register",
-                    ctaLabel: "Register to apply",
+                    ctaLabel: "Register to apply or sign in",
                   }
                 : isApplicant
                   ? existingApplication
@@ -214,7 +214,7 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                       tone: "border-cyan-200 bg-cyan-50 text-cyan-900",
                       message: "Register as an applicant to apply for this flat.",
                       ctaHref: "/login?mode=register",
-                      ctaLabel: "Register to apply",
+                      ctaLabel: "Register to apply or sign in",
                     }
 
               return (

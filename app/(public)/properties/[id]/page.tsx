@@ -48,7 +48,7 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
       ? "View your application"
       : sessionUser && getUserRole(sessionUser) === "applicant"
       ? "Apply for this flat"
-      : "Register to apply"
+      : "Register to apply or sign in"
   const canQuickApply = Boolean(
     sessionUser &&
       getUserRole(sessionUser) === "applicant" &&

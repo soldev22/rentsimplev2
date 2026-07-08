@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
 import { useMemo, useState, useTransition } from "react"
 
 import type {
@@ -163,12 +164,25 @@ function formatPreferredContactMethods(methods: PreferredContactMethod[] | undef
   return methods && methods.length > 0 ? methods.join(", ") : "Not provided"
 }
 
+function hasFinalDecision(application: TenancyApplicationRecord) {
+  return (
+    application.approvalDecision.outcome === "approved" ||
+    application.approvalDecision.outcome === "approved_with_guarantor" ||
+    application.approvalDecision.outcome === "declined"
+  )
+}
+
 function canApplicantEditApplication(application: TenancyApplicationRecord) {
-  return application.approvalDecision.outcome === "pending" && application.status !== "withdrawn"
+  return (
+    application.status !== "withdrawn" &&
+    application.status !== "active_tenant" &&
+    application.status !== "declined" &&
+    !hasFinalDecision(application)
+  )
 }
 
 function canApplicantWithdrawApplication(application: TenancyApplicationRecord) {
-  return application.approvalDecision.outcome === "pending" && application.status !== "withdrawn" && application.status !== "active_tenant"
+  return application.status !== "withdrawn" && application.status !== "active_tenant" && !hasFinalDecision(application)
 }
 
 function hasActiveApplicationForProperty(
@@ -192,6 +206,8 @@ export default function ApplicantTenancyWorkflow({
   initialApplicantProfile,
   preselectedPropertyId,
 }: ApplicantTenancyWorkflowProps) {
+  const router = useRouter()
+  const pathname = usePathname()
   const [applications, setApplications] = useState(initialApplications)
   const [savedApplicantProfile, setSavedApplicantProfile] = useState<ApplicantProfileDefaults | undefined>(initialApplicantProfile)
   const [formState, setFormState] = useState<FormState>(() => {
@@ -205,8 +221,8 @@ export default function ApplicantTenancyWorkflow({
   })
   const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
-  const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(initialApplications[0]?.id ?? null)
-  const [isApplicationFormOpen, setIsApplicationFormOpen] = useState(true)
+  const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(null)
+  const [isApplicationFormOpen, setIsApplicationFormOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const propertyIdsWithActiveApplications = useMemo(
@@ -302,8 +318,14 @@ export default function ApplicantTenancyWorkflow({
         const latestSubmittedProfile = createApplicantProfileFromApplication(payload.application)
         setSavedApplicantProfile(latestSubmittedProfile)
         setExpandedApplicationId(payload.application.id)
-        setFormState(createInitialFormState(preselectedPropertyId, latestSubmittedProfile))
+        setFormState({
+          ...createInitialFormState(undefined, latestSubmittedProfile),
+          propertyId: "",
+          creditCheckConsentGiven: false,
+        })
         setEditingApplicationId(null)
+        setIsApplicationFormOpen(false)
+        router.replace(pathname, { scroll: false })
       } catch (error) {
         setFeedback({
           type: "error",
@@ -389,163 +411,9 @@ export default function ApplicantTenancyWorkflow({
     })
   }
 
-  return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">Your applications</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Review every application at a glance, expand one when you need the detail, and edit any application while it is under review.
-            </p>
-          </div>
-          <div className="rounded-full bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900">
-            {applications.length} application{applications.length === 1 ? "" : "s"}
-          </div>
-        </div>
-
-        <div className="mt-6 space-y-4">
-          {applications.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600 shadow-sm">
-              You have not started an application yet.
-            </div>
-          ) : (
-            <div className="space-y-4" role="presentation">
-              {applications.map((application) => {
-              const isExpanded = expandedApplicationId === application.id
-              const canEdit = canApplicantEditApplication(application)
-              const canWithdraw = canApplicantWithdrawApplication(application)
-              const panelId = `application-panel-${application.id}`
-              const triggerId = `application-trigger-${application.id}`
-
-              return (
-                <article key={application.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <details open={isExpanded} className="min-w-0 flex-1">
-                      <summary
-                        id={triggerId}
-                        className="list-none rounded-xl text-left transition-colors hover:bg-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          handleToggleApplication(application.id)
-                        }}
-                      >
-                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">
-                          <span>Application</span>
-                          <span className={`inline-flex rounded-full px-3 py-1 text-[11px] ${getStatusTone(application.status)}`}>
-                            {getApplicantFacingStatus(application)}
-                          </span>
-                          <span aria-hidden="true" className={`inline-block text-[2.5rem] leading-none text-slate-500 transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`}>▾</span>
-                        </div>
-                        <div className="mt-2 flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
-                            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.8">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 7.5h16a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 20 18.5H4A1.5 1.5 0 0 1 2.5 17V9A1.5 1.5 0 0 1 4 7.5Z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 7.5 9 5.5h6l1.5 2" />
-                              <circle cx="8.5" cy="12" r="1.25" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="m11 15 2.3-2.6a1 1 0 0 1 1.5 0l2.2 2.6" />
-                            </svg>
-                          </div>
-                          <h3 className="truncate text-lg font-semibold text-slate-900">{application.propertyAddress}</h3>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
-                          <span>{application.propertyCity}</span>
-                          <span>£{application.monthlyRent.toLocaleString()}/month</span>
-                          <span>Application received</span>
-                        </div>
-                      </summary>
-                    </details>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/dashboard/applicant/${application.id}`}
-                        className="rounded-md border border-sky-300 px-3 py-2 text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-50"
-                      >
-                        Checklist
-                      </Link>
-                      <button
-                        type="button"
-                        className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={() => handleEditApplication(application)}
-                        disabled={!canEdit}
-                        title={canEdit ? "Edit this application" : "Editing is locked after a final decision is made."}
-                      >
-                        {canEdit ? "Edit application" : "Editing locked"}
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-md border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={() => handleWithdrawApplication(application)}
-                        disabled={!canWithdraw || isPending}
-                        title={canWithdraw ? "Withdraw this application" : "This application can no longer be withdrawn."}
-                      >
-                        Withdraw
-                      </button>
-                    </div>
-                  </div>
-
-                  {isExpanded ? (
-                    <div id={panelId} role="region" aria-labelledby={triggerId} className="mt-4 border-t border-slate-200 pt-4">
-                      <div className="grid gap-4">
-                        <div className="rounded-xl bg-white p-4">
-                          <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Application details</div>
-                          <div className="mt-2 text-sm font-semibold text-slate-900">Submitted</div>
-                          <p className="mt-2 text-sm text-slate-600">
-                            Your submitted details are attached to this application.
-                          </p>
-                          <p className="mt-2 text-sm text-slate-600">
-                            Preferred contact: {formatPreferredContactMethods(application.preScreening.preferredContactMethods)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
-                        This application is reviewed manually by the lettings team. No automated approval or decline is applied.
-                      </div>
-
-                      {!canEdit ? (
-                        <p className="mt-4 text-sm text-slate-500">
-                          This application can no longer be edited because a decision has already been recorded.
-                        </p>
-                      ) : null}
-
-                      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
-                        {application.preScreening.creditCheckConsentGivenAt
-                          ? `Credit check consent recorded at ${new Date(application.preScreening.creditCheckConsentGivenAt).toLocaleString()}.`
-                          : "Credit check consent has not been recorded on this application yet."}
-                      </div>
-                    </div>
-                  ) : null}
-                </article>
-              )
-            })}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">{editingApplicationId ? "Edit your application" : "Start an application"}</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              {editingApplicationId
-                ? "Update your application details while it is in review."
-                : "This submits your application for manual review by the lettings team."}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-            aria-label={isApplicationFormOpen ? "Collapse panel" : "Expand panel"}
-            onClick={() => setIsApplicationFormOpen((current) => !current)}
-          >
-            <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isApplicationFormOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
-          </button>
-        </div>
-
-        {isApplicationFormOpen ? (
-          <>
-
+  function renderApplicationFormContent() {
+    return (
+      <>
         {feedback ? (
           <div
             className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
@@ -745,13 +613,184 @@ export default function ApplicantTenancyWorkflow({
           {!formState.creditCheckConsentGiven ? <div className="lg:col-span-2 text-sm text-amber-700">You must agree to the credit and referencing checks before you can submit.</div> : null}
           {duplicateSelectedProperty ? <div className="lg:col-span-2 text-sm text-amber-700">This property already has an active application under your account.</div> : null}
         </form>
-          </>
+      </>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">Your applications</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Review every application at a glance, expand one when you need the detail, and edit any application while it is under review.
+            </p>
+          </div>
+          <div className="rounded-full bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900">
+            {applications.length} application{applications.length === 1 ? "" : "s"}
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {applications.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600 shadow-sm">
+              You have not started an application yet.
+            </div>
+          ) : (
+            <div className="space-y-4" role="presentation">
+              {applications.map((application) => {
+              const isExpanded = expandedApplicationId === application.id
+              const canEdit = canApplicantEditApplication(application)
+              const canWithdraw = canApplicantWithdrawApplication(application)
+              const panelId = `application-panel-${application.id}`
+              const triggerId = `application-trigger-${application.id}`
+
+              return (
+                <article key={application.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <details open={isExpanded} className="min-w-0 flex-1">
+                      <summary
+                        id={triggerId}
+                        className="list-none rounded-xl text-left transition-colors hover:bg-white/60 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          handleToggleApplication(application.id)
+                        }}
+                      >
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">
+                          <span>Application</span>
+                          <span className={`inline-flex rounded-full px-3 py-1 text-[11px] ${getStatusTone(application.status)}`}>
+                            {getApplicantFacingStatus(application)}
+                          </span>
+                          <span aria-hidden="true" className={`inline-block text-[2.5rem] leading-none text-slate-500 transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`}>▾</span>
+                        </div>
+                        <div className="mt-2 flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+                            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.8">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 7.5h16a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 20 18.5H4A1.5 1.5 0 0 1 2.5 17V9A1.5 1.5 0 0 1 4 7.5Z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 7.5 9 5.5h6l1.5 2" />
+                              <circle cx="8.5" cy="12" r="1.25" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m11 15 2.3-2.6a1 1 0 0 1 1.5 0l2.2 2.6" />
+                            </svg>
+                          </div>
+                          <h3 className="truncate text-lg font-semibold text-slate-900">{application.propertyAddress}</h3>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+                          <span>{application.propertyCity}</span>
+                          <span>£{application.monthlyRent.toLocaleString()}/month</span>
+                          <span>Application received</span>
+                        </div>
+                      </summary>
+                    </details>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/dashboard/applicant/${application.id}`}
+                        className="rounded-md border border-sky-300 px-3 py-2 text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-50"
+                      >
+                        Checklist
+                      </Link>
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={() => handleEditApplication(application)}
+                        disabled={!canEdit}
+                        title={canEdit ? "Edit this application" : "Editing is locked after a final decision is made."}
+                      >
+                        {canEdit ? "Edit application" : "Editing locked"}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={() => handleWithdrawApplication(application)}
+                        disabled={!canWithdraw || isPending}
+                        title={canWithdraw ? "Withdraw this application" : "This application can no longer be withdrawn."}
+                      >
+                        Withdraw
+                      </button>
+                    </div>
+                  </div>
+
+                  {isExpanded ? (
+                    <div id={panelId} role="region" aria-labelledby={triggerId} className="mt-4 border-t border-slate-200 pt-4">
+                      <div className="grid gap-4">
+                        <div className="rounded-xl bg-white p-4">
+                          <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Application details</div>
+                          <div className="mt-2 text-sm font-semibold text-slate-900">Submitted</div>
+                          <p className="mt-2 text-sm text-slate-600">
+                            Your submitted details are attached to this application.
+                          </p>
+                          <p className="mt-2 text-sm text-slate-600">
+                            Preferred contact: {formatPreferredContactMethods(application.preScreening.preferredContactMethods)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                        This application is reviewed manually by the lettings team. No automated approval or decline is applied.
+                      </div>
+
+                      {!canEdit ? (
+                        <p className="mt-4 text-sm text-slate-500">
+                          This application can no longer be edited because a decision has already been recorded.
+                        </p>
+                      ) : null}
+
+                      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                        {application.preScreening.creditCheckConsentGivenAt
+                          ? `Credit check consent recorded at ${new Date(application.preScreening.creditCheckConsentGivenAt).toLocaleString()}.`
+                          : "Credit check consent has not been recorded on this application yet."}
+                      </div>
+
+                      {editingApplicationId === application.id ? (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                          <div>
+                            <h4 className="text-lg font-semibold text-slate-900">Edit this application</h4>
+                            <p className="mt-2 text-sm text-slate-600">Update your application details while it is in review.</p>
+                          </div>
+                          {renderApplicationFormContent()}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </article>
+              )
+            })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {!editingApplicationId ? (
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">{editingApplicationId ? "Edit your application" : "Start an application"}</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              {editingApplicationId
+                ? "Update your application details while it is in review."
+                : "This submits your application for manual review by the lettings team."}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+            aria-label={isApplicationFormOpen ? "Collapse panel" : "Expand panel"}
+            onClick={() => setIsApplicationFormOpen((current) => !current)}
+          >
+            <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isApplicationFormOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
+          </button>
+        </div>
+
+        {isApplicationFormOpen ? (
+          renderApplicationFormContent()
         ) : (
           <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
             The application form is collapsed. Expand it using the arrow when you want to continue.
           </div>
         )}
       </section>
+      ) : null}
     </div>
   )
 }
