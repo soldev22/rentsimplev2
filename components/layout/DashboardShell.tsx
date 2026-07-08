@@ -129,7 +129,7 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
                   type="button"
                   onClick={handleLogout}
                   disabled={isSigningOut}
-                  className="rounded border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="brand-nav-button brand-nav-button-solid px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSigningOut ? "Signing out..." : "Logout"}
                 </button>
@@ -202,7 +202,7 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
               type="button"
               onClick={handleLogout}
               disabled={isSigningOut}
-              className="rounded border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="brand-nav-button brand-nav-button-solid px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSigningOut ? "Signing out..." : "Logout"}
             </button>

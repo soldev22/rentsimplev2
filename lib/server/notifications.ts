@@ -204,6 +204,129 @@ export async function deliverTenantCommunicationNotification(
   }
 }
 
+type CreditReportRequestNotificationParams = {
+  toEmail: string
+  requestedByEmail: string
+  requestedAt: string
+  applicantName: string
+  applicantEmail: string
+  propertyAddress: string
+  applicationId: string
+}
+
+export async function sendCreditReportRequestNotification(
+  params: CreditReportRequestNotificationParams,
+): Promise<boolean> {
+  const smtpConfig = getSmtpConfig()
+
+  if (!smtpConfig) {
+    console.warn("SMTP not configured - cannot send credit report request notification")
+    return false
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    })
+
+    const subject = `Credit report requested for ${params.applicantName}`
+    const text = [
+      "A landlord has requested a tenant credit score and report.",
+      "",
+      `Application ID: ${params.applicationId}`,
+      `Applicant: ${params.applicantName} (${params.applicantEmail})`,
+      `Property: ${params.propertyAddress}`,
+      `Requested by: ${params.requestedByEmail}`,
+      `Requested at: ${new Date(params.requestedAt).toLocaleString("en-GB")}`,
+      "",
+      "Please process this report request within 24 hours.",
+    ].join("\n")
+
+    await transporter.sendMail({
+      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+      to: params.toEmail,
+      subject,
+      text,
+    })
+
+    return true
+  } catch (error) {
+    console.error("Error sending credit report request notification:", error)
+    return false
+  }
+}
+
+type GuarantorReferenceRequestNotificationParams = {
+  toEmail: string
+  requestedByEmail: string
+  requestedAt: string
+  applicantName: string
+  applicantEmail: string
+  propertyAddress: string
+  applicationId: string
+  refereeName: string
+  consentUrl: string
+}
+
+export async function sendGuarantorReferenceRequestNotification(
+  params: GuarantorReferenceRequestNotificationParams,
+): Promise<boolean> {
+  const smtpConfig = getSmtpConfig()
+
+  if (!smtpConfig) {
+    console.warn("SMTP not configured - cannot send guarantor reference request notification")
+    return false
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    })
+
+    const subject = `Guarantor check request for ${params.applicantName}`
+    const text = [
+      `Hello ${params.refereeName},`,
+      "",
+      "A tenancy team is requesting your approval to act as guarantor.",
+      "",
+      `Application ID: ${params.applicationId}`,
+      `Applicant: ${params.applicantName} (${params.applicantEmail})`,
+      `Property: ${params.propertyAddress}`,
+      `Requested by: ${params.requestedByEmail}`,
+      `Requested at: ${new Date(params.requestedAt).toLocaleString("en-GB")}`,
+      "",
+      "Review the guarantor terms and respond using this secure link:",
+      params.consentUrl,
+      "",
+      "Please confirm whether you are prepared to act as guarantor for this applicant.",
+    ].join("\n")
+
+    await transporter.sendMail({
+      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+      to: params.toEmail,
+      subject,
+      text,
+    })
+
+    return true
+  } catch (error) {
+    console.error("Error sending guarantor reference request notification:", error)
+    return false
+  }
+}
+
 // ==================== CASE ESCALATION NOTIFICATIONS ====================
 
 type EscalationNotificationParams = {

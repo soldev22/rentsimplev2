@@ -174,6 +174,8 @@ export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnB
           initialAuditEventsByApplicationId={Object.fromEntries(auditEventsByApplicationId)}
           currentUserDisplayName={`${user.first_name} ${user.last_name}`.trim() || user.email}
           isAdmin={role === "admin"}
+          screeningScoreConfig={user.screeningScoreConfig}
+          canRequestCreditReport={role === "landlord"}
         />
       )}
     </div>

@@ -52,6 +52,21 @@ export type NotificationProfileDefaults = {
   copyLandlordOnTenantEmails: boolean
 }
 
+export type ApplicantScreeningScoreConfig = {
+  employmentStatusScores: Record<EmploymentStatus, number>
+  incomeAffordabilityPassScore: number
+  incomeAffordabilityFailScore: number
+  moveInWithinDaysTarget: number
+  moveInWithinTargetScore: number
+  moveInOutsideTargetScore: number
+  perPreferredContactMethodScore: number
+  hasPetsScore: number
+  smokesScore: number
+  adverseCreditScore: number
+  creditConsentScore: number
+  additionalOccupantScore: number
+}
+
 export type AuthUser = {
   id: string
   email: string
@@ -62,6 +77,7 @@ export type AuthUser = {
   applicantProfile?: ApplicantProfileDefaults
   builderProfile?: BuilderProfileDefaults
   notificationProfile?: NotificationProfileDefaults
+  screeningScoreConfig?: ApplicantScreeningScoreConfig
   managedByAgentId?: string
   role: UserRole
   approval_status: ApprovalStatus

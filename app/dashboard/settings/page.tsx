@@ -39,6 +39,7 @@ export default async function SettingsPage() {
           mobile: user.mobile,
           email: user.email,
           notificationProfile: user.notificationProfile,
+          screeningScoreConfig: user.screeningScoreConfig,
         }}
         initialTeamUsers={teamUsers}
       />

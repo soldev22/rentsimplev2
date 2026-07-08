@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from "react"
 
-import type { AuthUser, NotificationProfileDefaults } from "@/lib/auth"
+import type { ApplicantScreeningScoreConfig, AuthUser, NotificationProfileDefaults } from "@/lib/auth"
+import {
+  DEFAULT_APPLICANT_SCREENING_SCORE_CONFIG,
+  getEmploymentStatuses,
+  normalizeApplicantScreeningScoreConfig,
+} from "@/lib/utils/applicant-screening-score"
 
 type LandlordProfileSettingsFormProps = {
   initialProfile: {
@@ -11,6 +16,7 @@ type LandlordProfileSettingsFormProps = {
     mobile: string
     email: string
     notificationProfile?: NotificationProfileDefaults
+    screeningScoreConfig?: ApplicantScreeningScoreConfig
   }
   initialTeamUsers: AuthUser[]
 }
@@ -21,6 +27,7 @@ type FormState = {
   mobile: string
   outboundEmail: string
   copyLandlordOnTenantEmails: boolean
+  screeningScoreConfig: ApplicantScreeningScoreConfig
 }
 
 type FeedbackState = {
@@ -37,12 +44,15 @@ type TeamMemberCreateState = {
 }
 
 function createInitialFormState(profile: LandlordProfileSettingsFormProps["initialProfile"]): FormState {
+  const screeningScoreConfig = normalizeApplicantScreeningScoreConfig(profile.screeningScoreConfig)
+
   return {
     firstName: profile.firstName,
     lastName: profile.lastName,
     mobile: profile.mobile,
     outboundEmail: profile.notificationProfile?.outboundEmail ?? "",
     copyLandlordOnTenantEmails: profile.notificationProfile?.copyLandlordOnTenantEmails ?? false,
+    screeningScoreConfig,
   }
 }
 
@@ -71,6 +81,45 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
     }))
   }
 
+  function updateScreeningField<Key extends keyof ApplicantScreeningScoreConfig>(
+    field: Key,
+    value: ApplicantScreeningScoreConfig[Key],
+  ) {
+    setFormState((current) => ({
+      ...current,
+      screeningScoreConfig: {
+        ...current.screeningScoreConfig,
+        [field]: value,
+      },
+    }))
+  }
+
+  function updateEmploymentStatusScore(status: keyof ApplicantScreeningScoreConfig["employmentStatusScores"], value: number) {
+    setFormState((current) => ({
+      ...current,
+      screeningScoreConfig: {
+        ...current.screeningScoreConfig,
+        employmentStatusScores: {
+          ...current.screeningScoreConfig.employmentStatusScores,
+          [status]: value,
+        },
+      },
+    }))
+  }
+
+  function parseNumericInput(value: string, fallback = 0) {
+    if (!value.trim()) {
+      return fallback
+    }
+
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : fallback
+  }
+
+  function formatEmploymentStatusLabel(status: ReturnType<typeof getEmploymentStatuses>[number]) {
+    return status.replaceAll("_", " ")
+  }
+
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setFeedback(null)
@@ -90,6 +139,7 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
               outboundEmail: formState.outboundEmail,
               copyLandlordOnTenantEmails: formState.copyLandlordOnTenantEmails,
             },
+            screeningScoreConfig: formState.screeningScoreConfig,
           }),
         })
 
@@ -99,6 +149,7 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
             lastName: string
             mobile: string
             notificationProfile?: NotificationProfileDefaults | null
+            screeningScoreConfig?: ApplicantScreeningScoreConfig | null
           }
           error?: string
         }
@@ -113,6 +164,7 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
           mobile: payload.profile.mobile,
           outboundEmail: payload.profile.notificationProfile?.outboundEmail ?? "",
           copyLandlordOnTenantEmails: payload.profile.notificationProfile?.copyLandlordOnTenantEmails ?? false,
+          screeningScoreConfig: normalizeApplicantScreeningScoreConfig(payload.profile.screeningScoreConfig ?? undefined),
         })
 
         setFeedback({
@@ -263,6 +315,226 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
           />
           Copy me on tenant communication emails by default
         </label>
+
+        <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold text-slate-900">Applicant screening score settings</h2>
+            <p className="text-sm text-slate-600">
+              Configure how applicant profile data is scored in the application review panel. Scores persist on your landlord account.
+            </p>
+          </div>
+
+          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Criterion</th>
+                  <th className="px-4 py-3 text-left font-semibold">Scoring input</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {getEmploymentStatuses().map((status) => (
+                  <tr key={status}>
+                    <td className="px-4 py-3 font-medium text-slate-700 capitalize">Employment: {formatEmploymentStatusLabel(status)}</td>
+                    <td className="px-4 py-3">
+                      <input
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                        type="number"
+                        aria-label={`Employment score for ${formatEmploymentStatusLabel(status)}`}
+                        title={`Employment score for ${formatEmploymentStatusLabel(status)}`}
+                        value={formState.screeningScoreConfig.employmentStatusScores[status]}
+                        onChange={(event) => updateEmploymentStatusScore(status, parseNumericInput(event.target.value))}
+                      />
+                    </td>
+                  </tr>
+                ))}
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Affordability pass score</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Affordability pass score"
+                      title="Affordability pass score"
+                      value={formState.screeningScoreConfig.incomeAffordabilityPassScore}
+                      onChange={(event) =>
+                        updateScreeningField("incomeAffordabilityPassScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Affordability fail score</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Affordability fail score"
+                      title="Affordability fail score"
+                      value={formState.screeningScoreConfig.incomeAffordabilityFailScore}
+                      onChange={(event) =>
+                        updateScreeningField("incomeAffordabilityFailScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Move-in target days</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      min="0"
+                      aria-label="Move-in target days"
+                      title="Move-in target days"
+                      value={formState.screeningScoreConfig.moveInWithinDaysTarget}
+                      onChange={(event) =>
+                        updateScreeningField("moveInWithinDaysTarget", Math.max(0, parseNumericInput(event.target.value)))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Move-in score (inside target)</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Move-in score inside target"
+                      title="Move-in score inside target"
+                      value={formState.screeningScoreConfig.moveInWithinTargetScore}
+                      onChange={(event) =>
+                        updateScreeningField("moveInWithinTargetScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Move-in score (outside target)</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Move-in score outside target"
+                      title="Move-in score outside target"
+                      value={formState.screeningScoreConfig.moveInOutsideTargetScore}
+                      onChange={(event) =>
+                        updateScreeningField("moveInOutsideTargetScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Score per preferred contact method</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Score per preferred contact method"
+                      title="Score per preferred contact method"
+                      value={formState.screeningScoreConfig.perPreferredContactMethodScore}
+                      onChange={(event) =>
+                        updateScreeningField("perPreferredContactMethodScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Pets score</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Pets score"
+                      title="Pets score"
+                      value={formState.screeningScoreConfig.hasPetsScore}
+                      onChange={(event) => updateScreeningField("hasPetsScore", parseNumericInput(event.target.value))}
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Smoking score</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Smoking score"
+                      title="Smoking score"
+                      value={formState.screeningScoreConfig.smokesScore}
+                      onChange={(event) => updateScreeningField("smokesScore", parseNumericInput(event.target.value))}
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Adverse credit score</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Adverse credit score"
+                      title="Adverse credit score"
+                      value={formState.screeningScoreConfig.adverseCreditScore}
+                      onChange={(event) =>
+                        updateScreeningField("adverseCreditScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Credit consent score</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Credit consent score"
+                      title="Credit consent score"
+                      value={formState.screeningScoreConfig.creditConsentScore}
+                      onChange={(event) =>
+                        updateScreeningField("creditConsentScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Additional occupant score (per occupant above 1)</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Additional occupant score"
+                      title="Additional occupant score"
+                      value={formState.screeningScoreConfig.additionalOccupantScore}
+                      onChange={(event) =>
+                        updateScreeningField("additionalOccupantScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white"
+              onClick={() => updateField("screeningScoreConfig", DEFAULT_APPLICANT_SCREENING_SCORE_CONFIG)}
+            >
+              Reset scoring defaults
+            </button>
+          </div>
+        </section>
 
         <div className="lg:col-span-2 flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
           <button

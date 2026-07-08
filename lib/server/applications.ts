@@ -18,6 +18,13 @@ import {
   type ApplicationQuestionnaire,
   type ReferencingInstruction,
   type ReferencingReport,
+  type RefereeRequestChannel,
+  type TenancyCreditReportRequest,
+  type TenancyRefereeContact,
+  type TenancyReferenceRequest,
+  type TenancyReferenceRequestStatus,
+  type TenancyVerificationDocument,
+  type TenancyVerificationDocumentCategory,
   type TenancyDocumentTracking,
   type TenancyAgreementPreparation,
   type TenancyApplicationRecord,
@@ -34,9 +41,20 @@ import {
   normalizePageOptions,
   type PageOptions,
 } from "@/lib/server/pagination"
-import { deliverTenantCommunicationNotification } from "@/lib/server/notifications"
+import {
+  deliverTenantCommunicationNotification,
+  sendCreditReportRequestNotification,
+  sendGuarantorReferenceRequestNotification,
+} from "@/lib/server/notifications"
 import { DEFAULT_AFFORDABILITY_MULTIPLE, getPublicAvailableProperty, listPropertiesForUser } from "@/lib/server/properties"
 import { setUserRoleForWorkflow } from "@/lib/server/users"
+import {
+  deleteTenancyVerificationDocument,
+  downloadTenancyVerificationDocument,
+  uploadTenancyVerificationDocument,
+} from "@/lib/server/blob"
+import { createAuthChallenge } from "@/lib/server/auth-security"
+import { inspectAuthChallenge } from "@/lib/server/auth-security"
 
 const LEGACY_COMMUNICATION_ENTRY_ID = "legacy-communication-notes"
 
@@ -89,6 +107,17 @@ const APPLICATION_AUDIT_FIELDS = [
   { path: "postMoveInManagement.maintenanceLogNotes", action: "maintenance_log_updated" },
   { path: "postMoveInManagement.communicationLogNotes", action: "communication_notes_updated" },
 ] as const
+
+const TENANCY_VERIFICATION_DOCUMENT_CATEGORIES: TenancyVerificationDocumentCategory[] = [
+  "noIdRequired",
+  "photoIdReceived",
+  "proofOfAddressReceived",
+  "creditReferenceCheckReceived",
+  "previousLandlordReferenceReceived",
+  "incomeEvidenceReceived",
+]
+
+const GUARANTOR_REFERENCE_TOKEN_DURATION_MS = 1000 * 60 * 60 * 24 * 7
 
 function assertApplicant(user: AuthUser) {
   if (getUserRole(user) !== "applicant") {
@@ -171,15 +200,84 @@ function normalizeQuestionnaire(input: CreateTenancyApplicationInput): CreateTen
 
 function createDefaultReferencingInstruction(): ReferencingInstruction {
   return {
-    providerStatus: "pending",
+    noIdRequired: false,
     photoIdReceived: false,
     proofOfAddressReceived: false,
+    creditReferenceCheckReceived: false,
+    previousLandlordReferenceReceived: false,
     incomeEvidenceReceived: false,
+    verificationNotRequired: {
+      noIdRequired: false,
+      photoIdReceived: false,
+      proofOfAddressReceived: false,
+      creditReferenceCheckReceived: false,
+      previousLandlordReferenceReceived: false,
+      incomeEvidenceReceived: false,
+    },
+    verificationDocuments: [],
+    referees: [],
+    referenceRequests: [],
     employerContactDetails: "",
     previousLandlordContactDetails: "",
-    sharePointFileStatus: "pending",
     notes: "",
   }
+}
+
+function normalizeRefereeChannel(value: unknown): RefereeRequestChannel {
+  return value === "email" || value === "phone" || value === "sms" || value === "postal" || value === "manual"
+    ? value
+    : "email"
+}
+
+function normalizeRefereeContact(referee: Partial<TenancyRefereeContact>): TenancyRefereeContact {
+  return {
+    id: typeof referee.id === "string" && referee.id.trim() ? referee.id : randomUUID(),
+    fullName: typeof referee.fullName === "string" ? referee.fullName.trim() : "",
+    relationship: typeof referee.relationship === "string" ? referee.relationship.trim() : "",
+    relationshipToApplicantConfirmed: Boolean(referee.relationshipToApplicantConfirmed),
+    idDocumentCheckComplete: Boolean(referee.idDocumentCheckComplete),
+    proofOfAddressCheckComplete: Boolean(referee.proofOfAddressCheckComplete),
+    email: typeof referee.email === "string" && referee.email.trim() ? referee.email.trim() : undefined,
+    phone: typeof referee.phone === "string" && referee.phone.trim() ? referee.phone.trim() : undefined,
+    preferredChannel: normalizeRefereeChannel(referee.preferredChannel),
+    postalAddress:
+      typeof referee.postalAddress === "string" && referee.postalAddress.trim() ? referee.postalAddress.trim() : undefined,
+    notes: typeof referee.notes === "string" && referee.notes.trim() ? referee.notes.trim() : undefined,
+  }
+}
+
+function normalizeReferenceRequestStatus(value: unknown): TenancyReferenceRequestStatus {
+  return value === "not_requested" ||
+    value === "pending_delivery" ||
+    value === "sent" ||
+    value === "pending_manual" ||
+    value === "received_manual" ||
+    value === "completed" ||
+    value === "declined" ||
+    value === "failed"
+    ? value
+    : "not_requested"
+}
+
+function normalizeReferenceRequest(request: Partial<TenancyReferenceRequest>): TenancyReferenceRequest {
+  return {
+    id: typeof request.id === "string" && request.id.trim() ? request.id : randomUUID(),
+    refereeId: typeof request.refereeId === "string" ? request.refereeId.trim() : "",
+    channel: normalizeRefereeChannel(request.channel),
+    status: normalizeReferenceRequestStatus(request.status),
+    requestedAt: typeof request.requestedAt === "string" ? request.requestedAt : new Date().toISOString(),
+    requestedByEmail: typeof request.requestedByEmail === "string" ? request.requestedByEmail : "",
+    sentAt: typeof request.sentAt === "string" ? request.sentAt : undefined,
+    respondedAt: typeof request.respondedAt === "string" ? request.respondedAt : undefined,
+    expiresAt: typeof request.expiresAt === "string" ? request.expiresAt : undefined,
+    lastError: typeof request.lastError === "string" ? request.lastError : undefined,
+  }
+}
+
+function isValidTenancyVerificationDocumentCategory(
+  value: string,
+): value is TenancyVerificationDocumentCategory {
+  return TENANCY_VERIFICATION_DOCUMENT_CATEGORIES.includes(value as TenancyVerificationDocumentCategory)
 }
 
 function createDefaultReferencingReport(): ReferencingReport {
@@ -202,6 +300,19 @@ function createDefaultReferencingReport(): ReferencingReport {
       guarantorAnnualIncome: 0,
       notes: "",
     },
+    creditReportRequest: {
+      requested: false,
+      status: "not_requested",
+    },
+  }
+}
+
+function createCreditReportRequest(requestedAt: string, requestedByEmail: string): TenancyCreditReportRequest {
+  return {
+    requested: true,
+    requestedAt,
+    requestedByEmail,
+    status: "requested",
   }
 }
 
@@ -209,8 +320,6 @@ function createDefaultApprovalDecision(): ApprovalDecision {
   return {
     outcome: "pending",
     rationale: "",
-    affordabilityCalculation: "",
-    exceptionNotes: "",
   }
 }
 
@@ -595,10 +704,51 @@ function syncDocumentAuditTrail(
 
 function hydrateStoredApplication(application: TenancyApplicationRecord): TenancyApplicationRecord {
   const defaultTenancyAgreement = createDefaultTenancyAgreement(application.monthlyRent)
+  const defaultReferencingInstruction = createDefaultReferencingInstruction()
+  const defaultReferencingReport = createDefaultReferencingReport()
+  const defaultApprovalDecision = createDefaultApprovalDecision()
 
   return {
     ...application,
     affordabilityMultiple: toNonNegativeNumber(application.affordabilityMultiple) || DEFAULT_AFFORDABILITY_MULTIPLE,
+    referencingInstruction: {
+      ...defaultReferencingInstruction,
+      ...application.referencingInstruction,
+      verificationNotRequired: {
+        ...defaultReferencingInstruction.verificationNotRequired,
+        ...(application.referencingInstruction?.verificationNotRequired ?? {}),
+      },
+      verificationDocuments: application.referencingInstruction?.verificationDocuments ?? [],
+      referees: (application.referencingInstruction?.referees ?? []).map((referee) => normalizeRefereeContact(referee)),
+      referenceRequests: (application.referencingInstruction?.referenceRequests ?? []).map((request) =>
+        normalizeReferenceRequest(request),
+      ),
+      employerContactDetails:
+        typeof application.referencingInstruction?.employerContactDetails === "string"
+          ? application.referencingInstruction.employerContactDetails.trim()
+          : "",
+      previousLandlordContactDetails:
+        typeof application.referencingInstruction?.previousLandlordContactDetails === "string"
+          ? application.referencingInstruction.previousLandlordContactDetails.trim()
+          : "",
+      notes: typeof application.referencingInstruction?.notes === "string" ? application.referencingInstruction.notes.trim() : "",
+    },
+    referencingReport: {
+      ...defaultReferencingReport,
+      ...application.referencingReport,
+      checks: {
+        ...defaultReferencingReport.checks,
+        ...(application.referencingReport?.checks ?? {}),
+      },
+      creditReportRequest: {
+        ...defaultReferencingReport.creditReportRequest,
+        ...(application.referencingReport?.creditReportRequest ?? {}),
+      },
+    },
+    approvalDecision: {
+      ...defaultApprovalDecision,
+      ...application.approvalDecision,
+    },
     tenancyAgreement: {
       ...defaultTenancyAgreement,
       ...application.tenancyAgreement,
@@ -1268,6 +1418,14 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
     referencingInstruction: {
       ...existingApplication.referencingInstruction,
       ...input.referencingInstruction,
+      referees:
+        input.referencingInstruction?.referees !== undefined
+          ? input.referencingInstruction.referees.map((referee) => normalizeRefereeContact(referee))
+          : existingApplication.referencingInstruction.referees,
+      referenceRequests:
+        input.referencingInstruction?.referenceRequests !== undefined
+          ? input.referencingInstruction.referenceRequests.map((request) => normalizeReferenceRequest(request))
+          : existingApplication.referencingInstruction.referenceRequests,
     },
     referencingReport: {
       ...existingApplication.referencingReport,
@@ -1539,4 +1697,632 @@ export async function deleteApplicationForAdmin(user: AuthUser, applicationId: s
   ])
 
   return existingApplication
+}
+
+export async function uploadVerificationDocumentForApplication(
+  user: AuthUser,
+  applicationId: string,
+  category: string,
+  file: File,
+  replaceDocumentId?: string,
+) {
+  assertReviewer(user)
+
+  if (!isValidTenancyVerificationDocumentCategory(category)) {
+    throw new Error("InvalidVerificationCategory")
+  }
+
+  const existingApplication = await getApplicationById(applicationId)
+
+  if (!existingApplication) {
+    return null
+  }
+
+  const role = getUserRole(user)
+
+  if (role !== "admin") {
+    const accessibleProperties = await listPropertiesForUser(user)
+    const hasAccess = accessibleProperties.some((property) => property.id === existingApplication.propertyId)
+
+    if (!hasAccess) {
+      throw new Error("Forbidden")
+    }
+  }
+
+  const fileBuffer = Buffer.from(await file.arrayBuffer())
+  const upload = await uploadTenancyVerificationDocument({
+    applicationId: existingApplication.id,
+    category,
+    fileName: file.name,
+    fileBuffer,
+    mimeType: file.type || "application/octet-stream",
+  })
+
+  const now = new Date().toISOString()
+  const document: TenancyVerificationDocument = {
+    id: replaceDocumentId || randomUUID(),
+    category,
+    fileName: file.name,
+    blobName: upload.blobName,
+    url: upload.url,
+    contentType: file.type || "application/octet-stream",
+    size: upload.size,
+    uploadedAt: now,
+    uploadedByEmail: user.email,
+  }
+
+  const nextApplication: TenancyApplicationRecord = {
+    ...existingApplication,
+    updatedAt: now,
+    referencingInstruction: {
+      ...existingApplication.referencingInstruction,
+      verificationDocuments: [
+        ...(existingApplication.referencingInstruction.verificationDocuments ?? []).filter(
+          (candidate) => candidate.id !== replaceDocumentId,
+        ),
+        document,
+      ],
+    },
+  }
+
+  const replacedDocument = replaceDocumentId
+    ? (existingApplication.referencingInstruction.verificationDocuments ?? []).find(
+        (candidate) => candidate.id === replaceDocumentId,
+      )
+    : undefined
+
+  const container = await getApplicationsContainer()
+  await syncStoredCommunicationEntries(nextApplication, nextApplication.postMoveInManagement.communicationEntries)
+  await container.item(nextApplication.id, nextApplication.applicantId).replace(stripStoredCommunicationEntries(nextApplication))
+
+  await writeAuditEvents([
+    {
+      entityType: "application",
+      entityId: nextApplication.id,
+      action: replaceDocumentId ? "verification_document_replaced" : "verification_document_uploaded",
+      fieldPath: "referencingInstruction.verificationDocuments",
+      oldValue: replacedDocument ?? null,
+      newValue: document,
+      performedBy: user.email,
+      metadata: getAuditMetadata(nextApplication, user),
+      timestamp: now,
+    },
+  ])
+
+  if (replacedDocument?.blobName) {
+    await deleteTenancyVerificationDocument(replacedDocument.blobName).catch(() => undefined)
+  }
+
+  return {
+    application: nextApplication,
+    document,
+  }
+}
+
+async function canAccessApplicationForReviewer(user: AuthUser, application: TenancyApplicationRecord) {
+  const role = getUserRole(user)
+
+  if (role === "admin") {
+    return true
+  }
+
+  const accessibleProperties = await listPropertiesForUser(user)
+  return accessibleProperties.some((property) => property.id === application.propertyId)
+}
+
+export async function getVerificationDocumentForApplication(user: AuthUser, applicationId: string, documentId: string) {
+  const application = await getApplicationById(applicationId)
+
+  if (!application) {
+    return null
+  }
+
+  const role = getUserRole(user)
+
+  if (role === "applicant") {
+    if (application.applicantId !== user.id) {
+      throw new Error("Forbidden")
+    }
+  } else if (canReviewTenancyApplications(user)) {
+    const canAccess = await canAccessApplicationForReviewer(user, application)
+
+    if (!canAccess) {
+      throw new Error("Forbidden")
+    }
+  } else {
+    throw new Error("Forbidden")
+  }
+
+  const document = (application.referencingInstruction.verificationDocuments ?? []).find(
+    (candidate) => candidate.id === documentId,
+  )
+
+  if (!document) {
+    return {
+      application,
+      document: null,
+    }
+  }
+
+  const download = await downloadTenancyVerificationDocument(document.blobName)
+
+  return {
+    application,
+    document,
+    download,
+  }
+}
+
+export async function deleteVerificationDocumentForApplication(user: AuthUser, applicationId: string, documentId: string) {
+  assertReviewer(user)
+
+  const application = await getApplicationById(applicationId)
+
+  if (!application) {
+    return null
+  }
+
+  const canAccess = await canAccessApplicationForReviewer(user, application)
+
+  if (!canAccess) {
+    throw new Error("Forbidden")
+  }
+
+  const existingDocuments = application.referencingInstruction.verificationDocuments ?? []
+  const removedDocument = existingDocuments.find((candidate) => candidate.id === documentId)
+
+  if (!removedDocument) {
+    return {
+      application,
+      deleted: false,
+    }
+  }
+
+  const now = new Date().toISOString()
+  const nextApplication: TenancyApplicationRecord = {
+    ...application,
+    updatedAt: now,
+    referencingInstruction: {
+      ...application.referencingInstruction,
+      verificationDocuments: existingDocuments.filter((candidate) => candidate.id !== documentId),
+    },
+  }
+
+  const container = await getApplicationsContainer()
+  await syncStoredCommunicationEntries(nextApplication, nextApplication.postMoveInManagement.communicationEntries)
+  await container.item(nextApplication.id, nextApplication.applicantId).replace(stripStoredCommunicationEntries(nextApplication))
+
+  await writeAuditEvents([
+    {
+      entityType: "application",
+      entityId: nextApplication.id,
+      action: "verification_document_deleted",
+      fieldPath: "referencingInstruction.verificationDocuments",
+      oldValue: removedDocument,
+      newValue: null,
+      performedBy: user.email,
+      metadata: getAuditMetadata(nextApplication, user),
+      timestamp: now,
+    },
+  ])
+
+  await deleteTenancyVerificationDocument(removedDocument.blobName).catch(() => undefined)
+
+  return {
+    application: nextApplication,
+    deleted: true,
+  }
+}
+
+function getRefereeRequestExpiry(requestedAtIso: string) {
+  const requestedAt = new Date(requestedAtIso)
+  requestedAt.setDate(requestedAt.getDate() + 7)
+  return requestedAt.toISOString()
+}
+
+function hasActiveReferenceRequest(requests: TenancyReferenceRequest[], refereeId: string) {
+  return requests.some(
+    (request) =>
+      request.refereeId === refereeId &&
+      request.status !== "declined" &&
+      request.status !== "failed" &&
+      request.status !== "not_requested",
+  )
+}
+
+function hasActiveEmailReferenceRequest(requests: TenancyReferenceRequest[], refereeId: string) {
+  return requests.some(
+    (request) =>
+      request.refereeId === refereeId &&
+      request.channel === "email" &&
+      request.status !== "declined" &&
+      request.status !== "failed" &&
+      request.status !== "not_requested",
+  )
+}
+
+export async function requestGuarantorReferenceRequestsForApplication(
+  user: AuthUser,
+  applicationId: string,
+  options?: {
+    forceResend?: boolean
+    appOrigin?: string
+  },
+) {
+  assertReviewer(user)
+
+  const forceResend = options?.forceResend === true
+  const appOrigin = options?.appOrigin?.trim() || process.env.NEXT_PUBLIC_BASE_URL?.trim() || "http://localhost:3000"
+
+  const existingApplication = await getApplicationById(applicationId)
+
+  if (!existingApplication) {
+    return null
+  }
+
+  if (existingApplication.approvalDecision.outcome !== "approved_with_guarantor") {
+    throw new Error("GuarantorDecisionRequired")
+  }
+
+  const referees = (existingApplication.referencingInstruction.referees ?? []).map((referee) => normalizeRefereeContact(referee))
+  const validReferees = referees.filter((referee) => referee.fullName)
+
+  if (validReferees.length === 0) {
+    throw new Error("RefereeContactRequired")
+  }
+
+  const hasMissingGuarantorChecks = validReferees.some(
+    (referee) =>
+      !referee.relationship ||
+      !referee.relationshipToApplicantConfirmed ||
+      !referee.idDocumentCheckComplete ||
+      !referee.proofOfAddressCheckComplete,
+  )
+
+  if (hasMissingGuarantorChecks) {
+    throw new Error("GuarantorPrecheckRequired")
+  }
+
+  const now = new Date().toISOString()
+  const existingRequests = (existingApplication.referencingInstruction.referenceRequests ?? []).map((request) =>
+    normalizeReferenceRequest(request),
+  )
+  const nextRequests = [...existingRequests]
+  let sentCount = 0
+  let manualCount = 0
+  let failedCount = 0
+  let resentCount = 0
+
+  for (const referee of validReferees) {
+    const hasActiveRequest = hasActiveReferenceRequest(nextRequests, referee.id)
+    const hasActiveEmailRequest = hasActiveEmailReferenceRequest(nextRequests, referee.id)
+
+    if (hasActiveRequest && (!forceResend || !hasActiveEmailRequest)) {
+      continue
+    }
+
+    const normalizedEmail = referee.email?.trim()
+    const isResendAttempt = forceResend && hasActiveEmailRequest
+
+    if (normalizedEmail && referee.preferredChannel === "email") {
+      const requestId = randomUUID()
+      const challenge = await createAuthChallenge(normalizedEmail, "guarantor_reference", GUARANTOR_REFERENCE_TOKEN_DURATION_MS, {
+        applicationId: existingApplication.id,
+        refereeId: referee.id,
+        requestId,
+      })
+      const consentUrl = `${appOrigin}/guarantor/consent?token=${encodeURIComponent(challenge.token)}`
+
+      const notificationSent = await sendGuarantorReferenceRequestNotification({
+        toEmail: normalizedEmail,
+        requestedByEmail: user.email,
+        requestedAt: now,
+        applicantName: existingApplication.applicantName,
+        applicantEmail: existingApplication.applicantEmail,
+        propertyAddress: existingApplication.propertyAddress,
+        applicationId: existingApplication.id,
+        refereeName: referee.fullName,
+        consentUrl,
+      })
+
+      if (notificationSent) {
+        nextRequests.push({
+          id: requestId,
+          refereeId: referee.id,
+          channel: "email",
+          status: "sent",
+          requestedAt: now,
+          requestedByEmail: user.email,
+          sentAt: now,
+          expiresAt: getRefereeRequestExpiry(now),
+        })
+        sentCount += 1
+        if (isResendAttempt) {
+          resentCount += 1
+        }
+      } else {
+        nextRequests.push({
+          id: requestId,
+          refereeId: referee.id,
+          channel: "email",
+          status: "failed",
+          requestedAt: now,
+          requestedByEmail: user.email,
+          lastError: "Notification could not be sent.",
+        })
+        failedCount += 1
+        if (isResendAttempt) {
+          resentCount += 1
+        }
+      }
+
+      continue
+    }
+
+    if (isResendAttempt) {
+      continue
+    }
+
+    nextRequests.push({
+      id: randomUUID(),
+      refereeId: referee.id,
+      channel: "manual",
+      status: "pending_manual",
+      requestedAt: now,
+      requestedByEmail: user.email,
+    })
+    manualCount += 1
+  }
+
+  const alreadyRequested = sentCount === 0 && manualCount === 0 && failedCount === 0
+
+  if (alreadyRequested) {
+    return {
+      application: existingApplication,
+      alreadyRequested: true,
+      sentCount,
+      manualCount,
+      failedCount,
+      resentCount,
+    }
+  }
+
+  const nextApplication: TenancyApplicationRecord = {
+    ...existingApplication,
+    updatedAt: now,
+    referencingInstruction: {
+      ...existingApplication.referencingInstruction,
+      referees: validReferees,
+      referenceRequests: nextRequests,
+    },
+  }
+
+  const container = await getApplicationsContainer()
+  await syncStoredCommunicationEntries(nextApplication, nextApplication.postMoveInManagement.communicationEntries)
+  await container.item(nextApplication.id, nextApplication.applicantId).replace(stripStoredCommunicationEntries(nextApplication))
+
+  const auditEvents = [
+    ...buildApplicationAuditEvents(existingApplication, nextApplication, user),
+    {
+      entityType: "application",
+      entityId: nextApplication.id,
+      action: "guarantor_reference_requests_submitted",
+      fieldPath: "referencingInstruction.referenceRequests",
+      oldValue: existingApplication.referencingInstruction.referenceRequests ?? [],
+      newValue: nextApplication.referencingInstruction.referenceRequests,
+      performedBy: user.email,
+      metadata: getAuditMetadata(nextApplication, user),
+      timestamp: now,
+    },
+  ]
+
+  if (auditEvents.length > 0) {
+    await writeAuditEvents(auditEvents)
+  }
+
+  return {
+    application: nextApplication,
+    alreadyRequested: false,
+    sentCount,
+    manualCount,
+    failedCount,
+    resentCount,
+  }
+}
+
+export async function recordGuarantorReferenceDecision(input: {
+  applicationId: string
+  refereeId: string
+  requestId: string
+  responderEmail: string
+  decision: "agree" | "decline"
+}) {
+  const existingApplication = await getApplicationById(input.applicationId)
+
+  if (!existingApplication) {
+    return { application: null, error: "ApplicationNotFound" as const }
+  }
+
+  const existingRequests = (existingApplication.referencingInstruction.referenceRequests ?? []).map((request) =>
+    normalizeReferenceRequest(request),
+  )
+
+  const targetIndex = existingRequests.findIndex(
+    (request) => request.id === input.requestId && request.refereeId === input.refereeId,
+  )
+
+  if (targetIndex === -1) {
+    return { application: null, error: "RequestNotFound" as const }
+  }
+
+  const targetRequest = existingRequests[targetIndex]
+
+  if (targetRequest.status === "completed" || targetRequest.status === "declined") {
+    return {
+      application: existingApplication,
+      alreadyResponded: true,
+      existingStatus: targetRequest.status,
+      error: null,
+    }
+  }
+
+  const now = new Date().toISOString()
+  const nextRequests = [...existingRequests]
+  const nextStatus = input.decision === "agree" ? "completed" : "declined"
+  nextRequests[targetIndex] = {
+    ...targetRequest,
+    status: nextStatus,
+    respondedAt: now,
+    lastError: undefined,
+  }
+
+  const nextApplication: TenancyApplicationRecord = {
+    ...existingApplication,
+    updatedAt: now,
+    referencingInstruction: {
+      ...existingApplication.referencingInstruction,
+      referenceRequests: nextRequests,
+    },
+  }
+
+  const container = await getApplicationsContainer()
+  await syncStoredCommunicationEntries(nextApplication, nextApplication.postMoveInManagement.communicationEntries)
+  await container.item(nextApplication.id, nextApplication.applicantId).replace(stripStoredCommunicationEntries(nextApplication))
+
+  await writeAuditEvents([
+    {
+      entityType: "application",
+      entityId: nextApplication.id,
+      action: input.decision === "agree" ? "guarantor_reference_consent_received" : "guarantor_reference_consent_declined",
+      fieldPath: `referencingInstruction.referenceRequests.${targetRequest.id}`,
+      oldValue: targetRequest,
+      newValue: nextRequests[targetIndex],
+      performedBy: input.responderEmail,
+      metadata: {
+        applicantId: nextApplication.applicantId,
+        propertyId: nextApplication.propertyId,
+        refereeId: input.refereeId,
+      },
+      timestamp: now,
+    },
+  ])
+
+  return {
+    application: nextApplication,
+    alreadyResponded: false,
+    existingStatus: null,
+    error: null,
+  }
+}
+
+export async function getGuarantorReferenceConsentContext(token: string) {
+  const inspected = await inspectAuthChallenge("guarantor_reference", token)
+
+  if (inspected.error || !inspected.applicationId || !inspected.refereeId || !inspected.requestId) {
+    return { context: null, error: "InvalidToken" as const }
+  }
+
+  const application = await getApplicationById(inspected.applicationId)
+
+  if (!application) {
+    return { context: null, error: "ApplicationNotFound" as const }
+  }
+
+  const referee = (application.referencingInstruction.referees ?? []).find((candidate) => candidate.id === inspected.refereeId)
+  const request = (application.referencingInstruction.referenceRequests ?? [])
+    .map((candidate) => normalizeReferenceRequest(candidate))
+    .find((candidate) => candidate.id === inspected.requestId && candidate.refereeId === inspected.refereeId)
+
+  if (!referee || !request) {
+    return { context: null, error: "RequestNotFound" as const }
+  }
+
+  const canRespond = !inspected.isExpired && !inspected.consumedAt && request.status !== "completed" && request.status !== "declined"
+
+  return {
+    context: {
+      applicationId: application.id,
+      applicantName: application.applicantName,
+      applicantEmail: application.applicantEmail,
+      propertyAddress: application.propertyAddress,
+      refereeName: referee.fullName,
+      refereeEmail: referee.email ?? inspected.email ?? "",
+      requestedByEmail: request.requestedByEmail,
+      requestedAt: request.requestedAt,
+      requestStatus: request.status,
+      respondedAt: request.respondedAt ?? null,
+      expiresAt: request.expiresAt ?? inspected.expiresAt,
+      tokenConsumedAt: inspected.consumedAt,
+      tokenExpired: inspected.isExpired,
+      canRespond,
+    },
+    error: null,
+  }
+}
+
+export async function requestCreditReportForApplication(user: AuthUser, applicationId: string) {
+  assertReviewer(user)
+
+  const existingApplication = await getApplicationById(applicationId)
+
+  if (!existingApplication) {
+    return null
+  }
+
+  if (existingApplication.referencingReport.creditReportRequest?.requested) {
+    return {
+      application: existingApplication,
+      notificationSent: false,
+      alreadyRequested: true,
+    }
+  }
+
+  const now = new Date().toISOString()
+  const nextApplication: TenancyApplicationRecord = {
+    ...existingApplication,
+    updatedAt: now,
+    referencingReport: {
+      ...existingApplication.referencingReport,
+      creditReportRequest: createCreditReportRequest(now, user.email),
+    },
+  }
+
+  const container = await getApplicationsContainer()
+  await syncStoredCommunicationEntries(nextApplication, nextApplication.postMoveInManagement.communicationEntries)
+  await container.item(nextApplication.id, nextApplication.applicantId).replace(stripStoredCommunicationEntries(nextApplication))
+
+  const auditEvents = [
+    ...buildApplicationAuditEvents(existingApplication, nextApplication, user),
+    {
+      entityType: "application",
+      entityId: nextApplication.id,
+      action: "credit_report_requested",
+      fieldPath: "referencingReport.creditReportRequest",
+      oldValue: existingApplication.referencingReport.creditReportRequest,
+      newValue: nextApplication.referencingReport.creditReportRequest,
+      performedBy: user.email,
+      metadata: getAuditMetadata(nextApplication, user),
+      timestamp: now,
+    },
+  ]
+
+  if (auditEvents.length > 0) {
+    await writeAuditEvents(auditEvents)
+  }
+
+  const notificationSent = await sendCreditReportRequestNotification({
+    toEmail: "mike@solutionsdeveloped.co.uk",
+    requestedByEmail: user.email,
+    requestedAt: now,
+    applicantName: nextApplication.applicantName,
+    applicantEmail: nextApplication.applicantEmail,
+    propertyAddress: nextApplication.propertyAddress,
+    applicationId: nextApplication.id,
+  })
+
+  return {
+    application: nextApplication,
+    notificationSent,
+    alreadyRequested: false,
+  }
 }

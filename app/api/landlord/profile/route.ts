@@ -33,6 +33,7 @@ export async function PUT(request: Request) {
         lastName: updatedUser.last_name,
         mobile: updatedUser.mobile,
         notificationProfile: updatedUser.notificationProfile ?? null,
+        screeningScoreConfig: updatedUser.screeningScoreConfig ?? null,
       },
     })
   } catch (error) {

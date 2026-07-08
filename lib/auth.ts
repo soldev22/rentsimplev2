@@ -2,6 +2,7 @@ import type { AuthUser } from "./types/user"
 import type { PropertyImageRecord } from "./types/property"
 
 export type {
+  ApplicantScreeningScoreConfig,
   ApplicantProfileDefaults,
   ApprovalStatus,
   AuthUser,
@@ -41,11 +42,18 @@ export type {
   TenantCommunicationNotification,
   TenantCommunicationNotificationChannel,
   TenantCommunicationNotificationStatus,
+  TenancyCreditReportRequest,
   TenantDecisionOutcome,
   TenancyAgreementPreparation,
   TenancyApplicationRecord,
   TenancyApplicationStage,
   TenancyApplicationStatus,
+  TenancyVerificationDocument,
+  TenancyVerificationDocumentCategory,
+  TenancyRefereeContact,
+  TenancyReferenceRequest,
+  TenancyReferenceRequestStatus,
+  RefereeRequestChannel,
   TenancyDocumentTracking,
 } from "./types/application"
 export type {

@@ -34,13 +34,25 @@ const application: TenancyApplicationRecord = {
     creditCheckConsentVersion: "tenant-credit-check-consent-v1",
   },
   referencingInstruction: {
-    providerStatus: "documents_received",
+    noIdRequired: false,
     photoIdReceived: true,
     proofOfAddressReceived: true,
+    creditReferenceCheckReceived: true,
+    previousLandlordReferenceReceived: true,
     incomeEvidenceReceived: true,
+    verificationNotRequired: {
+      noIdRequired: false,
+      photoIdReceived: false,
+      proofOfAddressReceived: false,
+      creditReferenceCheckReceived: false,
+      previousLandlordReferenceReceived: false,
+      incomeEvidenceReceived: false,
+    },
+    verificationDocuments: [],
+    referees: [],
+    referenceRequests: [],
     employerContactDetails: "Employer",
     previousLandlordContactDetails: "Previous landlord",
-    sharePointFileStatus: "created",
     notes: "",
   },
   referencingReport: {
@@ -67,8 +79,6 @@ const application: TenancyApplicationRecord = {
   approvalDecision: {
     outcome: "approved",
     rationale: "Strong application",
-    affordabilityCalculation: "3.8x",
-    exceptionNotes: "",
     certificateIssuedAt: "2026-06-06T12:00:00.000Z",
   },
   tenancyAgreement: {

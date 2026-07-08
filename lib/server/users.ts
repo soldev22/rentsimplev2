@@ -3,6 +3,7 @@ import "server-only"
 import type { ItemResponse } from "@azure/cosmos"
 
 import {
+  type ApplicantScreeningScoreConfig,
   type ApplicantProfileDefaults,
   type ApprovalStatus,
   type AuthUser,
@@ -23,6 +24,7 @@ import {
   type PageOptions,
 } from "@/lib/server/pagination"
 import { hashPassword, verifyPassword } from "@/lib/server/password"
+import { normalizeApplicantScreeningScoreConfig } from "@/lib/utils/applicant-screening-score"
 
 type StoredUser = AuthUser & {
   passwordHash?: string
@@ -209,6 +211,16 @@ function normalizeNotificationProfile(input: Partial<NotificationProfileDefaults
     outboundEmail,
     copyLandlordOnTenantEmails,
   }
+}
+
+function normalizeScreeningScoreConfig(
+  input: Partial<ApplicantScreeningScoreConfig> | undefined,
+): ApplicantScreeningScoreConfig | undefined {
+  if (!input) {
+    return undefined
+  }
+
+  return normalizeApplicantScreeningScoreConfig(input)
 }
 
 function normalizeManagedUserInput(input: {
@@ -661,6 +673,7 @@ export async function updateLandlordProfile(
     lastName: string
     mobile: string
     notificationProfile: Partial<NotificationProfileDefaults>
+    screeningScoreConfig: Partial<ApplicantScreeningScoreConfig>
   }>,
 ) {
   assertLandlord(user)
@@ -679,6 +692,10 @@ export async function updateLandlordProfile(
     ...(storedUser.notificationProfile ?? {}),
     ...(input.notificationProfile ?? {}),
   })
+  const nextScreeningScoreConfig = normalizeScreeningScoreConfig({
+    ...(storedUser.screeningScoreConfig ?? {}),
+    ...(input.screeningScoreConfig ?? {}),
+  })
 
   const updatedUser: StoredUser = {
     ...storedUser,
@@ -686,6 +703,7 @@ export async function updateLandlordProfile(
     last_name: lastName,
     mobile,
     notificationProfile: nextNotificationProfile,
+    screeningScoreConfig: nextScreeningScoreConfig,
     updatedAt: new Date().toISOString(),
   }
 
@@ -698,6 +716,21 @@ export async function listLandlordTeamUsers(user: AuthUser) {
 
   const users = await listAllUsers()
   const landlordAccountId = getLandlordAccountId(user)
+
+  return users
+    .filter((candidate) => candidate.role === "landlord" && getLandlordAccountId(candidate) === landlordAccountId)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+}
+
+export async function listLandlordTeamUsersForSystem(landlordOwnerId: string) {
+  const landlordOwner = await getUserById(landlordOwnerId)
+
+  if (!landlordOwner || landlordOwner.role !== "landlord") {
+    return [] as AuthUser[]
+  }
+
+  const users = await listAllUsers()
+  const landlordAccountId = getLandlordAccountId(landlordOwner)
 
   return users
     .filter((candidate) => candidate.role === "landlord" && getLandlordAccountId(candidate) === landlordAccountId)

@@ -5,7 +5,7 @@ import type { ItemDefinition } from "@azure/cosmos"
 
 import { getAuthSecurityContainer } from "@/lib/server/cosmos"
 
-type AuthChallengeKind = "verification" | "password_reset"
+type AuthChallengeKind = "verification" | "password_reset" | "guarantor_reference"
 type AuthRateLimitAction = "login" | "register" | "forgot_password" | "verify_request"
 type AuthRateLimitScope = "ip" | "email"
 
@@ -14,6 +14,9 @@ type AuthChallengeRecord = {
   type: "challenge"
   kind: AuthChallengeKind
   email: string
+  applicationId?: string
+  refereeId?: string
+  requestId?: string
   expiresAt: string
   createdAt: string
   consumedAt?: string
@@ -70,7 +73,16 @@ export function getClientIpAddress(request: Request) {
   return forwardedFor || realIp || "unknown"
 }
 
-export async function createAuthChallenge(email: string, kind: AuthChallengeKind, expiresInMs: number) {
+export async function createAuthChallenge(
+  email: string,
+  kind: AuthChallengeKind,
+  expiresInMs: number,
+  metadata?: {
+    applicationId?: string
+    refereeId?: string
+    requestId?: string
+  },
+) {
   const token = randomBytes(32).toString("hex")
   const tokenHash = hashToken(token)
   const now = new Date().toISOString()
@@ -79,6 +91,9 @@ export async function createAuthChallenge(email: string, kind: AuthChallengeKind
     type: "challenge",
     kind,
     email,
+    applicationId: metadata?.applicationId,
+    refereeId: metadata?.refereeId,
+    requestId: metadata?.requestId,
     createdAt: now,
     expiresAt: new Date(Date.now() + expiresInMs).toISOString(),
   }
@@ -95,17 +110,35 @@ export async function consumeAuthChallenge(kind: AuthChallengeKind, token: strin
   const record = await readRecordById<AuthChallengeRecord>(buildChallengeId(kind, hashToken(token)))
 
   if (!record || record.type !== "challenge" || record.kind !== kind) {
-    return { email: null, error: "InvalidOrExpiredToken" as const }
+    return {
+      email: null,
+      applicationId: null,
+      refereeId: null,
+      requestId: null,
+      error: "InvalidOrExpiredToken" as const,
+    }
   }
 
   if (record.consumedAt || Date.parse(record.expiresAt) <= Date.now()) {
-    return { email: null, error: "InvalidOrExpiredToken" as const }
+    return {
+      email: null,
+      applicationId: null,
+      refereeId: null,
+      requestId: null,
+      error: "InvalidOrExpiredToken" as const,
+    }
   }
 
   record.consumedAt = new Date().toISOString()
   await writeRecord(record)
 
-  return { email: record.email, error: null }
+  return {
+    email: record.email,
+    applicationId: record.applicationId ?? null,
+    refereeId: record.refereeId ?? null,
+    requestId: record.requestId ?? null,
+    error: null,
+  }
 }
 
 export async function registerRateLimitAttempt(input: {
@@ -149,4 +182,32 @@ export async function registerRateLimitAttempt(input: {
   await writeRecord(record)
 
   return { allowed: true, retryAfterSeconds: null }
+}
+
+export async function inspectAuthChallenge(kind: AuthChallengeKind, token: string) {
+  const record = await readRecordById<AuthChallengeRecord>(buildChallengeId(kind, hashToken(token)))
+
+  if (!record || record.type !== "challenge" || record.kind !== kind) {
+    return {
+      email: null,
+      applicationId: null,
+      refereeId: null,
+      requestId: null,
+      consumedAt: null,
+      expiresAt: null,
+      isExpired: true,
+      error: "InvalidToken" as const,
+    }
+  }
+
+  return {
+    email: record.email,
+    applicationId: record.applicationId ?? null,
+    refereeId: record.refereeId ?? null,
+    requestId: record.requestId ?? null,
+    consumedAt: record.consumedAt ?? null,
+    expiresAt: record.expiresAt,
+    isExpired: Date.parse(record.expiresAt) <= Date.now(),
+    error: null,
+  }
 }

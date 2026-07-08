@@ -1,19 +1,23 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition, type ChangeEvent } from "react"
 
 import TenantCommunicationThread from "@/components/forms/TenantCommunicationThread"
 import type {
-  ReferencingOutcome,
+  ApplicantScreeningScoreConfig,
+  RefereeRequestChannel,
   TenantCommunicationChannel,
   TenantCommunicationDirection,
   TenantCommunicationEntry,
   TenancyApplicationRecord,
+  TenancyRefereeContact,
+  TenancyReferenceRequest,
   TenancyApplicationStage,
   TenancyApplicationStatus,
   TenantDecisionOutcome,
 } from "@/lib/auth"
 import type { AuditEventRecord } from "@/lib/types/audit"
+import { calculateApplicantScreeningScore, normalizeApplicantScreeningScoreConfig } from "@/lib/utils/applicant-screening-score"
 import { downloadTenancyLogPdf, downloadTenancyLogTxt } from "@/lib/utils/tenancy-log-export"
 
 type ApplicationReviewManagerProps = {
@@ -21,6 +25,8 @@ type ApplicationReviewManagerProps = {
   initialAuditEventsByApplicationId: Record<string, AuditEventRecord[]>
   currentUserDisplayName: string
   isAdmin?: boolean
+  screeningScoreConfig?: ApplicantScreeningScoreConfig
+  canRequestCreditReport?: boolean
 }
 
 type FeedbackState = Record<string, { type: "success" | "error"; message: string } | null>
@@ -33,9 +39,25 @@ type CommunicationDraft = {
   summary: string
 }
 
+type VerificationChecklistKey =
+  | "noIdRequired"
+  | "photoIdReceived"
+  | "proofOfAddressReceived"
+  | "creditReferenceCheckReceived"
+  | "previousLandlordReferenceReceived"
+  | "incomeEvidenceReceived"
+
+const verificationChecklistOptions: Array<{ key: VerificationChecklistKey; label: string }> = [
+  { key: "noIdRequired", label: "No ID required" },
+  { key: "photoIdReceived", label: "Government photo ID" },
+  { key: "proofOfAddressReceived", label: "Proof of current address" },
+  { key: "creditReferenceCheckReceived", label: "Credit/reference check" },
+  { key: "previousLandlordReferenceReceived", label: "Previous landlord reference" },
+  { key: "incomeEvidenceReceived", label: "Employment verification" },
+]
+
 const stageOptions: Array<{ value: TenancyApplicationStage; label: string }> = [
-  { value: "referencing_instruction", label: "Referencing instruction" },
-  { value: "full_referencing", label: "Full referencing" },
+  { value: "referencing_instruction", label: "Validation" },
   { value: "decision", label: "Decision" },
   { value: "agreement", label: "Agreement" },
   { value: "pre_move_in", label: "Pre-move-in" },
@@ -59,18 +81,19 @@ const statusOptions: Array<{ value: TenancyApplicationStatus; label: string }> =
   { value: "active_tenant", label: "Active tenant" },
 ]
 
-const referencingOutcomeOptions: Array<{ value: ReferencingOutcome; label: string }> = [
-  { value: "pending", label: "Pending" },
-  { value: "pass", label: "Pass" },
-  { value: "fail", label: "Fail" },
-  { value: "guarantor_required", label: "Guarantor required" },
-]
-
 const decisionOptions: Array<{ value: TenantDecisionOutcome; label: string }> = [
   { value: "pending", label: "Pending" },
   { value: "approved", label: "Approve" },
   { value: "approved_with_guarantor", label: "Approve with guarantor" },
   { value: "declined", label: "Decline" },
+]
+
+const refereeChannelOptions: Array<{ value: RefereeRequestChannel; label: string }> = [
+  { value: "email", label: "Email" },
+  { value: "phone", label: "Phone" },
+  { value: "sms", label: "SMS" },
+  { value: "postal", label: "Postal" },
+  { value: "manual", label: "Manual follow-up" },
 ]
 
 function createCommunicationDraft(): CommunicationDraft {
@@ -156,6 +179,8 @@ export default function ApplicationReviewManager({
   initialAuditEventsByApplicationId,
   currentUserDisplayName,
   isAdmin = false,
+  screeningScoreConfig,
+  canRequestCreditReport = false,
 }: ApplicationReviewManagerProps) {
   const [applications, setApplications] = useState(initialApplications)
   const [auditEventsByApplicationId, setAuditEventsByApplicationId] = useState(initialAuditEventsByApplicationId)
@@ -164,7 +189,149 @@ export default function ApplicationReviewManager({
   const [communicationDrafts, setCommunicationDrafts] = useState<Record<string, CommunicationDraft>>({})
   const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(null)
   const [fullAuditApplicationId, setFullAuditApplicationId] = useState<string | null>(null)
+  const [verificationUploadStateBySlot, setVerificationUploadStateBySlot] = useState<Record<string, boolean>>({})
+  const verificationFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const [isPending, startTransition] = useTransition()
+  const effectiveScreeningScoreConfig = normalizeApplicantScreeningScoreConfig(screeningScoreConfig)
+
+  function getVerificationUploadSlot(applicationId: string, checklistKey: VerificationChecklistKey, documentId?: string) {
+    return `${applicationId}:${checklistKey}:${documentId ?? "new"}`
+  }
+
+  function getVerificationDocumentDownloadHref(applicationId: string, documentId: string) {
+    return `/api/applications/${applicationId}/verification-documents/${documentId}`
+  }
+
+  async function uploadVerificationDocument(
+    applicationId: string,
+    checklistKey: VerificationChecklistKey,
+    event: ChangeEvent<HTMLInputElement>,
+    replaceDocumentId?: string,
+  ) {
+    const file = event.target.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    const slot = getVerificationUploadSlot(applicationId, checklistKey, replaceDocumentId)
+    setVerificationUploadStateBySlot((current) => ({ ...current, [slot]: true }))
+    setFeedback((current) => ({ ...current, [applicationId]: null }))
+
+    try {
+      const formData = new FormData()
+      formData.append("category", checklistKey)
+      formData.append("file", file)
+      if (replaceDocumentId) {
+        formData.append("replaceDocumentId", replaceDocumentId)
+      }
+
+      const response = await fetch(`/api/applications/${applicationId}/verification-documents`, {
+        method: "POST",
+        body: formData,
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            application?: TenancyApplicationRecord
+            auditEvents?: AuditEventRecord[]
+            message?: string
+            error?: string
+          }
+        | null
+
+      if (!response.ok || !payload?.application) {
+        throw new Error(payload?.error || "Unable to upload verification document.")
+      }
+
+      setApplications((current) =>
+        current.map((candidate) => (candidate.id === payload.application?.id ? payload.application : candidate)),
+      )
+
+      if (payload.auditEvents) {
+        setAuditEventsByApplicationId((current) => ({
+          ...current,
+          [payload.application.id]: payload.auditEvents ?? [],
+        }))
+      }
+
+      setFeedback((current) => ({
+        ...current,
+        [applicationId]: {
+          type: "success",
+          message: payload.message || (replaceDocumentId ? "Verification document replaced." : "Verification document uploaded."),
+        },
+      }))
+    } catch (error) {
+      setFeedback((current) => ({
+        ...current,
+        [applicationId]: {
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to upload verification document.",
+        },
+      }))
+    } finally {
+      setVerificationUploadStateBySlot((current) => ({ ...current, [slot]: false }))
+      event.target.value = ""
+    }
+  }
+
+  function deleteVerificationDocument(applicationId: string, documentId: string) {
+    setFeedback((current) => ({ ...current, [applicationId]: null }))
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/applications/${applicationId}/verification-documents/${documentId}`, {
+          method: "DELETE",
+        })
+
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              application?: TenancyApplicationRecord
+              auditEvents?: AuditEventRecord[]
+              message?: string
+              failedCount?: number
+              error?: string
+            }
+          | null
+
+        if (!response.ok || !payload?.application) {
+          throw new Error(payload?.error || "Unable to delete verification document.")
+        }
+
+        setApplications((current) =>
+          current.map((candidate) => (candidate.id === payload.application?.id ? payload.application : candidate)),
+        )
+
+        if (payload.auditEvents) {
+          setAuditEventsByApplicationId((current) => ({
+            ...current,
+            [payload.application.id]: payload.auditEvents ?? [],
+          }))
+        }
+
+        setFeedback((current) => ({
+          ...current,
+          [applicationId]: {
+            type: "success",
+            message: payload.message || "Verification document deleted.",
+          },
+        }))
+      } catch (error) {
+        setFeedback((current) => ({
+          ...current,
+          [applicationId]: {
+            type: "error",
+            message: error instanceof Error ? error.message : "Unable to delete verification document.",
+          },
+        }))
+      }
+    })
+  }
+
+  function formatScore(value: number) {
+    return value > 0 ? `+${value}` : String(value)
+  }
 
   function updateApplication(applicationId: string, updater: (application: TenancyApplicationRecord) => TenancyApplicationRecord) {
     setApplications((current) =>
@@ -233,6 +400,194 @@ export default function ApplicationReviewManager({
 
   function toggleApplication(applicationId: string) {
     setExpandedApplicationId((current) => (current === applicationId ? null : applicationId))
+  }
+
+  function requestCreditReport(applicationId: string) {
+    setFeedback((current) => ({ ...current, [applicationId]: null }))
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/applications/${applicationId}/credit-report`, {
+          method: "POST",
+        })
+
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              application?: TenancyApplicationRecord
+              auditEvents?: AuditEventRecord[]
+              message?: string
+              alreadyRequested?: boolean
+              error?: string
+            }
+          | null
+
+        if (!response.ok || !payload?.application) {
+          throw new Error(payload?.error || "Unable to request credit report.")
+        }
+
+        setApplications((current) =>
+          current.map((candidate) => (candidate.id === payload.application?.id ? payload.application : candidate)),
+        )
+
+        if (payload.auditEvents) {
+          setAuditEventsByApplicationId((current) => ({
+            ...current,
+            [payload.application.id]: payload.auditEvents ?? [],
+          }))
+        }
+
+        setFeedback((current) => ({
+          ...current,
+          [applicationId]: {
+            type: "success",
+            message:
+              payload.message ||
+              "Credit report request submitted. The report will be ready in 24 hours and an email has been sent to mike@solutionsdeveloped.co.uk.",
+          },
+        }))
+      } catch (error) {
+        setFeedback((current) => ({
+          ...current,
+          [applicationId]: {
+            type: "error",
+            message: error instanceof Error ? error.message : "Unable to request credit report.",
+          },
+        }))
+      }
+    })
+  }
+
+  function addRefereeContact(applicationId: string) {
+    updateApplication(applicationId, (current) => ({
+      ...current,
+      referencingInstruction: {
+        ...current.referencingInstruction,
+        referees: [...(current.referencingInstruction.referees ?? []), createEmptyRefereeContact()],
+      },
+    }))
+  }
+
+  function updateRefereeContact(
+    applicationId: string,
+    refereeId: string,
+    field: keyof TenancyRefereeContact,
+    value: string | boolean,
+  ) {
+    updateApplication(applicationId, (current) => ({
+      ...current,
+      referencingInstruction: {
+        ...current.referencingInstruction,
+        referees: (current.referencingInstruction.referees ?? []).map((referee) =>
+          referee.id === refereeId ? { ...referee, [field]: value } : referee,
+        ),
+      },
+    }))
+  }
+
+  function removeRefereeContact(applicationId: string, refereeId: string) {
+    updateApplication(applicationId, (current) => ({
+      ...current,
+      referencingInstruction: {
+        ...current.referencingInstruction,
+        referees: (current.referencingInstruction.referees ?? []).filter((referee) => referee.id !== refereeId),
+      },
+    }))
+  }
+
+  function requestGuarantorReferences(
+    application: TenancyApplicationRecord,
+    options?: {
+      forceResend?: boolean
+    },
+  ) {
+    const applicationId = application.id
+    const forceResend = options?.forceResend === true
+    setFeedback((current) => ({ ...current, [applicationId]: null }))
+
+    startTransition(async () => {
+      try {
+        const persistResponse = await fetch(`/api/applications/${applicationId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            currentStage: application.currentStage,
+            status: application.status,
+            referencingInstruction: application.referencingInstruction,
+            referencingReport: application.referencingReport,
+            approvalDecision: application.approvalDecision,
+            tenancyAgreement: application.tenancyAgreement,
+            preMoveInCompliance: application.preMoveInCompliance,
+            moveInChecklist: application.moveInChecklist,
+            depositProtection: application.depositProtection,
+            postMoveInManagement: application.postMoveInManagement,
+          }),
+        })
+
+        const persistPayload = (await persistResponse.json().catch(() => null)) as
+          | {
+              application?: TenancyApplicationRecord
+              error?: string
+            }
+          | null
+
+        if (!persistResponse.ok || !persistPayload?.application) {
+          throw new Error(persistPayload?.error || "Save guarantor contacts before sending requests.")
+        }
+
+        const response = await fetch(`/api/applications/${applicationId}/guarantor-reference-requests`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ forceResend }),
+        })
+
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              application?: TenancyApplicationRecord
+              auditEvents?: AuditEventRecord[]
+              message?: string
+              error?: string
+              alreadyRequested?: boolean
+              resentCount?: number
+              failedCount?: number
+            }
+          | null
+
+        if (!response.ok || !payload?.application) {
+          throw new Error(payload?.error || "Unable to send guarantor reference requests.")
+        }
+
+        setApplications((current) =>
+          current.map((candidate) => (candidate.id === payload.application?.id ? payload.application : candidate)),
+        )
+
+        if (payload.auditEvents) {
+          setAuditEventsByApplicationId((current) => ({
+            ...current,
+            [payload.application.id]: payload.auditEvents ?? [],
+          }))
+        }
+
+        setFeedback((current) => ({
+          ...current,
+          [applicationId]: {
+            type: payload.failedCount && payload.failedCount > 0 ? "error" : "success",
+            message: payload.message || (forceResend ? "Guarantor approval requests resent." : "Guarantor approval requests submitted."),
+          },
+        }))
+      } catch (error) {
+        setFeedback((current) => ({
+          ...current,
+          [applicationId]: {
+            type: "error",
+            message: error instanceof Error ? error.message : "Unable to send guarantor approval requests.",
+          },
+        }))
+      }
+    })
   }
 
   function deleteApplicationPermanently(applicationId: string) {
@@ -393,6 +748,13 @@ export default function ApplicationReviewManager({
           const isExpanded = expandedApplicationId === application.id
           const auditEvents = auditEventsByApplicationId[application.id] ?? []
           const communicationDraft = getCommunicationDraft(application.id)
+          const screeningScore = calculateApplicantScreeningScore(application, effectiveScreeningScoreConfig)
+          const creditReportAlreadyRequested = Boolean(application.referencingReport.creditReportRequest?.requested)
+          const guarantorApprovalAlreadyRequested = Boolean(
+            (application.referencingInstruction.referenceRequests ?? []).some(
+              (request) => request.status !== "failed" && request.status !== "declined" && request.status !== "not_requested",
+            ),
+          )
 
           return (
           <section key={application.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -479,211 +841,73 @@ export default function ApplicationReviewManager({
                 </select>
               </label>
 
-              <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
-                <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Applicant profile</div>
-                <div className="mt-2">Income: £{application.applicantProfile.annualIncome.toLocaleString()} annual</div>
-                <div className="mt-1">Occupants: {application.applicantProfile.occupantCount}</div>
-                <div className="mt-1">Preferred contact: {formatPreferredContactMethods(application.applicantProfile.preferredContactMethods)}</div>
-                <div className="mt-1">Credit consent: {application.applicantProfile.creditCheckConsentGiven ? "Yes" : "No"}</div>
-              </div>
-            </div>
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 lg:col-span-2 xl:col-span-3">
+                <div>
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.16em] text-slate-500 whitespace-nowrap">Applicant profile screening table</div>
+                    <div className="mt-1 text-xs text-slate-500 whitespace-nowrap">
+                      Preferred contact: {formatPreferredContactMethods(application.applicantProfile.preferredContactMethods)}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-nowrap items-stretch justify-end gap-2 overflow-x-auto">
+                    {canRequestCreditReport ? (
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 md:min-w-60 whitespace-nowrap"
+                        onClick={() => requestCreditReport(application.id)}
+                        disabled={isPending || creditReportAlreadyRequested}
+                      >
+                        {creditReportAlreadyRequested ? "Credit report requested" : "Request credit score and report"}
+                      </button>
+                    ) : null}
+                    <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm md:min-w-60">
+                      <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Screening score</div>
+                      <div className="text-xl font-semibold text-slate-900">{formatScore(screeningScore.totalScore)}</div>
+                    </div>
+                  </div>
 
-            <div className="mt-6 grid gap-6 xl:grid-cols-2">
-              <section className="rounded-xl border border-slate-200 p-4">
-                <h3 className="text-lg font-semibold text-slate-900">Referencing instruction</h3>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Provider status
-                    <select
-                      className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
-                      value={application.referencingInstruction.providerStatus}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          referencingInstruction: {
-                            ...current.referencingInstruction,
-                            providerStatus: event.target.value as TenancyApplicationRecord["referencingInstruction"]["providerStatus"],
-                          },
-                        }))
-                      }
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="sent">Sent</option>
-                      <option value="documents_received">Documents received</option>
-                    </select>
-                  </label>
-
-                  <label className="block text-sm font-medium text-slate-700">
-                    SharePoint file
-                    <select
-                      className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
-                      value={application.referencingInstruction.sharePointFileStatus}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          referencingInstruction: {
-                            ...current.referencingInstruction,
-                            sharePointFileStatus: event.target.value as TenancyApplicationRecord["referencingInstruction"]["sharePointFileStatus"],
-                          },
-                        }))
-                      }
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="created">Created</option>
-                    </select>
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={application.referencingInstruction.photoIdReceived}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          referencingInstruction: {
-                            ...current.referencingInstruction,
-                            photoIdReceived: event.target.checked,
-                          },
-                        }))
-                      }
-                    />
-                    Photo ID received
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={application.referencingInstruction.proofOfAddressReceived}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          referencingInstruction: {
-                            ...current.referencingInstruction,
-                            proofOfAddressReceived: event.target.checked,
-                          },
-                        }))
-                      }
-                    />
-                    Proof of address received
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 md:col-span-2">
-                    <input
-                      type="checkbox"
-                      checked={application.referencingInstruction.incomeEvidenceReceived}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          referencingInstruction: {
-                            ...current.referencingInstruction,
-                            incomeEvidenceReceived: event.target.checked,
-                          },
-                        }))
-                      }
-                    />
-                    Payslips or SA302 received
-                  </label>
-
-                  <label className="block text-sm font-medium text-slate-700 md:col-span-2">
-                    Employer contact details
-                    <textarea
-                      className="mt-2 min-h-24 w-full rounded-md border border-slate-300 px-3 py-2"
-                      value={application.referencingInstruction.employerContactDetails}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          referencingInstruction: {
-                            ...current.referencingInstruction,
-                            employerContactDetails: event.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-
-                  <label className="block text-sm font-medium text-slate-700 md:col-span-2">
-                    Previous landlord contact details
-                    <textarea
-                      className="mt-2 min-h-24 w-full rounded-md border border-slate-300 px-3 py-2"
-                      value={application.referencingInstruction.previousLandlordContactDetails}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          referencingInstruction: {
-                            ...current.referencingInstruction,
-                            previousLandlordContactDetails: event.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </label>
+                  {application.referencingReport.creditReportRequest?.requested ? (
+                    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                      Credit report requested
+                      {application.referencingReport.creditReportRequest.requestedAt
+                        ? ` on ${new Date(application.referencingReport.creditReportRequest.requestedAt).toLocaleString()}`
+                        : ""}
+                      . The report is expected within 24 hours.
+                    </div>
+                  ) : null}
                 </div>
-              </section>
 
-              <section className="rounded-xl border border-slate-200 p-4">
-                <h3 className="text-lg font-semibold text-slate-900">Full referencing</h3>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <label className="block text-sm font-medium text-slate-700 md:col-span-2">
-                    Referencing outcome
-                    <select
-                      className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
-                      value={application.referencingReport.outcome}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          referencingReport: {
-                            ...current.referencingReport,
-                            outcome: event.target.value as ReferencingOutcome,
-                          },
-                        }))
-                      }
-                    >
-                      {referencingOutcomeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
+                <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                  <table className="w-full table-fixed divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
+                      <tr>
+                        <th className="w-4/12 px-3 py-2 text-left font-semibold">Criterion</th>
+                        <th className="w-6/12 px-3 py-2 text-left font-semibold">Applicant value</th>
+                        <th className="w-2/12 px-3 py-2 text-right font-semibold">Score</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {screeningScore.rows.map((row) => (
+                        <tr key={row.key}>
+                          <td className="px-3 py-2 text-slate-700">{row.criterion}</td>
+                          <td className="px-3 py-2 text-slate-600 wrap-break-word">{row.value}</td>
+                          <td className="px-3 py-2 text-right font-semibold text-slate-900">{formatScore(row.score)}</td>
+                        </tr>
                       ))}
-                    </select>
-                  </label>
+                    </tbody>
+                  </table>
+                </div>
 
-                  {[
-                    ["identityDocumentVerified", "Identity document verified"],
-                    ["addressVerified", "Address verified"],
-                    ["fraudMarkersClear", "Fraud markers clear"],
-                    ["creditFileReviewed", "Credit file reviewed"],
-                    ["creditIssuesClear", "Credit issues clear"],
-                    ["linkedAddressesReviewed", "Linked addresses reviewed"],
-                    ["affordabilityVerified", "Affordability verified"],
-                    ["employmentReferenceVerified", "Employment reference verified"],
-                    ["previousLandlordReferenceVerified", "Landlord reference verified"],
-                    ["guarantorRequired", "Guarantor required"],
-                    ["guarantorVerified", "Guarantor verified"],
-                  ].map(([key, label]) => (
-                    <label key={key} className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(application.referencingReport.checks[key as keyof typeof application.referencingReport.checks])}
-                        onChange={(event) =>
-                          updateApplication(application.id, (current) => ({
-                            ...current,
-                            referencingReport: {
-                              ...current.referencingReport,
-                              checks: {
-                                ...current.referencingReport.checks,
-                                [key]: event.target.checked,
-                              },
-                            },
-                          }))
-                        }
-                      />
-                      {label}
-                    </label>
-                  ))}
-
+                <div className="mt-3">
                   <label className="block text-sm font-medium text-slate-700">
-                    Credit score
+                    Credit report score (manual)
+                  </label>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <input
-                      className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                      className="min-w-40 flex-1 rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Credit report score manual input"
+                      title="Credit report score manual input"
                       value={application.referencingReport.checks.creditScore}
                       onChange={(event) =>
                         updateApplication(application.id, (current) => ({
@@ -698,47 +922,156 @@ export default function ApplicationReviewManager({
                         }))
                       }
                     />
-                  </label>
-
-                  <label className="block text-sm font-medium text-slate-700">
-                    Guarantor annual income
-                    <input
-                      className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
-                      type="number"
-                      min="0"
-                      value={application.referencingReport.checks.guarantorAnnualIncome}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          referencingReport: {
-                            ...current.referencingReport,
-                            checks: {
-                              ...current.referencingReport.checks,
-                              guarantorAnnualIncome: Number(event.target.value),
-                            },
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-
-                  <label className="block text-sm font-medium text-slate-700 md:col-span-2">
-                    Referencing summary
-                    <textarea
-                      className="mt-2 min-h-24 w-full rounded-md border border-slate-300 px-3 py-2"
-                      value={application.referencingReport.summary}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          referencingReport: {
-                            ...current.referencingReport,
-                            summary: event.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </label>
+                    <button
+                      type="button"
+                      className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                      onClick={() => saveApplication(application)}
+                      disabled={isPending}
+                    >
+                      Save credit score
+                    </button>
+                  </div>
+                  <span className="mt-2 block text-xs text-slate-500">
+                    Enter this manually after reviewing the returned credit report, then save.
+                  </span>
                 </div>
+              </section>
+            </div>
+
+            <div className="mt-6">
+              <section className="rounded-xl border border-slate-200 p-4">
+                <h3 className="text-lg font-semibold text-slate-900">Applicant verification</h3>
+                <div className="mt-4 space-y-3">
+                  {verificationChecklistOptions.map((option) => {
+                    const uploadSlot = getVerificationUploadSlot(application.id, option.key)
+                    const isUploading = Boolean(verificationUploadStateBySlot[uploadSlot])
+                    const isMarkedNotRequired = Boolean(application.referencingInstruction.verificationNotRequired?.[option.key])
+                    const uploadedDocuments = (application.referencingInstruction.verificationDocuments ?? []).filter(
+                      (document) => document.category === option.key,
+                    )
+
+                    return (
+                      <div key={option.key} className="rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
+                        <div className="grid items-center gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+                          <label className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(application.referencingInstruction[option.key])}
+                              disabled={isMarkedNotRequired}
+                              onChange={(event) =>
+                                updateApplication(application.id, (current) => ({
+                                  ...current,
+                                  referencingInstruction: {
+                                    ...current.referencingInstruction,
+                                    [option.key]: event.target.checked,
+                                  },
+                                }))
+                              }
+                            />
+                            {option.label}
+                          </label>
+                          <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
+                            <input
+                              type="checkbox"
+                              checked={isMarkedNotRequired}
+                              onChange={(event) =>
+                                updateApplication(application.id, (current) => ({
+                                  ...current,
+                                  referencingInstruction: {
+                                    ...current.referencingInstruction,
+                                    [option.key]: event.target.checked ? false : Boolean(current.referencingInstruction[option.key]),
+                                    verificationNotRequired: {
+                                      noIdRequired: false,
+                                      photoIdReceived: false,
+                                      proofOfAddressReceived: false,
+                                      creditReferenceCheckReceived: false,
+                                      previousLandlordReferenceReceived: false,
+                                      incomeEvidenceReceived: false,
+                                      ...(current.referencingInstruction.verificationNotRequired ?? {}),
+                                      [option.key]: event.target.checked,
+                                    },
+                                  },
+                                }))
+                              }
+                            />
+                            Not required
+                          </label>
+                          <input
+                            ref={(node) => {
+                              verificationFileInputRefs.current[uploadSlot] = node
+                            }}
+                            type="file"
+                            className="hidden"
+                            accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                            onChange={(event) => uploadVerificationDocument(application.id, option.key, event)}
+                            aria-label={`Upload ${option.label} document`}
+                          />
+                          <button
+                            type="button"
+                            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 md:min-w-28"
+                            onClick={() => verificationFileInputRefs.current[uploadSlot]?.click()}
+                            disabled={isPending || isUploading || isMarkedNotRequired}
+                          >
+                            {isUploading ? "Uploading..." : "Upload file"}
+                          </button>
+                        </div>
+
+                        {isMarkedNotRequired ? (
+                          <div className="mt-2 text-xs font-semibold text-amber-700">Marked as not required.</div>
+                        ) : null}
+
+                        {uploadedDocuments.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {uploadedDocuments.map((document) => {
+                              const replaceSlot = getVerificationUploadSlot(application.id, option.key, document.id)
+                              const isReplacing = Boolean(verificationUploadStateBySlot[replaceSlot])
+
+                              return (
+                                <div key={document.id} className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-2 py-1">
+                                  <a
+                                    href={getVerificationDocumentDownloadHref(application.id, document.id)}
+                                    className="text-xs text-slate-700 hover:underline"
+                                  >
+                                    {document.fileName}
+                                  </a>
+                                  <input
+                                    ref={(node) => {
+                                      verificationFileInputRefs.current[replaceSlot] = node
+                                    }}
+                                    type="file"
+                                    className="hidden"
+                                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                                    onChange={(event) => uploadVerificationDocument(application.id, option.key, event, document.id)}
+                                    aria-label={`Replace ${document.fileName}`}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="text-xs font-semibold text-sky-700 hover:underline disabled:opacity-60"
+                                    onClick={() => verificationFileInputRefs.current[replaceSlot]?.click()}
+                                    disabled={isPending || isReplacing}
+                                  >
+                                    {isReplacing ? "Replacing..." : "Replace"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="text-xs font-semibold text-rose-700 hover:underline disabled:opacity-60"
+                                    onClick={() => deleteVerificationDocument(application.id, document.id)}
+                                    disabled={isPending}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-xs text-slate-500">No files uploaded yet.</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
               </section>
             </div>
 
@@ -769,6 +1102,205 @@ export default function ApplicationReviewManager({
                     </select>
                   </label>
 
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-900">Guarantor checks</h4>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Capture guarantor contact details and complete checks before requesting approval to act as guarantor.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                        onClick={() => addRefereeContact(application.id)}
+                        disabled={isPending}
+                      >
+                        Add guarantor contact
+                      </button>
+                    </div>
+
+                    <div className="mt-3 space-y-3">
+                      {(application.referencingInstruction.referees ?? []).map((referee) => {
+                        const latestRequest = [...(application.referencingInstruction.referenceRequests ?? [])]
+                          .reverse()
+                          .find((request) => request.refereeId === referee.id)
+
+                        return (
+                          <div key={referee.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                              <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                                Guarantor contact name
+                                <input
+                                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
+                                  value={referee.fullName}
+                                  onChange={(event) => updateRefereeContact(application.id, referee.id, "fullName", event.target.value)}
+                                />
+                              </label>
+                              <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                                Relationship to applicant
+                                <input
+                                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
+                                  value={referee.relationship}
+                                  onChange={(event) =>
+                                    updateRefereeContact(application.id, referee.id, "relationship", event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                                Contact channel
+                                <select
+                                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
+                                  value={referee.preferredChannel}
+                                  onChange={(event) =>
+                                    updateRefereeContact(
+                                      application.id,
+                                      referee.id,
+                                      "preferredChannel",
+                                      event.target.value as RefereeRequestChannel,
+                                    )
+                                  }
+                                >
+                                  {refereeChannelOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                                Email
+                                <input
+                                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
+                                  type="email"
+                                  value={referee.email ?? ""}
+                                  onChange={(event) => updateRefereeContact(application.id, referee.id, "email", event.target.value)}
+                                />
+                              </label>
+                              <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                                Phone
+                                <input
+                                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
+                                  value={referee.phone ?? ""}
+                                  onChange={(event) => updateRefereeContact(application.id, referee.id, "phone", event.target.value)}
+                                />
+                              </label>
+                              <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 md:col-span-2 xl:col-span-1">
+                                Postal address
+                                <input
+                                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
+                                  value={referee.postalAddress ?? ""}
+                                  onChange={(event) =>
+                                    updateRefereeContact(application.id, referee.id, "postalAddress", event.target.value)
+                                  }
+                                />
+                              </label>
+                            </div>
+                            <div className="mt-3 grid gap-2 md:grid-cols-3">
+                              <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(referee.relationshipToApplicantConfirmed)}
+                                  onChange={(event) =>
+                                    updateRefereeContact(
+                                      application.id,
+                                      referee.id,
+                                      "relationshipToApplicantConfirmed",
+                                      event.target.checked,
+                                    )
+                                  }
+                                />
+                                Relationship confirmed
+                              </label>
+                              <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(referee.idDocumentCheckComplete)}
+                                  onChange={(event) =>
+                                    updateRefereeContact(application.id, referee.id, "idDocumentCheckComplete", event.target.checked)
+                                  }
+                                />
+                                ID document checked
+                              </label>
+                              <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(referee.proofOfAddressCheckComplete)}
+                                  onChange={(event) =>
+                                    updateRefereeContact(
+                                      application.id,
+                                      referee.id,
+                                      "proofOfAddressCheckComplete",
+                                      event.target.checked,
+                                    )
+                                  }
+                                />
+                                Proof of address checked
+                              </label>
+                            </div>
+                            <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                              Notes
+                              <textarea
+                                className="mt-1 min-h-16 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900"
+                                value={referee.notes ?? ""}
+                                onChange={(event) => updateRefereeContact(application.id, referee.id, "notes", event.target.value)}
+                              />
+                            </label>
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-xs text-slate-600">
+                                {latestRequest
+                                  ? `Latest guarantor approval request: ${formatReferenceRequestStatus(latestRequest.status)} via ${latestRequest.channel}.`
+                                  : "No guarantor approval request sent yet."}
+                              </div>
+                              <button
+                                type="button"
+                                className="text-xs font-semibold text-rose-700 hover:underline"
+                                onClick={() => removeRefereeContact(application.id, referee.id)}
+                                disabled={isPending}
+                              >
+                                Remove contact
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      {(application.referencingInstruction.referees ?? []).length === 0 ? (
+                        <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                          No guarantor contacts added yet.
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                        onClick={() => requestGuarantorReferences(application)}
+                        disabled={
+                          isPending ||
+                          application.approvalDecision.outcome !== "approved_with_guarantor" ||
+                          guarantorApprovalAlreadyRequested
+                        }
+                      >
+                        {guarantorApprovalAlreadyRequested ? "Guarantor approval requested" : "Request guarantor approval"}
+                      </button>
+                      {guarantorApprovalAlreadyRequested ? (
+                        <button
+                          type="button"
+                          className="rounded-md border border-cyan-300 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-800 hover:bg-cyan-100 disabled:opacity-60"
+                          onClick={() => requestGuarantorReferences(application, { forceResend: true })}
+                          disabled={isPending || application.approvalDecision.outcome !== "approved_with_guarantor"}
+                        >
+                          Resend guarantor approval
+                        </button>
+                      ) : null}
+                      {application.approvalDecision.outcome !== "approved_with_guarantor" ? (
+                        <span className="text-xs text-amber-700">Set decision to &quot;Approve with guarantor&quot; to enable this.</span>
+                      ) : null}
+                    </div>
+                  </div>
+
                   <label className="block text-sm font-medium text-slate-700">
                     Decision rationale
                     <textarea
@@ -786,39 +1318,6 @@ export default function ApplicationReviewManager({
                     />
                   </label>
 
-                  <label className="block text-sm font-medium text-slate-700">
-                    Affordability calculation
-                    <textarea
-                      className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2"
-                      value={application.approvalDecision.affordabilityCalculation}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          approvalDecision: {
-                            ...current.approvalDecision,
-                            affordabilityCalculation: event.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-
-                  <label className="block text-sm font-medium text-slate-700">
-                    Exceptions and notes
-                    <textarea
-                      className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2"
-                      value={application.approvalDecision.exceptionNotes}
-                      onChange={(event) =>
-                        updateApplication(application.id, (current) => ({
-                          ...current,
-                          approvalDecision: {
-                            ...current.approvalDecision,
-                            exceptionNotes: event.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </label>
                 </div>
               </section>
 
@@ -1406,4 +1905,24 @@ export default function ApplicationReviewManager({
       ) : null}
     </div>
   )
+}
+
+function createEmptyRefereeContact(): TenancyRefereeContact {
+  return {
+    id: globalThis.crypto.randomUUID(),
+    fullName: "",
+    relationship: "",
+    relationshipToApplicantConfirmed: false,
+    idDocumentCheckComplete: false,
+    proofOfAddressCheckComplete: false,
+    email: "",
+    phone: "",
+    preferredChannel: "email",
+    postalAddress: "",
+    notes: "",
+  }
+}
+
+function formatReferenceRequestStatus(status: TenancyReferenceRequest["status"]) {
+  return status.replaceAll("_", " ")
 }

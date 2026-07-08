@@ -34,14 +34,80 @@ export type ApplicationQuestionnaire = ApplicantProfileDefaults & {
   creditCheckConsentVersion: string
 }
 
+export type TenancyVerificationDocumentCategory =
+  | "noIdRequired"
+  | "photoIdReceived"
+  | "proofOfAddressReceived"
+  | "creditReferenceCheckReceived"
+  | "previousLandlordReferenceReceived"
+  | "incomeEvidenceReceived"
+
+export type TenancyVerificationDocument = {
+  id: string
+  category: TenancyVerificationDocumentCategory
+  fileName: string
+  blobName: string
+  url: string
+  contentType: string
+  size: number
+  uploadedAt: string
+  uploadedByEmail: string
+}
+
+export type TenancyVerificationNotRequiredFlags = Record<TenancyVerificationDocumentCategory, boolean>
+
+export type RefereeRequestChannel = "email" | "phone" | "sms" | "postal" | "manual"
+
+export type TenancyRefereeContact = {
+  id: string
+  fullName: string
+  relationship: string
+  relationshipToApplicantConfirmed: boolean
+  idDocumentCheckComplete: boolean
+  proofOfAddressCheckComplete: boolean
+  email?: string
+  phone?: string
+  preferredChannel: RefereeRequestChannel
+  postalAddress?: string
+  notes?: string
+}
+
+export type TenancyReferenceRequestStatus =
+  | "not_requested"
+  | "pending_delivery"
+  | "sent"
+  | "pending_manual"
+  | "received_manual"
+  | "completed"
+  | "declined"
+  | "failed"
+
+export type TenancyReferenceRequest = {
+  id: string
+  refereeId: string
+  channel: RefereeRequestChannel
+  status: TenancyReferenceRequestStatus
+  requestedAt: string
+  requestedByEmail: string
+  sentAt?: string
+  respondedAt?: string
+  expiresAt?: string
+  lastError?: string
+}
+
 export type ReferencingInstruction = {
-  providerStatus: "pending" | "sent" | "documents_received"
+  noIdRequired: boolean
   photoIdReceived: boolean
   proofOfAddressReceived: boolean
+  creditReferenceCheckReceived: boolean
+  previousLandlordReferenceReceived: boolean
   incomeEvidenceReceived: boolean
+  verificationNotRequired: TenancyVerificationNotRequiredFlags
+  verificationDocuments: TenancyVerificationDocument[]
+  referees: TenancyRefereeContact[]
+  referenceRequests: TenancyReferenceRequest[]
   employerContactDetails: string
   previousLandlordContactDetails: string
-  sharePointFileStatus: "pending" | "created"
   notes: string
 }
 
@@ -67,13 +133,19 @@ export type ReferencingReport = {
   completedAt?: string
   summary: string
   checks: FullReferencingChecks
+  creditReportRequest?: TenancyCreditReportRequest
+}
+
+export type TenancyCreditReportRequest = {
+  requested: boolean
+  requestedAt?: string
+  requestedByEmail?: string
+  status: "not_requested" | "requested"
 }
 
 export type ApprovalDecision = {
   outcome: TenantDecisionOutcome
   rationale: string
-  affordabilityCalculation: string
-  exceptionNotes: string
   certificateIssuedAt?: string
 }
 

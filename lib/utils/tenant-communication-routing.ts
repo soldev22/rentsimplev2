@@ -26,18 +26,21 @@ export function resolveTenantCommunicationEmailRouting(input: {
 }): TenantCommunicationEmailRouting {
   const landlordRegisteredEmail = input.landlord?.email.trim() || ""
   const landlordTransactionalEmail = input.landlord?.notificationProfile?.outboundEmail.trim() || landlordRegisteredEmail
+  const shouldCopyLandlord = Boolean(input.landlord?.notificationProfile?.copyLandlordOnTenantEmails)
 
   if (landlordTransactionalEmail) {
+    const canCopyRegisteredEmail =
+      shouldCopyLandlord &&
+      landlordRegisteredEmail &&
+      landlordRegisteredEmail.toLowerCase() !== landlordTransactionalEmail.toLowerCase()
+
     return {
       fromAddress: landlordTransactionalEmail,
       fromName: getPartyName(input.landlord),
       replyTo: landlordTransactionalEmail,
-      copiedTo:
-        landlordRegisteredEmail && landlordRegisteredEmail.toLowerCase() !== landlordTransactionalEmail.toLowerCase()
-          ? [landlordRegisteredEmail]
-          : [],
+      copiedTo: canCopyRegisteredEmail ? [landlordRegisteredEmail] : [],
       detail:
-        landlordRegisteredEmail && landlordRegisteredEmail.toLowerCase() !== landlordTransactionalEmail.toLowerCase()
+        canCopyRegisteredEmail
           ? "Email sent directly between the tenant and the landlord transactional address and copied to the landlord registered onboarding email."
           : "Email sent directly between the tenant and the landlord registered onboarding email.",
     }

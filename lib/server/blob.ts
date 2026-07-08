@@ -157,6 +157,91 @@ export async function downloadPropertyImage(blobName: string) {
   }
 }
 
+// ==================== TENANCY VERIFICATION DOCUMENTS ====================
+
+const tenancyVerificationDocumentsContainerName =
+  process.env.TENANCY_VERIFICATION_DOCUMENTS_CONTAINER?.trim() || "tenancy-verification-documents"
+
+const TENANCY_VERIFICATION_ALLOWED_MIME_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "text/csv",
+]
+
+const TENANCY_VERIFICATION_MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
+async function getTenancyVerificationDocumentsContainerClient() {
+  const serviceClient = getBlobServiceClient()
+  const containerClient = serviceClient.getContainerClient(tenancyVerificationDocumentsContainerName)
+  await containerClient.createIfNotExists()
+  return containerClient
+}
+
+export async function uploadTenancyVerificationDocument(input: {
+  applicationId: string
+  category: string
+  fileName: string
+  fileBuffer: Buffer
+  mimeType: string
+}) {
+  if (input.fileBuffer.length > TENANCY_VERIFICATION_MAX_FILE_SIZE) {
+    throw new Error("FileSizeExceeded")
+  }
+
+  if (!TENANCY_VERIFICATION_ALLOWED_MIME_TYPES.includes(input.mimeType)) {
+    throw new Error("FileTypeNotAllowed")
+  }
+
+  const containerClient = await getTenancyVerificationDocumentsContainerClient()
+  const timestamp = Date.now()
+  const uuid = randomUUID().slice(0, 8)
+  const sanitized = sanitizeFileName(input.fileName)
+  const blobName = `applications/${input.applicationId}/verification/${input.category}/${timestamp}-${uuid}-${sanitized}`
+  const blobClient = containerClient.getBlockBlobClient(blobName)
+
+  await blobClient.uploadData(input.fileBuffer, {
+    blobHTTPHeaders: {
+      blobContentType: input.mimeType,
+    },
+  })
+
+  return {
+    blobName,
+    url: blobClient.url,
+    size: input.fileBuffer.length,
+  }
+}
+
+export async function downloadTenancyVerificationDocument(blobName: string) {
+  const containerClient = await getTenancyVerificationDocumentsContainerClient()
+  const blobClient = containerClient.getBlobClient(blobName)
+  const download = await blobClient.download()
+
+  if (!download.readableStreamBody) {
+    throw new Error("Blob stream unavailable")
+  }
+
+  return {
+    stream: Readable.toWeb(download.readableStreamBody as Readable) as ReadableStream,
+    contentType: download.contentType || "application/octet-stream",
+    contentLength: download.contentLength,
+  }
+}
+
+export async function deleteTenancyVerificationDocument(blobName: string) {
+  const containerClient = await getTenancyVerificationDocumentsContainerClient()
+  const blobClient = containerClient.getBlobClient(blobName)
+  await blobClient.deleteIfExists({ deleteSnapshots: "include" })
+}
+
 // ==================== CASE ATTACHMENTS ====================
 
 const caseAttachmentsContainerName = process.env.CASE_ATTACHMENTS_CONTAINER?.trim() || "case-attachments"
