@@ -138,6 +138,13 @@ const application: TenancyApplicationRecord = {
     depositLeafletIssued: true,
     checkInScheduled: true,
     inventoryPrepared: true,
+    siteVisit: {
+      status: "scheduled",
+      scheduledAt: "2026-06-20T09:00:00.000Z",
+      completedAt: undefined,
+      assigneeName: "Operations Team",
+      notes: "Initial pre move-in visit booked.",
+    },
   },
   moveInChecklist: {
     inspectionCompleted: true,

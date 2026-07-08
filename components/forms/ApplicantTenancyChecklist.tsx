@@ -199,8 +199,20 @@ export default function ApplicantTenancyChecklist({ initialApplication, initialA
       },
       {
         label: "Check-in arranged",
-        complete: application.preMoveInCompliance.checkInScheduled && application.preMoveInCompliance.inventoryPrepared,
-        detail: "Check-in date agreed and inventory prepared.",
+        complete:
+          application.preMoveInCompliance.siteVisit?.status === "scheduled" ||
+          application.preMoveInCompliance.siteVisit?.status === "completed" ||
+          (application.preMoveInCompliance.checkInScheduled && application.preMoveInCompliance.inventoryPrepared),
+        detail:
+          application.preMoveInCompliance.siteVisit?.status === "completed"
+            ? `Site visit completed ${application.preMoveInCompliance.siteVisit.completedAt ? `on ${new Date(application.preMoveInCompliance.siteVisit.completedAt).toLocaleString()}` : ""}.`
+            : application.preMoveInCompliance.siteVisit?.status === "scheduled"
+              ? `Site visit scheduled ${application.preMoveInCompliance.siteVisit.scheduledAt ? `for ${new Date(application.preMoveInCompliance.siteVisit.scheduledAt).toLocaleString()}` : "and awaiting completion"}.`
+              : application.preMoveInCompliance.siteVisit?.status === "no_access"
+                ? "Site visit attempted but access was not available."
+                : application.preMoveInCompliance.siteVisit?.status === "cancelled"
+                  ? "Site visit was cancelled and requires re-booking."
+                  : "Check-in date agreed and inventory prepared.",
       },
       {
         label: "Deposit protection recorded",
@@ -270,6 +282,24 @@ export default function ApplicantTenancyChecklist({ initialApplication, initialA
           ? `Signed by ${application.applicantChecklist.signedFullName}.`
           : "Applicant sign-off not completed yet.",
         status: application.applicantChecklist.signedAt ? "complete" : "pending",
+      },
+      {
+        key: "site-visit",
+        label: "Site visit status",
+        at:
+          application.preMoveInCompliance.siteVisit?.completedAt ||
+          application.preMoveInCompliance.siteVisit?.scheduledAt ||
+          undefined,
+        detail: `Status: ${(application.preMoveInCompliance.siteVisit?.status ?? "not_scheduled").replaceAll("_", " ")}.${
+          application.preMoveInCompliance.siteVisit?.assigneeName
+            ? ` Assigned to ${application.preMoveInCompliance.siteVisit.assigneeName}.`
+            : ""
+        }`,
+        status:
+          application.preMoveInCompliance.siteVisit?.status === "completed" ||
+          application.preMoveInCompliance.siteVisit?.status === "scheduled"
+            ? "complete"
+            : "pending",
       },
       {
         key: "deposit-protected",

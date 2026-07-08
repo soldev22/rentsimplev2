@@ -33,6 +33,11 @@ export const DEFAULT_APPLICANT_SCREENING_SCORE_CONFIG: ApplicantScreeningScoreCo
   adverseCreditScore: -25,
   creditConsentScore: 10,
   additionalOccupantScore: -2,
+  guarantorSignedOffScore: 20,
+  guarantorDeclinedScore: -20,
+  siteVisitScheduledScore: 4,
+  siteVisitCompletedScore: 10,
+  siteVisitIssueScore: -8,
 }
 
 export type ApplicantScreeningScoreRow = {
@@ -116,6 +121,26 @@ export function normalizeApplicantScreeningScoreConfig(
       input?.additionalOccupantScore,
       DEFAULT_APPLICANT_SCREENING_SCORE_CONFIG.additionalOccupantScore,
     ),
+    guarantorSignedOffScore: toInteger(
+      input?.guarantorSignedOffScore,
+      DEFAULT_APPLICANT_SCREENING_SCORE_CONFIG.guarantorSignedOffScore,
+    ),
+    guarantorDeclinedScore: toInteger(
+      input?.guarantorDeclinedScore,
+      DEFAULT_APPLICANT_SCREENING_SCORE_CONFIG.guarantorDeclinedScore,
+    ),
+    siteVisitScheduledScore: toInteger(
+      input?.siteVisitScheduledScore,
+      DEFAULT_APPLICANT_SCREENING_SCORE_CONFIG.siteVisitScheduledScore,
+    ),
+    siteVisitCompletedScore: toInteger(
+      input?.siteVisitCompletedScore,
+      DEFAULT_APPLICANT_SCREENING_SCORE_CONFIG.siteVisitCompletedScore,
+    ),
+    siteVisitIssueScore: toInteger(
+      input?.siteVisitIssueScore,
+      DEFAULT_APPLICANT_SCREENING_SCORE_CONFIG.siteVisitIssueScore,
+    ),
   }
 }
 
@@ -178,6 +203,46 @@ export function calculateApplicantScreeningScore(
   const occupantsScore = additionalOccupants * config.additionalOccupantScore
   const manualCreditReportScore = Number(application.referencingReport.checks.creditScore)
   const creditReportScore = Number.isFinite(manualCreditReportScore) ? Math.round(manualCreditReportScore) : 0
+  const latestRequestByRefereeId = new Map<string, TenancyApplicationRecord["referencingInstruction"]["referenceRequests"][number]>()
+
+  for (const request of application.referencingInstruction.referenceRequests ?? []) {
+    const current = latestRequestByRefereeId.get(request.refereeId)
+    const currentRequestedAt = current ? Date.parse(current.requestedAt) : Number.NEGATIVE_INFINITY
+    const candidateRequestedAt = Date.parse(request.requestedAt)
+
+    if (!current || candidateRequestedAt >= currentRequestedAt) {
+      latestRequestByRefereeId.set(request.refereeId, request)
+    }
+  }
+
+  const latestRequests = [...latestRequestByRefereeId.values()]
+  const hasGuarantorSignedOff = latestRequests.some((request) => request.status === "completed")
+  const hasGuarantorDeclined = latestRequests.some((request) => request.status === "declined")
+  const guarantorOutcomeScore = hasGuarantorSignedOff
+    ? config.guarantorSignedOffScore
+    : hasGuarantorDeclined
+      ? config.guarantorDeclinedScore
+      : 0
+  const guarantorOutcomeValue = hasGuarantorSignedOff
+    ? "Signed off"
+    : hasGuarantorDeclined
+      ? "Declined"
+      : latestRequests.length > 0
+        ? "Requested - awaiting response"
+        : "Not requested"
+
+  const siteVisitStatus =
+    application.preMoveInCompliance.siteVisit?.status ??
+    (application.preMoveInCompliance.checkInScheduled ? "scheduled" : "not_scheduled")
+  const siteVisitOutcomeScore =
+    siteVisitStatus === "completed"
+      ? config.siteVisitCompletedScore
+      : siteVisitStatus === "scheduled"
+        ? config.siteVisitScheduledScore
+        : siteVisitStatus === "no_access" || siteVisitStatus === "cancelled"
+          ? config.siteVisitIssueScore
+          : 0
+  const siteVisitOutcomeValue = siteVisitStatus.replaceAll("_", " ")
 
   const rows: ApplicantScreeningScoreRow[] = [
     {
@@ -245,6 +310,18 @@ export function calculateApplicantScreeningScore(
           ? application.referencingReport.checks.creditScore.trim()
           : "Not entered",
       score: creditReportScore,
+    },
+    {
+      key: "guarantorOutcome",
+      criterion: "Guarantor outcome",
+      value: guarantorOutcomeValue,
+      score: guarantorOutcomeScore,
+    },
+    {
+      key: "siteVisitOutcome",
+      criterion: "Site visit outcome",
+      value: siteVisitOutcomeValue,
+      score: siteVisitOutcomeScore,
     },
   ]
 

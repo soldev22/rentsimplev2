@@ -521,6 +521,86 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
                     />
                   </td>
                 </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Guarantor signed-off score</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Guarantor signed-off score"
+                      title="Guarantor signed-off score"
+                      value={formState.screeningScoreConfig.guarantorSignedOffScore}
+                      onChange={(event) =>
+                        updateScreeningField("guarantorSignedOffScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Guarantor declined score</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Guarantor declined score"
+                      title="Guarantor declined score"
+                      value={formState.screeningScoreConfig.guarantorDeclinedScore}
+                      onChange={(event) =>
+                        updateScreeningField("guarantorDeclinedScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Site visit scheduled score</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Site visit scheduled score"
+                      title="Site visit scheduled score"
+                      value={formState.screeningScoreConfig.siteVisitScheduledScore}
+                      onChange={(event) =>
+                        updateScreeningField("siteVisitScheduledScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Site visit completed score</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Site visit completed score"
+                      title="Site visit completed score"
+                      value={formState.screeningScoreConfig.siteVisitCompletedScore}
+                      onChange={(event) =>
+                        updateScreeningField("siteVisitCompletedScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="px-4 py-3 font-medium text-slate-700">Site visit issue score (no access/cancelled)</td>
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                      type="number"
+                      aria-label="Site visit issue score"
+                      title="Site visit issue score"
+                      value={formState.screeningScoreConfig.siteVisitIssueScore}
+                      onChange={(event) =>
+                        updateScreeningField("siteVisitIssueScore", parseNumericInput(event.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>

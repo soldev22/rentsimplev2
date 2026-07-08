@@ -379,6 +379,13 @@ function createDefaultPreMoveInCompliance(): PreMoveInCompliance {
     depositLeafletIssued: false,
     checkInScheduled: false,
     inventoryPrepared: false,
+    siteVisit: {
+      status: "not_scheduled",
+      scheduledAt: undefined,
+      completedAt: undefined,
+      assigneeName: "",
+      notes: "",
+    },
   }
 }
 
@@ -706,7 +713,12 @@ function hydrateStoredApplication(application: TenancyApplicationRecord): Tenanc
   const defaultTenancyAgreement = createDefaultTenancyAgreement(application.monthlyRent)
   const defaultReferencingInstruction = createDefaultReferencingInstruction()
   const defaultReferencingReport = createDefaultReferencingReport()
+  const defaultCreditReportRequest = defaultReferencingReport.creditReportRequest ?? {
+    requested: false,
+    status: "not_requested" as const,
+  }
   const defaultApprovalDecision = createDefaultApprovalDecision()
+  const defaultPreMoveInCompliance = createDefaultPreMoveInCompliance()
 
   return {
     ...application,
@@ -741,8 +753,15 @@ function hydrateStoredApplication(application: TenancyApplicationRecord): Tenanc
         ...(application.referencingReport?.checks ?? {}),
       },
       creditReportRequest: {
-        ...defaultReferencingReport.creditReportRequest,
+        ...defaultCreditReportRequest,
         ...(application.referencingReport?.creditReportRequest ?? {}),
+        requested: Boolean(
+          application.referencingReport?.creditReportRequest?.requested ??
+            defaultCreditReportRequest.requested,
+        ),
+        status:
+          application.referencingReport?.creditReportRequest?.status ??
+          defaultCreditReportRequest.status,
       },
     },
     approvalDecision: {
@@ -778,6 +797,26 @@ function hydrateStoredApplication(application: TenancyApplicationRecord): Tenanc
         typeof application.applicantChecklist?.signedFullName === "string"
           ? application.applicantChecklist.signedFullName.trim()
           : "",
+    },
+    preMoveInCompliance: {
+      ...defaultPreMoveInCompliance,
+      ...application.preMoveInCompliance,
+      siteVisit: {
+        ...defaultPreMoveInCompliance.siteVisit,
+        ...(application.preMoveInCompliance?.siteVisit ?? {}),
+        // Keep legacy checkbox behavior intact while transitioning to structured site-visit workflow.
+        status:
+          application.preMoveInCompliance?.siteVisit?.status ??
+          (application.preMoveInCompliance?.checkInScheduled ? "scheduled" : "not_scheduled"),
+        assigneeName:
+          typeof application.preMoveInCompliance?.siteVisit?.assigneeName === "string"
+            ? application.preMoveInCompliance.siteVisit.assigneeName.trim()
+            : "",
+        notes:
+          typeof application.preMoveInCompliance?.siteVisit?.notes === "string"
+            ? application.preMoveInCompliance.siteVisit.notes.trim()
+            : "",
+      },
     },
     applicantProfile: normalizeQuestionnaire({
       propertyId: application.propertyId,
@@ -1449,6 +1488,10 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
     preMoveInCompliance: {
       ...existingApplication.preMoveInCompliance,
       ...input.preMoveInCompliance,
+      siteVisit: {
+        ...existingApplication.preMoveInCompliance.siteVisit,
+        ...(input.preMoveInCompliance?.siteVisit ?? {}),
+      },
     },
     moveInChecklist: {
       ...existingApplication.moveInChecklist,
@@ -1484,6 +1527,18 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
 
   if (!nextApplication.tenancyAgreement.agreementSentForSignature) {
     nextApplication.tenancyAgreement.agreementSentAt = undefined
+  }
+
+  if (nextApplication.preMoveInCompliance.siteVisit.status === "scheduled" || nextApplication.preMoveInCompliance.siteVisit.status === "completed") {
+    nextApplication.preMoveInCompliance.checkInScheduled = true
+  }
+
+  if (nextApplication.preMoveInCompliance.siteVisit.status === "not_scheduled") {
+    nextApplication.preMoveInCompliance.checkInScheduled = false
+  }
+
+  if (nextApplication.preMoveInCompliance.siteVisit.status !== "completed") {
+    nextApplication.preMoveInCompliance.siteVisit.completedAt = undefined
   }
 
   if (nextApplication.tenancyAgreement.agreementSigned && !existingApplication.tenancyAgreement.agreementSigned) {

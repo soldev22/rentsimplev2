@@ -189,6 +189,16 @@ export type ApplicantChecklistSignOff = {
   signedAt?: string
 }
 
+export type SiteVisitStatus = "not_scheduled" | "scheduled" | "completed" | "no_access" | "cancelled"
+
+export type SiteVisitDetails = {
+  status: SiteVisitStatus
+  scheduledAt?: string
+  completedAt?: string
+  assigneeName: string
+  notes: string
+}
+
 export type PreMoveInCompliance = {
   epcIssued: boolean
   gasSafetyIssued: boolean
@@ -197,6 +207,7 @@ export type PreMoveInCompliance = {
   depositLeafletIssued: boolean
   checkInScheduled: boolean
   inventoryPrepared: boolean
+  siteVisit: SiteVisitDetails
 }
 
 export type MoveInChecklist = {

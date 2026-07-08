@@ -244,14 +244,17 @@ export default function ApplicationReviewManager({
         throw new Error(payload?.error || "Unable to upload verification document.")
       }
 
+      const updatedApplication = payload.application
+
       setApplications((current) =>
-        current.map((candidate) => (candidate.id === payload.application?.id ? payload.application : candidate)),
+        current.map((candidate) => (candidate.id === updatedApplication.id ? updatedApplication : candidate)),
       )
 
       if (payload.auditEvents) {
+        const updatedAuditEvents = payload.auditEvents
         setAuditEventsByApplicationId((current) => ({
           ...current,
-          [payload.application.id]: payload.auditEvents ?? [],
+          [updatedApplication.id]: updatedAuditEvents,
         }))
       }
 
@@ -299,14 +302,17 @@ export default function ApplicationReviewManager({
           throw new Error(payload?.error || "Unable to delete verification document.")
         }
 
+        const updatedApplication = payload.application
+
         setApplications((current) =>
-          current.map((candidate) => (candidate.id === payload.application?.id ? payload.application : candidate)),
+          current.map((candidate) => (candidate.id === updatedApplication.id ? updatedApplication : candidate)),
         )
 
         if (payload.auditEvents) {
+          const updatedAuditEvents = payload.auditEvents
           setAuditEventsByApplicationId((current) => ({
             ...current,
-            [payload.application.id]: payload.auditEvents ?? [],
+            [updatedApplication.id]: updatedAuditEvents,
           }))
         }
 
@@ -373,13 +379,16 @@ export default function ApplicationReviewManager({
           throw new Error(payload.error || "Unable to save the application.")
         }
 
+        const updatedApplication = payload.application
+
         setApplications((current) =>
-          current.map((candidate) => (candidate.id === payload.application?.id ? payload.application : candidate)),
+          current.map((candidate) => (candidate.id === updatedApplication.id ? updatedApplication : candidate)),
         )
-        if (payload.application && payload.auditEvents) {
+        if (payload.auditEvents) {
+          const updatedAuditEvents = payload.auditEvents
           setAuditEventsByApplicationId((current) => ({
             ...current,
-            [payload.application!.id]: payload.auditEvents ?? [],
+            [updatedApplication.id]: updatedAuditEvents,
           }))
         }
         setFeedback((current) => ({
@@ -425,14 +434,17 @@ export default function ApplicationReviewManager({
           throw new Error(payload?.error || "Unable to request credit report.")
         }
 
+        const updatedApplication = payload.application
+
         setApplications((current) =>
-          current.map((candidate) => (candidate.id === payload.application?.id ? payload.application : candidate)),
+          current.map((candidate) => (candidate.id === updatedApplication.id ? updatedApplication : candidate)),
         )
 
         if (payload.auditEvents) {
+          const updatedAuditEvents = payload.auditEvents
           setAuditEventsByApplicationId((current) => ({
             ...current,
-            [payload.application.id]: payload.auditEvents ?? [],
+            [updatedApplication.id]: updatedAuditEvents,
           }))
         }
 
@@ -560,14 +572,17 @@ export default function ApplicationReviewManager({
           throw new Error(payload?.error || "Unable to send guarantor reference requests.")
         }
 
+        const updatedApplication = payload.application
+
         setApplications((current) =>
-          current.map((candidate) => (candidate.id === payload.application?.id ? payload.application : candidate)),
+          current.map((candidate) => (candidate.id === updatedApplication.id ? updatedApplication : candidate)),
         )
 
         if (payload.auditEvents) {
+          const updatedAuditEvents = payload.auditEvents
           setAuditEventsByApplicationId((current) => ({
             ...current,
-            [payload.application.id]: payload.auditEvents ?? [],
+            [updatedApplication.id]: updatedAuditEvents,
           }))
         }
 
@@ -749,6 +764,33 @@ export default function ApplicationReviewManager({
           const auditEvents = auditEventsByApplicationId[application.id] ?? []
           const communicationDraft = getCommunicationDraft(application.id)
           const screeningScore = calculateApplicantScreeningScore(application, effectiveScreeningScoreConfig)
+          const referees = application.referencingInstruction.referees ?? []
+          const referenceRequests = application.referencingInstruction.referenceRequests ?? []
+          const siteVisitStatus =
+            application.preMoveInCompliance.siteVisit?.status ??
+            (application.preMoveInCompliance.checkInScheduled ? "scheduled" : "not_scheduled")
+          const siteVisitScheduledAt = application.preMoveInCompliance.siteVisit?.scheduledAt ?? ""
+          const siteVisitCompletedAt = application.preMoveInCompliance.siteVisit?.completedAt ?? ""
+          const siteVisitAssigneeName = application.preMoveInCompliance.siteVisit?.assigneeName ?? ""
+          const siteVisitNotes = application.preMoveInCompliance.siteVisit?.notes ?? ""
+          const latestRequestByRefereeId = new Map<string, TenancyReferenceRequest>()
+
+          for (const request of referenceRequests) {
+            const current = latestRequestByRefereeId.get(request.refereeId)
+            const currentRequestedAt = current ? Date.parse(current.requestedAt) : Number.NEGATIVE_INFINITY
+            const candidateRequestedAt = Date.parse(request.requestedAt)
+
+            if (!current || candidateRequestedAt >= currentRequestedAt) {
+              latestRequestByRefereeId.set(request.refereeId, request)
+            }
+          }
+
+          const latestRequests = referees
+            .map((referee) => latestRequestByRefereeId.get(referee.id))
+            .filter((request): request is TenancyReferenceRequest => Boolean(request))
+
+          const signedOffCount = latestRequests.filter((request) => request.status === "completed").length
+          const declinedCount = latestRequests.filter((request) => request.status === "declined").length
           const creditReportAlreadyRequested = Boolean(application.referencingReport.creditReportRequest?.requested)
           const guarantorApprovalAlreadyRequested = Boolean(
             (application.referencingInstruction.referenceRequests ?? []).some(
@@ -769,6 +811,9 @@ export default function ApplicationReviewManager({
               <div className="flex flex-wrap items-center gap-2">
                 <div className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getStatusTone(application.status)}`}>
                   {application.status.replaceAll("_", " ")}
+                </div>
+                <div className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getSiteVisitTone(siteVisitStatus)}`}>
+                  Site visit {formatSiteVisitStatus(siteVisitStatus)}
                 </div>
                 {isAdmin ? (
                   <button
@@ -981,13 +1026,14 @@ export default function ApplicationReviewManager({
                                     ...current.referencingInstruction,
                                     [option.key]: event.target.checked ? false : Boolean(current.referencingInstruction[option.key]),
                                     verificationNotRequired: {
-                                      noIdRequired: false,
-                                      photoIdReceived: false,
-                                      proofOfAddressReceived: false,
-                                      creditReferenceCheckReceived: false,
-                                      previousLandlordReferenceReceived: false,
-                                      incomeEvidenceReceived: false,
-                                      ...(current.referencingInstruction.verificationNotRequired ?? {}),
+                                      ...((current.referencingInstruction.verificationNotRequired ?? {
+                                        noIdRequired: false,
+                                        photoIdReceived: false,
+                                        proofOfAddressReceived: false,
+                                        creditReferenceCheckReceived: false,
+                                        previousLandlordReferenceReceived: false,
+                                        incomeEvidenceReceived: false,
+                                      }) as NonNullable<TenancyApplicationRecord["referencingInstruction"]["verificationNotRequired"]>),
                                       [option.key]: event.target.checked,
                                     },
                                   },
@@ -1121,10 +1167,16 @@ export default function ApplicationReviewManager({
                     </div>
 
                     <div className="mt-3 space-y-3">
-                      {(application.referencingInstruction.referees ?? []).map((referee) => {
-                        const latestRequest = [...(application.referencingInstruction.referenceRequests ?? [])]
-                          .reverse()
-                          .find((request) => request.refereeId === referee.id)
+                      {signedOffCount > 0 || declinedCount > 0 ? (
+                        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                          {signedOffCount > 0 ? `${signedOffCount} guarantor sign-off${signedOffCount > 1 ? "s" : ""} recorded.` : ""}
+                          {signedOffCount > 0 && declinedCount > 0 ? " " : ""}
+                          {declinedCount > 0 ? `${declinedCount} guarantor response${declinedCount > 1 ? "s" : ""} declined.` : ""}
+                        </div>
+                      ) : null}
+
+                      {referees.map((referee) => {
+                        const latestRequest = latestRequestByRefereeId.get(referee.id)
 
                         return (
                           <div key={referee.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -1247,10 +1299,22 @@ export default function ApplicationReviewManager({
                               />
                             </label>
                             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                              <div className="text-xs text-slate-600">
-                                {latestRequest
-                                  ? `Latest guarantor approval request: ${formatReferenceRequestStatus(latestRequest.status)} via ${latestRequest.channel}.`
-                                  : "No guarantor approval request sent yet."}
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                                {latestRequest?.status === "completed" ? (
+                                  <span className="rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-900">
+                                    Signed off {latestRequest.respondedAt ? `on ${new Date(latestRequest.respondedAt).toLocaleString()}` : ""}
+                                  </span>
+                                ) : null}
+                                {latestRequest?.status === "declined" ? (
+                                  <span className="rounded-full bg-rose-100 px-2 py-1 font-semibold text-rose-900">
+                                    Declined {latestRequest.respondedAt ? `on ${new Date(latestRequest.respondedAt).toLocaleString()}` : ""}
+                                  </span>
+                                ) : null}
+                                <span>
+                                  {latestRequest
+                                    ? `Latest guarantor approval request: ${formatReferenceRequestStatus(latestRequest.status)} via ${latestRequest.channel}.`
+                                    : "No guarantor approval request sent yet."}
+                                </span>
                               </div>
                               <button
                                 type="button"
@@ -1605,6 +1669,158 @@ export default function ApplicationReviewManager({
                     <div className="mt-1">Applicant sign-off: {application.applicantChecklist.signedAt ? `${application.applicantChecklist.signedFullName || application.applicantName} on ${new Date(application.applicantChecklist.signedAt).toLocaleString()}` : "Pending"}</div>
                   </div>
 
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 md:col-span-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-sm font-semibold text-slate-900">Site visit workflow</h4>
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-[0.12em] ${getSiteVisitTone(siteVisitStatus)}`}>
+                        {formatSiteVisitStatus(siteVisitStatus)}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <label className="block text-sm font-medium text-slate-700">
+                        Site visit status
+                        <select
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                          value={siteVisitStatus}
+                          onChange={(event) => {
+                            const nextStatus = event.target.value as TenancyApplicationRecord["preMoveInCompliance"]["siteVisit"]["status"]
+
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              preMoveInCompliance: {
+                                ...current.preMoveInCompliance,
+                                checkInScheduled: nextStatus === "scheduled" || nextStatus === "completed",
+                                siteVisit: {
+                                  ...(current.preMoveInCompliance.siteVisit ?? {
+                                    status: "not_scheduled",
+                                    assigneeName: "",
+                                    notes: "",
+                                  }),
+                                  status: nextStatus,
+                                  completedAt:
+                                    nextStatus === "completed"
+                                      ? current.preMoveInCompliance.siteVisit?.completedAt || new Date().toISOString()
+                                      : undefined,
+                                },
+                              },
+                            }))
+                          }}
+                        >
+                          <option value="not_scheduled">Not scheduled</option>
+                          <option value="scheduled">Scheduled</option>
+                          <option value="completed">Completed</option>
+                          <option value="no_access">No access</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Assigned to
+                        <input
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                          value={siteVisitAssigneeName}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              preMoveInCompliance: {
+                                ...current.preMoveInCompliance,
+                                siteVisit: {
+                                  ...(current.preMoveInCompliance.siteVisit ?? {
+                                    status: "not_scheduled",
+                                    assigneeName: "",
+                                    notes: "",
+                                  }),
+                                  assigneeName: event.target.value,
+                                },
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Scheduled for
+                        <input
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                          type="datetime-local"
+                          value={siteVisitScheduledAt ? siteVisitScheduledAt.slice(0, 16) : ""}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              preMoveInCompliance: {
+                                ...current.preMoveInCompliance,
+                                checkInScheduled: Boolean(event.target.value) || current.preMoveInCompliance.checkInScheduled,
+                                siteVisit: {
+                                  ...(current.preMoveInCompliance.siteVisit ?? {
+                                    status: "not_scheduled",
+                                    assigneeName: "",
+                                    notes: "",
+                                  }),
+                                  scheduledAt: event.target.value ? new Date(event.target.value).toISOString() : undefined,
+                                  status:
+                                    event.target.value && current.preMoveInCompliance.siteVisit?.status === "not_scheduled"
+                                      ? "scheduled"
+                                      : (current.preMoveInCompliance.siteVisit?.status ?? "not_scheduled"),
+                                },
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Completed at
+                        <input
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                          type="datetime-local"
+                          value={siteVisitCompletedAt ? siteVisitCompletedAt.slice(0, 16) : ""}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              preMoveInCompliance: {
+                                ...current.preMoveInCompliance,
+                                checkInScheduled: current.preMoveInCompliance.checkInScheduled || Boolean(event.target.value),
+                                siteVisit: {
+                                  ...(current.preMoveInCompliance.siteVisit ?? {
+                                    status: "not_scheduled",
+                                    assigneeName: "",
+                                    notes: "",
+                                  }),
+                                  completedAt: event.target.value ? new Date(event.target.value).toISOString() : undefined,
+                                  status: event.target.value ? "completed" : (current.preMoveInCompliance.siteVisit?.status ?? "not_scheduled"),
+                                },
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700 md:col-span-2">
+                        Site visit notes
+                        <textarea
+                          className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2"
+                          value={siteVisitNotes}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              preMoveInCompliance: {
+                                ...current.preMoveInCompliance,
+                                siteVisit: {
+                                  ...(current.preMoveInCompliance.siteVisit ?? {
+                                    status: "not_scheduled",
+                                    assigneeName: "",
+                                    notes: "",
+                                  }),
+                                  notes: event.target.value,
+                                },
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+
                   {[
                     ["offerLetterSent", "Offer letter issued"],
                     ["offerLetterSigned", "Signed offer letter received"],
@@ -1925,4 +2141,24 @@ function createEmptyRefereeContact(): TenancyRefereeContact {
 
 function formatReferenceRequestStatus(status: TenancyReferenceRequest["status"]) {
   return status.replaceAll("_", " ")
+}
+
+function formatSiteVisitStatus(status: TenancyApplicationRecord["preMoveInCompliance"]["siteVisit"]["status"]) {
+  return status.replaceAll("_", " ")
+}
+
+function getSiteVisitTone(status: TenancyApplicationRecord["preMoveInCompliance"]["siteVisit"]["status"]) {
+  if (status === "completed") {
+    return "bg-emerald-100 text-emerald-900"
+  }
+
+  if (status === "no_access" || status === "cancelled") {
+    return "bg-rose-100 text-rose-900"
+  }
+
+  if (status === "scheduled") {
+    return "bg-cyan-100 text-cyan-900"
+  }
+
+  return "bg-slate-100 text-slate-700"
 }

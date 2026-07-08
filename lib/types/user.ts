@@ -65,6 +65,11 @@ export type ApplicantScreeningScoreConfig = {
   adverseCreditScore: number
   creditConsentScore: number
   additionalOccupantScore: number
+  guarantorSignedOffScore: number
+  guarantorDeclinedScore: number
+  siteVisitScheduledScore: number
+  siteVisitCompletedScore: number
+  siteVisitIssueScore: number
 }
 
 export type AuthUser = {
