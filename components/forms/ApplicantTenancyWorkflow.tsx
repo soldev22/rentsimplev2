@@ -73,21 +73,6 @@ function createInitialFormState(preselectedPropertyId?: string, applicantProfile
   }
 }
 
-function buildApplicantProfileFromFormState(formState: FormState): ApplicantProfileDefaults {
-  return {
-    employmentStatus: formState.employmentStatus,
-    annualIncome: Number(formState.annualIncome),
-    moveInDate: formState.moveInDate,
-    preferredContactMethods: formState.preferredContactMethods,
-    hasPets: formState.hasPets,
-    petDetails: formState.petDetails,
-    smokes: formState.smokes,
-    occupantCount: Number(formState.occupantCount),
-    hasAdverseCredit: formState.hasAdverseCredit,
-    adverseCreditDetails: formState.adverseCreditDetails,
-  }
-}
-
 function createFormStateFromApplication(application: TenancyApplicationRecord): FormState {
   return {
     propertyId: application.propertyId,
@@ -220,7 +205,6 @@ export default function ApplicantTenancyWorkflow({
   })
   const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
-  const [profileFeedback, setProfileFeedback] = useState<FeedbackState>(null)
   const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(initialApplications[0]?.id ?? null)
   const [isApplicationFormOpen, setIsApplicationFormOpen] = useState(true)
   const [isPending, startTransition] = useTransition()
@@ -315,8 +299,10 @@ export default function ApplicantTenancyWorkflow({
             ? "Application updated. Your details have been refreshed."
             : "Application submitted. Your details are now with the lettings team for manual review.",
         })
+        const latestSubmittedProfile = createApplicantProfileFromApplication(payload.application)
+        setSavedApplicantProfile(latestSubmittedProfile)
         setExpandedApplicationId(payload.application.id)
-        setFormState(createInitialFormState(preselectedPropertyId, effectiveApplicantProfile))
+        setFormState(createInitialFormState(preselectedPropertyId, latestSubmittedProfile))
         setEditingApplicationId(null)
       } catch (error) {
         setFeedback({
@@ -329,7 +315,6 @@ export default function ApplicantTenancyWorkflow({
 
   function handleEditApplication(application: TenancyApplicationRecord) {
     setFeedback(null)
-    setProfileFeedback(null)
     setIsApplicationFormOpen(true)
     setEditingApplicationId(application.id)
     setExpandedApplicationId(application.id)
@@ -358,7 +343,6 @@ export default function ApplicantTenancyWorkflow({
     }
 
     setFeedback(null)
-    setProfileFeedback(null)
 
     startTransition(async () => {
       try {
@@ -379,9 +363,17 @@ export default function ApplicantTenancyWorkflow({
           current.map((entry) => (entry.id === payload.application?.id ? payload.application : entry)),
         )
 
+        setFormState((current) => ({
+          ...current,
+          propertyId: "",
+        }))
+
         if (editingApplicationId === payload.application.id) {
           setEditingApplicationId(null)
-          setFormState(createInitialFormState(preselectedPropertyId, effectiveApplicantProfile))
+          setFormState({
+            ...createInitialFormState(preselectedPropertyId, effectiveApplicantProfile),
+            propertyId: "",
+          })
         }
 
         setFeedback({
@@ -392,42 +384,6 @@ export default function ApplicantTenancyWorkflow({
         setFeedback({
           type: "error",
           message: error instanceof Error ? error.message : "Unable to withdraw your application.",
-        })
-      }
-    })
-  }
-
-  function handleSaveProfile() {
-    setProfileFeedback(null)
-
-    startTransition(async () => {
-      try {
-        const response = await fetch("/api/applicant/profile", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(buildApplicantProfileFromFormState(formState)),
-        })
-
-        const payload = (await response.json()) as {
-          applicantProfile?: ApplicantProfileDefaults | null
-          error?: string
-        }
-
-        if (!response.ok || !payload.applicantProfile) {
-          throw new Error(payload.error || "Unable to save your profile defaults.")
-        }
-
-        setSavedApplicantProfile(payload.applicantProfile)
-        setProfileFeedback({
-          type: "success",
-          message: "Profile defaults saved. New applications will start with these answers.",
-        })
-      } catch (error) {
-        setProfileFeedback({
-          type: "error",
-          message: error instanceof Error ? error.message : "Unable to save your profile defaults.",
         })
       }
     })
@@ -602,24 +558,12 @@ export default function ApplicantTenancyWorkflow({
           </div>
         ) : null}
 
-        {profileFeedback ? (
-          <div
-            className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
-              profileFeedback.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                : "border-rose-200 bg-rose-50 text-rose-900"
-            }`}
-          >
-            {profileFeedback.message}
-          </div>
-        ) : null}
-
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
           {hasMeaningfulApplicantProfile(savedApplicantProfile)
-            ? "Saved profile defaults are active. New applications will start with your stored answers, but you will still need to give fresh consent for each submission."
+            ? "Your latest submitted answers are being reused as defaults for new applications. You will still need to give fresh consent for each submission."
             : effectiveApplicantProfile
-              ? "Your latest application answers are being used as defaults. Save profile defaults if you want these details locked in for future applications."
-              : "You can save the answers below to your applicant profile so future applications start pre-filled."}
+              ? "Your latest application answers are being used as defaults for new applications."
+              : "Your answers will be reused as defaults after your first successful submission."}
         </div>
 
         <form className="mt-6 grid gap-4 lg:grid-cols-2" onSubmit={handleSubmit}>
@@ -779,14 +723,6 @@ export default function ApplicantTenancyWorkflow({
           <div className="lg:col-span-2 flex flex-col gap-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 lg:flex-row lg:items-center lg:justify-between">
             <div>Your application will be reviewed manually by the lettings team.</div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                className="rounded-md border border-slate-300 px-4 py-2 font-semibold text-slate-700 transition-colors hover:bg-white disabled:opacity-60"
-                onClick={handleSaveProfile}
-                disabled={isPending}
-              >
-                Save to profile
-              </button>
               <button
                 type="submit"
                 className="rounded-md bg-slate-900 px-4 py-2 font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"

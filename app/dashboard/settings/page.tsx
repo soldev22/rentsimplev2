@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 
 import ApplicantProfileSettingsForm from "@/components/forms/ApplicantProfileSettingsForm"
 import BuilderProfileSettingsForm from "@/components/forms/BuilderProfileSettingsForm"
+import LandlordProfileSettingsForm from "@/components/forms/LandlordProfileSettingsForm"
 import { getUserRole, isPendingApproval } from "@/lib/auth"
 import { getSessionUser } from "@/lib/server/session"
 
@@ -24,6 +25,20 @@ export default async function SettingsPage() {
 
   if (getUserRole(user) === "builder") {
     return <BuilderProfileSettingsForm initialBuilderProfile={user.builderProfile} />
+  }
+
+  if (getUserRole(user) === "landlord") {
+    return (
+      <LandlordProfileSettingsForm
+        initialProfile={{
+          firstName: user.first_name,
+          lastName: user.last_name,
+          mobile: user.mobile,
+          email: user.email,
+          notificationProfile: user.notificationProfile,
+        }}
+      />
+    )
   }
 
   return (

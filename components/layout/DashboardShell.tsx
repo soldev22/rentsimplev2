@@ -95,6 +95,12 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
                   <div>{displayName}</div>
                   <div className="text-xs uppercase tracking-[0.2em] text-cyan-200">{displayRole}</div>
                 </div>
+                <Link
+                  href="/"
+                  className="rounded border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+                >
+                  Home
+                </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -157,6 +163,12 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
               <div>Logged in as: {displayName}</div>
               <div className="text-xs uppercase tracking-[0.2em] text-cyan-200">{displayRole}</div>
             </div>
+            <Link
+              href="/"
+              className="rounded border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+            >
+              Home
+            </Link>
             <button
               type="button"
               onClick={handleLogout}

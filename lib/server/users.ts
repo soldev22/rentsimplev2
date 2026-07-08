@@ -128,6 +128,12 @@ function assertBuilder(user: AuthUser) {
   }
 }
 
+function assertLandlord(user: AuthUser) {
+  if (getUserRole(user) !== "landlord") {
+    throw new Error("Forbidden")
+  }
+}
+
 function toNonNegativeNumber(value: unknown) {
   const parsed = typeof value === "number" ? value : Number(value)
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0
@@ -633,6 +639,45 @@ export async function updateBuilderProfile(user: AuthUser, input: Partial<Builde
   const updatedUser: StoredUser = {
     ...storedUser,
     builderProfile: normalizeBuilderProfile(input),
+    updatedAt: new Date().toISOString(),
+  }
+
+  await writeStoredUser(updatedUser)
+  return sanitizeUser(updatedUser)
+}
+
+export async function updateLandlordProfile(
+  user: AuthUser,
+  input: Partial<{
+    firstName: string
+    lastName: string
+    mobile: string
+    notificationProfile: Partial<NotificationProfileDefaults>
+  }>,
+) {
+  assertLandlord(user)
+
+  const storedUser = await readStoredUser(user.email)
+
+  if (!storedUser) {
+    return null
+  }
+
+  const firstName = typeof input.firstName === "string" ? input.firstName.trim() : storedUser.first_name
+  const lastName = typeof input.lastName === "string" ? input.lastName.trim() : storedUser.last_name
+  const mobile = typeof input.mobile === "string" ? input.mobile.trim() : storedUser.mobile
+
+  const nextNotificationProfile = normalizeNotificationProfile({
+    ...(storedUser.notificationProfile ?? {}),
+    ...(input.notificationProfile ?? {}),
+  })
+
+  const updatedUser: StoredUser = {
+    ...storedUser,
+    first_name: firstName,
+    last_name: lastName,
+    mobile,
+    notificationProfile: nextNotificationProfile,
     updatedAt: new Date().toISOString(),
   }
 
