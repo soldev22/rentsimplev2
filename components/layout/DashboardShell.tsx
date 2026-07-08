@@ -18,11 +18,11 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [displayName] = useState(initialUser.displayName);
   const [displayRole] = useState(initialUser.displayRole);
+  const isApplicantRole = displayRole === "applicant";
 
   const navItems =
     displayRole === "applicant"
       ? [
-          { name: "Onboarding", href: "/dashboard/onboarding" },
           { name: "My Applications", href: "/dashboard/applicant" },
           { name: "Settings", href: "/dashboard/settings" },
         ]
@@ -61,6 +61,56 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
       router.replace("/login");
       router.refresh();
     }
+  }
+
+  if (isApplicantRole) {
+    return (
+      <div className="min-h-screen bg-slate-100 p-4 md:p-6">
+        <div className="mx-auto flex w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <header className="brand-shell-surface border-b border-white/10 px-4 py-4 md:px-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200">Dashboard</p>
+                <h1 className="mt-1 text-lg font-semibold text-white">Applicant workspace</h1>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {navItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                      pathname.startsWith(item.href)
+                        ? "bg-white text-slate-900"
+                        : "border border-white/30 bg-white/10 text-white hover:bg-white/20"
+                    }`}
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 md:justify-end">
+                <div className="text-right text-sm text-slate-200">
+                  <div>{displayName}</div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-cyan-200">{displayRole}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={isSigningOut}
+                  className="rounded border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSigningOut ? "Signing out..." : "Logout"}
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <main className="p-4 md:p-6">{children}</main>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -146,9 +196,11 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
               <Link href="/dashboard" className="hover:text-white">
                 Overview
               </Link>
-              <Link href="/dashboard/onboarding" className="hover:text-white">
-                Onboarding
-              </Link>
+              {displayRole !== "applicant" ? (
+                <Link href="/dashboard/onboarding" className="hover:text-white">
+                  Onboarding
+                </Link>
+              ) : null}
               <Link href="/dashboard/properties" className="hover:text-white">
                 Properties
               </Link>

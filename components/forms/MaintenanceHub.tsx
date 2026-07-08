@@ -514,8 +514,13 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getStatusTone(issue.status)}`}>{issue.status.replaceAll("_", " ")}</span>
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getPriorityTone(issue.priority)}`}>{issue.priority}</span>
-                  <button type="button" className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700" onClick={() => setExpandedIssueId((current) => current === issue.id ? null : issue.id)}>
-                    {isExpanded ? "Collapse" : "Expand"}
+                  <button
+                    type="button"
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+                    aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
+                    onClick={() => setExpandedIssueId((current) => current === issue.id ? null : issue.id)}
+                  >
+                    <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`}>▾</span>
                   </button>
                 </div>
               </div>

@@ -1,6 +1,5 @@
 import "./globals.css";
 
-import Link from "next/link";
 import type { Metadata, Viewport } from "next";
 
 import AppChrome from "@/components/layout/AppChrome";
@@ -69,28 +68,6 @@ export default async function RootLayout({
 }) {
   const user = await getSessionUser();
 
-  const authControls = user ? (
-    <div className="flex items-center gap-3">
-      <form action="/api/auth/logout" method="POST">
-        <button
-          type="submit"
-          className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900"
-        >
-          Logout
-        </button>
-      </form>
-    </div>
-  ) : (
-    <div className="flex items-center gap-3">
-      <Link
-        href="/login"
-        className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900"
-      >
-        Login
-      </Link>
-    </div>
-  );
-
   return (
     <html lang="en">
       <head>
@@ -108,7 +85,7 @@ export default async function RootLayout({
       </head>
 
       <body>
-        <AppChrome authControls={authControls}>
+        <AppChrome isAuthenticated={Boolean(user)}>
           {children}
         </AppChrome>
 

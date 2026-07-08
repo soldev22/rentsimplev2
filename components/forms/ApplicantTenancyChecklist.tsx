@@ -89,6 +89,22 @@ function getStatusTone(status: TenancyApplicationRecord["status"]) {
   }
 }
 
+function getApplicantFacingStatus(application: TenancyApplicationRecord) {
+  if (application.status === "active_tenant") {
+    return "Tenant active"
+  }
+
+  if (application.approvalDecision.outcome === "approved" || application.approvalDecision.outcome === "approved_with_guarantor") {
+    return "Approved"
+  }
+
+  if (application.approvalDecision.outcome === "declined" || application.status === "declined") {
+    return "Review complete"
+  }
+
+  return "Under review"
+}
+
 function isApplicantApprovalReady(application: TenancyApplicationRecord) {
   return application.approvalDecision.outcome === "approved" || application.approvalDecision.outcome === "approved_with_guarantor"
 }
@@ -185,23 +201,23 @@ export default function ApplicantTenancyChecklist({ initialApplication, initialA
         key: "submitted",
         label: "Application submitted",
         at: application.submittedAt,
-        detail: "Applicant pre-screening submission recorded.",
+        detail: "Applicant submission recorded for manual review.",
         status: application.submittedAt ? "complete" : "pending",
       },
       {
         key: "pre-screened",
-        label: "Pre-screening assessed",
+        label: "Application queued for review",
         at: application.preScreeningSummary.assessedAt,
-        detail: `Outcome: ${application.preScreeningSummary.outcome}.`,
+        detail: "Application moved into manual review by the lettings team.",
         status: application.preScreeningSummary.assessedAt ? "complete" : "pending",
       },
       {
         key: "decision",
-        label: "Approval decision",
+        label: "Application review",
         at: application.approvalDecision.certificateIssuedAt,
         detail:
           application.approvalDecision.outcome === "pending"
-            ? "Decision pending."
+            ? "Review in progress."
             : `Decision: ${application.approvalDecision.outcome.replaceAll("_", " ")}.`,
         status: application.approvalDecision.outcome === "pending" ? "pending" : "complete",
       },
@@ -342,17 +358,18 @@ export default function ApplicantTenancyChecklist({ initialApplication, initialA
           </div>
           <div className="flex flex-wrap gap-2">
             <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getStatusTone(application.status)}`}>
-              {application.status.replaceAll("_", " ")}
+              {getApplicantFacingStatus(application)}
             </span>
             <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
-              {application.currentStage.replaceAll("_", " ")}
+              Application
             </span>
             <button
               type="button"
               className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700"
+              aria-label={isOverviewOpen ? "Collapse panel" : "Expand panel"}
               onClick={() => setIsOverviewOpen((current) => !current)}
             >
-              {isOverviewOpen ? "Collapse" : "Expand"}
+              <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isOverviewOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
             </button>
           </div>
         </div>
@@ -471,9 +488,10 @@ export default function ApplicantTenancyChecklist({ initialApplication, initialA
           <button
             type="button"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+            aria-label={isChecklistOpen ? "Collapse panel" : "Expand panel"}
             onClick={() => setIsChecklistOpen((current) => !current)}
           >
-            {isChecklistOpen ? "Collapse" : "Expand"}
+            <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isChecklistOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
           </button>
         </div>
 
@@ -568,9 +586,10 @@ export default function ApplicantTenancyChecklist({ initialApplication, initialA
           <button
             type="button"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+            aria-label={isSignOffOpen ? "Collapse panel" : "Expand panel"}
             onClick={() => setIsSignOffOpen((current) => !current)}
           >
-            {isSignOffOpen ? "Collapse" : "Expand"}
+            <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isSignOffOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
           </button>
         </div>
 

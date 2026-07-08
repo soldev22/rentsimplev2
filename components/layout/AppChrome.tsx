@@ -1,19 +1,37 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { useState } from "react"
 
 export default function AppChrome({
   children,
-  authControls,
+  isAuthenticated,
 }: {
   children: React.ReactNode
-  authControls?: React.ReactNode
+  isAuthenticated: boolean
 }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const isDashboardRoute = pathname.startsWith("/dashboard")
   const isHomeRoute = pathname === "/"
   const isPropertiesRoute = pathname === "/properties" || pathname.startsWith("/properties/")
+  const isLoginRoute = pathname.startsWith("/login")
+
+  async function handleLogout() {
+    setIsSigningOut(true)
+
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+      })
+    } finally {
+      router.replace("/")
+      router.refresh()
+      setIsSigningOut(false)
+    }
+  }
 
   if (isDashboardRoute) {
     return <>{children}</>
@@ -30,16 +48,28 @@ export default function AppChrome({
                 <p className="text-2xl font-semibold tracking-[0.06em] text-sky-200">
                   rentsimple
                 </p>
-                <h1 className="text-lg font-semibold text-white">
-                  we manage the property you build your home.
+                <h1 className="mt-2 text-3xl font-semibold text-white md:text-4xl">
+                  Welcome home.
                 </h1>
+                <p className="mt-3 max-w-3xl text-sm text-slate-200 md:text-base">
+                  Find your next home, manage your tenancy with confidence, and keep everything securely organised in one place. RentSimple supports every step of your renting journey-from your first enquiry to moving day and beyond.
+                </p>
               </Link>
 
               <div className="flex items-center gap-3">
-                {authControls ?? (
+                {!isAuthenticated ? (
                   <Link href="/login" className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900">
                     Login
                   </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={isSigningOut}
+                    className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSigningOut ? "Signing out..." : "Logout"}
+                  </button>
                 )}
               </div>
             </div>
@@ -58,15 +88,24 @@ export default function AppChrome({
             </Link>
 
             <div className="flex items-center gap-3">
-              {!isPropertiesRoute ? (
+              {!isPropertiesRoute && !isLoginRoute ? (
                 <Link href="/properties" className="rounded border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white">
                   Search properties
                 </Link>
               ) : null}
-              {authControls ?? (
+              {!isAuthenticated ? (
                 <Link href="/login" className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900">
                   Login
                 </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={isSigningOut}
+                  className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSigningOut ? "Signing out..." : "Logout"}
+                </button>
               )}
             </div>
           </div>

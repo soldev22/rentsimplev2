@@ -11,31 +11,12 @@ import { listLandlordDirectoryForUser } from "@/lib/server/users"
 
 export const dynamic = "force-dynamic"
 
-type BookingsPageProps = {
+type WithdrawnBookingsPageProps = {
   searchParams: Promise<{
     landlordId?: string
     page?: string
     pageSize?: string
   }>
-}
-
-function buildBookingsPageHref(input: { page: number; pageSize: number; landlordId?: string }) {
-  const params = new URLSearchParams()
-
-  if (input.page > 1) {
-    params.set("page", String(input.page))
-  }
-
-  if (input.pageSize !== 25) {
-    params.set("pageSize", String(input.pageSize))
-  }
-
-  if (input.landlordId) {
-    params.set("landlordId", input.landlordId)
-  }
-
-  const query = params.toString()
-  return query ? `/dashboard/bookings?${query}` : "/dashboard/bookings"
 }
 
 function buildWithdrawnBookingsPageHref(input: { page: number; pageSize: number; landlordId?: string }) {
@@ -57,7 +38,18 @@ function buildWithdrawnBookingsPageHref(input: { page: number; pageSize: number;
   return query ? `/dashboard/bookings/withdrawn?${query}` : "/dashboard/bookings/withdrawn"
 }
 
-export default async function Page({ searchParams }: BookingsPageProps) {
+function buildBookingsPageHref(input: { landlordId?: string }) {
+  const params = new URLSearchParams()
+
+  if (input.landlordId) {
+    params.set("landlordId", input.landlordId)
+  }
+
+  const query = params.toString()
+  return query ? `/dashboard/bookings?${query}` : "/dashboard/bookings"
+}
+
+export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnBookingsPageProps) {
   const user = await getSessionUser()
 
   if (!user) {
@@ -82,10 +74,12 @@ export default async function Page({ searchParams }: BookingsPageProps) {
   const pageSize = Number.isFinite(Number(pageSizeParam))
     ? Math.min(100, Math.max(10, Math.floor(Number(pageSizeParam))))
     : 25
+
   const [pagedApplications, landlords] = await Promise.all([
-    listApplicationsForReviewPage(user, landlordId, { page, pageSize, statusFilter: "non_withdrawn" }),
+    listApplicationsForReviewPage(user, landlordId, { page, pageSize, statusFilter: "withdrawn" }),
     role === "admin" || role === "agent" ? listLandlordDirectoryForUser(user) : Promise.resolve([]),
   ])
+
   const auditEventsByApplicationId = await listAuditEventsForEntities(
     "application",
     pagedApplications.items.map((application) => application.id),
@@ -100,18 +94,19 @@ export default async function Page({ searchParams }: BookingsPageProps) {
           allLabel={role === "admin" ? "All landlords" : "All managed landlords"}
         />
       ) : null}
+
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
           <span>
             Showing {(pagedApplications.page - 1) * pagedApplications.pageSize + 1}-
-            {Math.min(pagedApplications.page * pagedApplications.pageSize, pagedApplications.totalCount)} of {pagedApplications.totalCount} applications.
+            {Math.min(pagedApplications.page * pagedApplications.pageSize, pagedApplications.totalCount)} of {pagedApplications.totalCount} withdrawn applications.
           </span>
           <div className="flex items-center gap-3">
             <Link
-              href={buildWithdrawnBookingsPageHref({ page: 1, pageSize, landlordId })}
+              href={buildBookingsPageHref({ landlordId })}
               className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
             >
-              View withdrawn applications
+              Back to active applications
             </Link>
             <form method="get" className="flex items-center gap-2">
               {landlordId ? <input type="hidden" name="landlordId" value={landlordId} /> : null}
@@ -119,7 +114,7 @@ export default async function Page({ searchParams }: BookingsPageProps) {
               <select
                 name="pageSize"
                 defaultValue={String(pageSize)}
-                aria-label="Applications page size"
+                aria-label="Withdrawn applications page size"
                 className="rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700"
               >
                 {[10, 25, 50, 100].map((value) => (
@@ -136,35 +131,42 @@ export default async function Page({ searchParams }: BookingsPageProps) {
               </button>
             </form>
             <div className="flex items-center gap-2">
-            {pagedApplications.hasPreviousPage ? (
-              <Link
-                href={buildBookingsPageHref({ page: pagedApplications.page - 1, pageSize, landlordId })}
-                className="rounded-md border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100"
-              >
-                Previous
-              </Link>
-            ) : (
-              <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-400">Previous</span>
-            )}
-            {pagedApplications.hasNextPage ? (
-              <Link
-                href={buildBookingsPageHref({ page: pagedApplications.page + 1, pageSize, landlordId })}
-                className="rounded-md border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100"
-              >
-                Next
-              </Link>
-            ) : (
-              <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-400">Next</span>
-            )}
+              {pagedApplications.hasPreviousPage ? (
+                <Link
+                  href={buildWithdrawnBookingsPageHref({ page: pagedApplications.page - 1, pageSize, landlordId })}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Previous
+                </Link>
+              ) : (
+                <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-400">Previous</span>
+              )}
+              {pagedApplications.hasNextPage ? (
+                <Link
+                  href={buildWithdrawnBookingsPageHref({ page: pagedApplications.page + 1, pageSize, landlordId })}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Next
+                </Link>
+              ) : (
+                <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-400">Next</span>
+              )}
             </div>
           </div>
         </div>
       </section>
-      <ApplicationReviewManager
-        initialApplications={pagedApplications.items}
-        initialAuditEventsByApplicationId={Object.fromEntries(auditEventsByApplicationId)}
-        currentUserDisplayName={`${user.first_name} ${user.last_name}`.trim() || user.email}
-      />
+
+      {pagedApplications.items.length === 0 ? (
+        <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600 shadow-sm">
+          No withdrawn applications found for this scope.
+        </section>
+      ) : (
+        <ApplicationReviewManager
+          initialApplications={pagedApplications.items}
+          initialAuditEventsByApplicationId={Object.fromEntries(auditEventsByApplicationId)}
+          currentUserDisplayName={`${user.first_name} ${user.last_name}`.trim() || user.email}
+        />
+      )}
     </div>
   )
 }

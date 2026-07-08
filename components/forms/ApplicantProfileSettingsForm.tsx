@@ -47,12 +47,9 @@ const preferredContactMethodOptions: Array<{ value: PreferredContactMethod; labe
 function createInitialFormState(applicantProfile?: ApplicantProfileDefaults): FormState {
   return {
     employmentStatus: applicantProfile?.employmentStatus ?? "employed_full_time",
-    annualIncome: applicantProfile?.annualIncome ? String(applicantProfile.annualIncome) : "",
+    annualIncome: applicantProfile?.annualIncome != null ? String(applicantProfile.annualIncome) : "",
     moveInDate: applicantProfile?.moveInDate ?? "",
-    preferredContactMethods:
-      applicantProfile?.preferredContactMethods && applicantProfile.preferredContactMethods.length > 0
-        ? applicantProfile.preferredContactMethods
-        : ["email"],
+    preferredContactMethods: applicantProfile?.preferredContactMethods ?? [],
     hasPets: applicantProfile?.hasPets ?? false,
     petDetails: applicantProfile?.petDetails ?? "",
     smokes: applicantProfile?.smokes ?? false,

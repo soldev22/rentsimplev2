@@ -60,12 +60,9 @@ function createInitialFormState(preselectedPropertyId?: string, applicantProfile
   return {
     propertyId: preselectedPropertyId ?? "",
     employmentStatus: applicantProfile?.employmentStatus ?? "employed_full_time",
-    annualIncome: applicantProfile?.annualIncome ? String(applicantProfile.annualIncome) : "",
+    annualIncome: applicantProfile?.annualIncome != null ? String(applicantProfile.annualIncome) : "",
     moveInDate: applicantProfile?.moveInDate ?? "",
-    preferredContactMethods:
-      applicantProfile?.preferredContactMethods && applicantProfile.preferredContactMethods.length > 0
-        ? applicantProfile.preferredContactMethods
-        : ["email"],
+    preferredContactMethods: applicantProfile?.preferredContactMethods ?? [],
     hasPets: applicantProfile?.hasPets ?? false,
     petDetails: applicantProfile?.petDetails ?? "",
     smokes: applicantProfile?.smokes ?? false,
@@ -108,6 +105,40 @@ function createFormStateFromApplication(application: TenancyApplicationRecord): 
   }
 }
 
+function createApplicantProfileFromApplication(application: TenancyApplicationRecord): ApplicantProfileDefaults {
+  return {
+    employmentStatus: application.preScreening.employmentStatus,
+    annualIncome: application.preScreening.annualIncome,
+    moveInDate: application.preScreening.moveInDate,
+    preferredContactMethods: application.preScreening.preferredContactMethods ?? [],
+    hasPets: application.preScreening.hasPets,
+    petDetails: application.preScreening.petDetails,
+    smokes: application.preScreening.smokes,
+    occupantCount: application.preScreening.occupantCount,
+    hasAdverseCredit: application.preScreening.hasAdverseCredit,
+    adverseCreditDetails: application.preScreening.adverseCreditDetails,
+  }
+}
+
+function hasMeaningfulApplicantProfile(profile?: ApplicantProfileDefaults) {
+  if (!profile) {
+    return false
+  }
+
+  return (
+    profile.employmentStatus !== "employed_full_time" ||
+    profile.annualIncome > 0 ||
+    Boolean(profile.moveInDate) ||
+    profile.preferredContactMethods.length > 0 ||
+    profile.hasPets ||
+    Boolean(profile.petDetails) ||
+    profile.smokes ||
+    profile.occupantCount !== 1 ||
+    profile.hasAdverseCredit ||
+    Boolean(profile.adverseCreditDetails)
+  )
+}
+
 function getStatusTone(status: TenancyApplicationRecord["status"]) {
   switch (status) {
     case "approved":
@@ -115,6 +146,7 @@ function getStatusTone(status: TenancyApplicationRecord["status"]) {
     case "active_tenant":
       return "bg-emerald-100 text-emerald-900"
     case "declined":
+    case "withdrawn":
     case "pre_screen_failed":
       return "bg-rose-100 text-rose-900"
     default:
@@ -122,12 +154,36 @@ function getStatusTone(status: TenancyApplicationRecord["status"]) {
   }
 }
 
+function getApplicantFacingStatus(application: TenancyApplicationRecord) {
+  if (application.status === "active_tenant") {
+    return "Tenant active"
+  }
+
+  if (application.approvalDecision.outcome === "approved" || application.approvalDecision.outcome === "approved_with_guarantor") {
+    return "Approved"
+  }
+
+  if (application.approvalDecision.outcome === "declined" || application.status === "declined") {
+    return "Review complete"
+  }
+
+  if (application.status === "withdrawn") {
+    return "Withdrawn"
+  }
+
+  return "Under review"
+}
+
 function formatPreferredContactMethods(methods: PreferredContactMethod[] | undefined) {
   return methods && methods.length > 0 ? methods.join(", ") : "Not provided"
 }
 
 function canApplicantEditApplication(application: TenancyApplicationRecord) {
-  return application.approvalDecision.outcome === "pending"
+  return application.approvalDecision.outcome === "pending" && application.status !== "withdrawn"
+}
+
+function canApplicantWithdrawApplication(application: TenancyApplicationRecord) {
+  return application.approvalDecision.outcome === "pending" && application.status !== "withdrawn" && application.status !== "active_tenant"
 }
 
 function hasActiveApplicationForProperty(
@@ -141,7 +197,7 @@ function hasActiveApplicationForProperty(
 
   return applications.some(
     (application) =>
-      application.propertyId === propertyId && application.status !== "declined" && application.id !== editingApplicationId,
+      application.propertyId === propertyId && application.status !== "declined" && application.status !== "withdrawn" && application.id !== editingApplicationId,
   )
 }
 
@@ -153,22 +209,28 @@ export default function ApplicantTenancyWorkflow({
 }: ApplicantTenancyWorkflowProps) {
   const [applications, setApplications] = useState(initialApplications)
   const [savedApplicantProfile, setSavedApplicantProfile] = useState<ApplicantProfileDefaults | undefined>(initialApplicantProfile)
-  const [formState, setFormState] = useState<FormState>(() => createInitialFormState(preselectedPropertyId, initialApplicantProfile))
+  const [formState, setFormState] = useState<FormState>(() => {
+    const initialProfile = hasMeaningfulApplicantProfile(initialApplicantProfile)
+      ? initialApplicantProfile
+      : initialApplications[0]
+        ? createApplicantProfileFromApplication(initialApplications[0])
+        : undefined
+
+    return createInitialFormState(preselectedPropertyId, initialProfile)
+  })
   const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [profileFeedback, setProfileFeedback] = useState<FeedbackState>(null)
   const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(initialApplications[0]?.id ?? null)
+  const [isApplicationFormOpen, setIsApplicationFormOpen] = useState(true)
   const [isPending, startTransition] = useTransition()
-
-  const selectedProperty = useMemo(
-    () => availableProperties.find((property) => property.id === formState.propertyId) ?? null,
-    [availableProperties, formState.propertyId],
-  )
 
   const propertyIdsWithActiveApplications = useMemo(
     () =>
       new Set(
-        applications.filter((application) => application.status !== "declined").map((application) => application.propertyId),
+        applications
+          .filter((application) => application.status !== "declined" && application.status !== "withdrawn")
+          .map((application) => application.propertyId),
       ),
     [applications],
   )
@@ -177,6 +239,14 @@ export default function ApplicantTenancyWorkflow({
     () => hasActiveApplicationForProperty(applications, formState.propertyId, editingApplicationId),
     [applications, editingApplicationId, formState.propertyId],
   )
+
+  const effectiveApplicantProfile = useMemo(() => {
+    if (hasMeaningfulApplicantProfile(savedApplicantProfile)) {
+      return savedApplicantProfile
+    }
+
+    return applications[0] ? createApplicantProfileFromApplication(applications[0]) : undefined
+  }, [applications, savedApplicantProfile])
 
   function updateField<Key extends keyof FormState>(field: Key, value: FormState[Key]) {
     setFormState((current) => ({
@@ -242,11 +312,11 @@ export default function ApplicantTenancyWorkflow({
         setFeedback({
           type: "success",
           message: editingApplicationId
-            ? "Application updated. Your pre-screening summary has been refreshed."
-            : "Application submitted. Your pre-screening summary has been created.",
+            ? "Application updated. Your details have been refreshed."
+            : "Application submitted. Your details are now with the lettings team for manual review.",
         })
         setExpandedApplicationId(payload.application.id)
-        setFormState(createInitialFormState(preselectedPropertyId, savedApplicantProfile))
+        setFormState(createInitialFormState(preselectedPropertyId, effectiveApplicantProfile))
         setEditingApplicationId(null)
       } catch (error) {
         setFeedback({
@@ -260,6 +330,7 @@ export default function ApplicantTenancyWorkflow({
   function handleEditApplication(application: TenancyApplicationRecord) {
     setFeedback(null)
     setProfileFeedback(null)
+    setIsApplicationFormOpen(true)
     setEditingApplicationId(application.id)
     setExpandedApplicationId(application.id)
     setFormState(createFormStateFromApplication(application))
@@ -268,11 +339,62 @@ export default function ApplicantTenancyWorkflow({
   function handleCancelEdit() {
     setFeedback(null)
     setEditingApplicationId(null)
-    setFormState(createInitialFormState(preselectedPropertyId, savedApplicantProfile))
+    setFormState(createInitialFormState(preselectedPropertyId, effectiveApplicantProfile))
   }
 
   function handleToggleApplication(applicationId: string) {
     setExpandedApplicationId((current) => (current === applicationId ? null : applicationId))
+  }
+
+  function handleWithdrawApplication(application: TenancyApplicationRecord) {
+    if (!canApplicantWithdrawApplication(application)) {
+      return
+    }
+
+    const confirmed = window.confirm("Withdraw this application? You can submit a fresh application for this property later.")
+
+    if (!confirmed) {
+      return
+    }
+
+    setFeedback(null)
+    setProfileFeedback(null)
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/applications/${application.id}`, {
+          method: "DELETE",
+        })
+
+        const payload = (await response.json()) as {
+          application?: TenancyApplicationRecord
+          error?: string
+        }
+
+        if (!response.ok || !payload.application) {
+          throw new Error(payload.error || "Unable to withdraw your application.")
+        }
+
+        setApplications((current) =>
+          current.map((entry) => (entry.id === payload.application?.id ? payload.application : entry)),
+        )
+
+        if (editingApplicationId === payload.application.id) {
+          setEditingApplicationId(null)
+          setFormState(createInitialFormState(preselectedPropertyId, effectiveApplicantProfile))
+        }
+
+        setFeedback({
+          type: "success",
+          message: "Application withdrawn. You can submit a fresh application for this property whenever you are ready.",
+        })
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to withdraw your application.",
+        })
+      }
+    })
   }
 
   function handleSaveProfile() {
@@ -314,39 +436,15 @@ export default function ApplicantTenancyWorkflow({
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Applicant</p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-900">Tenancy applications</h1>
-            <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              Start your pre-screening, then track referencing, approval, agreement, and move-in stages in one place.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl bg-slate-50 px-4 py-3">
-              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Available homes</div>
-              <div className="mt-2 text-2xl font-semibold text-slate-900">{availableProperties.length}</div>
-            </div>
-            <div className="rounded-xl bg-sky-50 px-4 py-3">
-              <div className="text-xs uppercase tracking-[0.2em] text-sky-700">Applications</div>
-              <div className="mt-2 text-2xl font-semibold text-sky-900">{applications.length}</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-slate-900">Your applications</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Review every application at a glance, expand one when you need the detail, and edit any application that is still pending decision.
+              Review every application at a glance, expand one when you need the detail, and edit any application while it is under review.
             </p>
           </div>
-          <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            {applications.length === 0
-              ? "No applications started yet."
-              : `${applications.length} application${applications.length === 1 ? "" : "s"} in your pipeline.`}
+          <div className="rounded-full bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900">
+            {applications.length} application{applications.length === 1 ? "" : "s"}
           </div>
         </div>
 
@@ -360,6 +458,7 @@ export default function ApplicantTenancyWorkflow({
               {applications.map((application) => {
               const isExpanded = expandedApplicationId === application.id
               const canEdit = canApplicantEditApplication(application)
+              const canWithdraw = canApplicantWithdrawApplication(application)
               const panelId = `application-panel-${application.id}`
               const triggerId = `application-trigger-${application.id}`
 
@@ -376,11 +475,11 @@ export default function ApplicantTenancyWorkflow({
                         }}
                       >
                         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">
-                          <span>{application.currentStage.replaceAll("_", " ")}</span>
+                          <span>Application</span>
                           <span className={`inline-flex rounded-full px-3 py-1 text-[11px] ${getStatusTone(application.status)}`}>
-                            {application.status.replaceAll("_", " ")}
+                            {getApplicantFacingStatus(application)}
                           </span>
-                          <span className="text-slate-500">{isExpanded ? "Collapse" : "Expand"}</span>
+                          <span aria-hidden="true" className={`inline-block text-[2.5rem] leading-none text-slate-500 transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`}>▾</span>
                         </div>
                         <div className="mt-2 flex items-center gap-3">
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
@@ -396,7 +495,7 @@ export default function ApplicantTenancyWorkflow({
                         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
                           <span>{application.propertyCity}</span>
                           <span>£{application.monthlyRent.toLocaleString()}/month</span>
-                          <span>Pre-screening: {application.preScreeningSummary.outcome}</span>
+                          <span>Application received</span>
                         </div>
                       </summary>
                     </details>
@@ -416,48 +515,36 @@ export default function ApplicantTenancyWorkflow({
                       >
                         {canEdit ? "Edit application" : "Editing locked"}
                       </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={() => handleWithdrawApplication(application)}
+                        disabled={!canWithdraw || isPending}
+                        title={canWithdraw ? "Withdraw this application" : "This application can no longer be withdrawn."}
+                      >
+                        Withdraw
+                      </button>
                     </div>
                   </div>
 
                   {isExpanded ? (
                     <div id={panelId} role="region" aria-labelledby={triggerId} className="mt-4 border-t border-slate-200 pt-4">
-                      <div className="grid gap-4 lg:grid-cols-3">
+                      <div className="grid gap-4">
                         <div className="rounded-xl bg-white p-4">
-                          <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Pre-screening</div>
-                          <div className="mt-2 text-sm font-semibold text-slate-900">{application.preScreeningSummary.outcome}</div>
+                          <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Application details</div>
+                          <div className="mt-2 text-sm font-semibold text-slate-900">Submitted</div>
                           <p className="mt-2 text-sm text-slate-600">
-                            Income ratio: {application.preScreeningSummary.affordabilityRatio.toFixed(2)}x target
+                            Your submitted details are attached to this application.
                           </p>
                           <p className="mt-2 text-sm text-slate-600">
                             Preferred contact: {formatPreferredContactMethods(application.preScreening.preferredContactMethods)}
                           </p>
                         </div>
-                        <div className="rounded-xl bg-white p-4">
-                          <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Referencing</div>
-                          <div className="mt-2 text-sm font-semibold text-slate-900">{application.referencingReport.outcome.replaceAll("_", " ")}</div>
-                          <p className="mt-2 text-sm text-slate-600">
-                            SharePoint-ready file: {application.referencingInstruction.sharePointFileStatus.replaceAll("_", " ")}
-                          </p>
-                        </div>
-                        <div className="rounded-xl bg-white p-4">
-                          <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Decision</div>
-                          <div className="mt-2 text-sm font-semibold text-slate-900">{application.approvalDecision.outcome.replaceAll("_", " ")}</div>
-                          <p className="mt-2 text-sm text-slate-600">
-                            Agreement signed: {application.tenancyAgreement.agreementSigned ? "Yes" : "No"}
-                          </p>
-                        </div>
                       </div>
 
-                      {application.preScreeningSummary.reasons.length > 0 ? (
-                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                          <div className="font-semibold">Pre-screening notes</div>
-                          <ul className="mt-2 list-disc pl-5">
-                            {application.preScreeningSummary.reasons.map((reason) => (
-                              <li key={reason}>{reason}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
+                      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                        This application is reviewed manually by the lettings team. No automated approval or decline is applied.
+                      </div>
 
                       {!canEdit ? (
                         <p className="mt-4 text-sm text-slate-500">
@@ -481,12 +568,27 @@ export default function ApplicantTenancyWorkflow({
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold text-slate-900">{editingApplicationId ? "Edit your application" : "Start an application"}</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          {editingApplicationId
-            ? "Update your pre-screening answers while the application is still in its early review stages."
-            : "This creates the pre-screening summary and opens the referencing workflow if the initial checks pass."}
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">{editingApplicationId ? "Edit your application" : "Start an application"}</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              {editingApplicationId
+                ? "Update your application details while it is in review."
+                : "This submits your application for manual review by the lettings team."}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+            aria-label={isApplicationFormOpen ? "Collapse panel" : "Expand panel"}
+            onClick={() => setIsApplicationFormOpen((current) => !current)}
+          >
+            <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isApplicationFormOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
+          </button>
+        </div>
+
+        {isApplicationFormOpen ? (
+          <>
 
         {feedback ? (
           <div
@@ -513,9 +615,11 @@ export default function ApplicantTenancyWorkflow({
         ) : null}
 
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-          {savedApplicantProfile
+          {hasMeaningfulApplicantProfile(savedApplicantProfile)
             ? "Saved profile defaults are active. New applications will start with your stored answers, but you will still need to give fresh consent for each submission."
-            : "You can save the answers below to your applicant profile so future applications start pre-filled."}
+            : effectiveApplicantProfile
+              ? "Your latest application answers are being used as defaults. Save profile defaults if you want these details locked in for future applications."
+              : "You can save the answers below to your applicant profile so future applications start pre-filled."}
         </div>
 
         <form className="mt-6 grid gap-4 lg:grid-cols-2" onSubmit={handleSubmit}>
@@ -599,10 +703,13 @@ export default function ApplicantTenancyWorkflow({
           </label>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 lg:col-span-2">
-            <div className="font-medium text-slate-900">Preferred contact methods</div>
+            <div className="font-medium text-slate-900">Acceptable communication channels</div>
             <p className="mt-2 text-sm text-slate-600">
-              Select every channel you are happy for the lettings team to use during pre-screening, referencing, and move-in coordination.
+              Select every additional channel you are happy for the lettings team to use during review, referencing, and move-in coordination. RentSimple app messages are mandatory.
             </p>
+            <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-900">
+              RentSimple app (mandatory)
+            </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {preferredContactMethodOptions.map((option) => (
                 <label key={option.value} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700">
@@ -670,11 +777,7 @@ export default function ApplicantTenancyWorkflow({
           </label>
 
           <div className="lg:col-span-2 flex flex-col gap-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              {selectedProperty
-                ? `Affordability target: £${Math.round(selectedProperty.monthlyRent * 12 * selectedProperty.affordabilityMultiple).toLocaleString()} annual income at ${selectedProperty.affordabilityMultiple.toFixed(1)}x`
-                : "Select a property to see the affordability target."}
-            </div>
+            <div>Your application will be reviewed manually by the lettings team.</div>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -706,6 +809,12 @@ export default function ApplicantTenancyWorkflow({
           {!formState.creditCheckConsentGiven ? <div className="lg:col-span-2 text-sm text-amber-700">You must agree to the credit and referencing checks before you can submit.</div> : null}
           {duplicateSelectedProperty ? <div className="lg:col-span-2 text-sm text-amber-700">This property already has an active application under your account.</div> : null}
         </form>
+          </>
+        ) : (
+          <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            The application form is collapsed. Expand it using the arrow when you want to continue.
+          </div>
+        )}
       </section>
     </div>
   )

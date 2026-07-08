@@ -53,6 +53,7 @@ const statusOptions: Array<{ value: TenancyApplicationStatus; label: string }> =
   { value: "approved", label: "Approved" },
   { value: "approved_with_guarantor", label: "Approved with guarantor" },
   { value: "declined", label: "Declined" },
+  { value: "withdrawn", label: "Withdrawn" },
   { value: "agreement_in_progress", label: "Agreement in progress" },
   { value: "pre_move_in_ready", label: "Pre-move-in ready" },
   { value: "move_in_ready", label: "Move-in ready" },
@@ -91,6 +92,7 @@ function getStatusTone(status: TenancyApplicationStatus) {
     case "active_tenant":
       return "bg-emerald-100 text-emerald-900"
     case "declined":
+    case "withdrawn":
     case "pre_screen_failed":
       return "bg-rose-100 text-rose-900"
     default:
@@ -344,9 +346,10 @@ export default function ApplicationReviewManager({
                 <button
                   type="button"
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
+                  aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
                   onClick={() => toggleApplication(application.id)}
                 >
-                  {isExpanded ? "Collapse" : "Expand"}
+                  <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`}>▾</span>
                 </button>
               </div>
             </div>

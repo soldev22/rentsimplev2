@@ -833,9 +833,10 @@ export default function PropertyManager({
             <button
               type="button"
               className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+              aria-label={isCreatePanelOpen ? "Collapse panel" : "Expand panel"}
               onClick={() => setIsCreatePanelOpen((current) => !current)}
             >
-              {isCreatePanelOpen ? "Collapse" : "Expand"}
+              <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isCreatePanelOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
             </button>
           </div>
 
@@ -1093,9 +1094,10 @@ export default function PropertyManager({
             <button
               type="button"
               className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+              aria-label={isPortfolioOpen ? "Collapse panel" : "Expand panel"}
               onClick={() => setIsPortfolioOpen((current) => !current)}
             >
-              {isPortfolioOpen ? "Collapse" : "Expand"}
+              <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isPortfolioOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
             </button>
           </div>
 

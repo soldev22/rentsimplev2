@@ -105,7 +105,15 @@ function assertReviewer(user: AuthUser) {
 }
 
 function canApplicantEditApplication(application: TenancyApplicationRecord) {
-  return application.approvalDecision.outcome === "pending"
+  return application.approvalDecision.outcome === "pending" && application.status !== "withdrawn"
+}
+
+function canApplicantWithdrawApplication(application: TenancyApplicationRecord) {
+  return (
+    application.approvalDecision.outcome === "pending" &&
+    application.status !== "withdrawn" &&
+    application.status !== "active_tenant"
+  )
 }
 
 function canApplicantCompleteChecklist(application: TenancyApplicationRecord) {
@@ -892,19 +900,40 @@ export async function listApplicationsForReview(user: AuthUser, landlordId?: str
   return paged.items
 }
 
-export async function listApplicationsForReviewPage(user: AuthUser, landlordId?: string, options?: PageOptions) {
+export async function listApplicationsForReviewPage(
+  user: AuthUser,
+  landlordId?: string,
+  options?: PageOptions & {
+    statusFilter?: "withdrawn" | "non_withdrawn"
+  },
+) {
   assertReviewer(user)
 
   const container = await getApplicationsContainer()
   const { page, pageSize, offset } = normalizePageOptions(options, { defaultPageSize: 25, maxPageSize: 100 })
   const role = getUserRole(user)
+  const statusFilter = options?.statusFilter
+
+  const statusWhereClause =
+    statusFilter === "withdrawn"
+      ? " c.status = @withdrawnStatus"
+      : statusFilter === "non_withdrawn"
+        ? " c.status != @withdrawnStatus"
+        : ""
+  const statusParameters = statusFilter ? [{ name: "@withdrawnStatus", value: "withdrawn" }] : []
 
   if (role === "admin" && !landlordId) {
+    const countQuery = statusWhereClause ? `SELECT VALUE COUNT(1) FROM c WHERE${statusWhereClause}` : "SELECT VALUE COUNT(1) FROM c"
+    const dataQuery = statusWhereClause
+      ? `SELECT * FROM c WHERE${statusWhereClause} ORDER BY c.createdAt DESC OFFSET ${offset} LIMIT ${pageSize}`
+      : `SELECT * FROM c ORDER BY c.createdAt DESC OFFSET ${offset} LIMIT ${pageSize}`
+
     const [{ resources: countRows }, { resources }] = await Promise.all([
-      container.items.query<number>({ query: "SELECT VALUE COUNT(1) FROM c" }).fetchAll(),
+      container.items.query<number>({ query: countQuery, parameters: statusParameters }).fetchAll(),
       container.items
         .query<TenancyApplicationRecord>({
-          query: `SELECT * FROM c ORDER BY c.createdAt DESC OFFSET ${offset} LIMIT ${pageSize}`,
+          query: dataQuery,
+          parameters: statusParameters,
         })
         .fetchAll(),
     ])
@@ -922,13 +951,16 @@ export async function listApplicationsForReviewPage(user: AuthUser, landlordId?:
 
   const parameters = propertyIds.map((propertyId, index) => ({ name: `@propertyId${index}`, value: propertyId }))
   const inClause = parameters.map((parameter) => parameter.name).join(", ")
-  const whereClause = ` WHERE c.propertyId IN (${inClause})`
+  const whereClause = statusWhereClause
+    ? ` WHERE c.propertyId IN (${inClause}) AND${statusWhereClause}`
+    : ` WHERE c.propertyId IN (${inClause})`
   const countQuery = `SELECT VALUE COUNT(1) FROM c${whereClause}`
   const dataQuery = `SELECT * FROM c${whereClause} ORDER BY c.createdAt DESC OFFSET ${offset} LIMIT ${pageSize}`
+  const queryParameters = [...parameters, ...statusParameters]
 
   const [{ resources: countRows }, { resources }] = await Promise.all([
-    container.items.query<number>({ query: countQuery, parameters }).fetchAll(),
-    container.items.query<TenancyApplicationRecord>({ query: dataQuery, parameters }).fetchAll(),
+    container.items.query<number>({ query: countQuery, parameters: queryParameters }).fetchAll(),
+    container.items.query<TenancyApplicationRecord>({ query: dataQuery, parameters: queryParameters }).fetchAll(),
   ])
 
   const hydratedApplications = await hydrateApplicationsWithCommunications(resources)
@@ -1029,7 +1061,7 @@ export async function createTenancyApplication(user: AuthUser, input: CreateTena
     })
     .fetchAll()
 
-  if (existingApplications.some((application) => application.status !== "declined")) {
+  if (existingApplications.some((application) => application.status !== "declined" && application.status !== "withdrawn")) {
     throw new Error("ApplicationAlreadyExists")
   }
 
@@ -1049,8 +1081,8 @@ export async function createTenancyApplication(user: AuthUser, input: CreateTena
     applicantId: user.id,
     applicantEmail: user.email,
     applicantName: getDisplayName(user),
-    currentStage: preScreeningSummary.outcome === "pass" ? "referencing_instruction" : "pre_screening",
-    status: preScreeningSummary.outcome === "pass" ? "pre_screen_passed" : "pre_screen_failed",
+    currentStage: "pre_screening",
+    status: "submitted",
     submittedAt: now,
     createdAt: now,
     updatedAt: now,
@@ -1210,14 +1242,6 @@ export async function updateApplicationForApplicant(user: AuthUser, applicationI
     updatedAt: new Date().toISOString(),
     preScreening: questionnaire,
     preScreeningSummary,
-  }
-
-  if (preScreeningSummary.outcome === "fail") {
-    nextApplication.currentStage = "pre_screening"
-    nextApplication.status = "pre_screen_failed"
-  } else if (existingApplication.currentStage === "pre_screening") {
-    nextApplication.currentStage = "referencing_instruction"
-    nextApplication.status = "pre_screen_passed"
   }
 
   const container = await getApplicationsContainer()
@@ -1440,6 +1464,56 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
   if (auditEvents.length > 0) {
     await writeAuditEvents(auditEvents)
   }
+
+  return nextApplication
+}
+
+export async function withdrawApplicationForApplicant(user: AuthUser, applicationId: string) {
+  assertApplicant(user)
+
+  const existingApplication = await getApplicationById(applicationId)
+
+  if (!existingApplication || existingApplication.applicantId !== user.id) {
+    return null
+  }
+
+  if (!canApplicantWithdrawApplication(existingApplication)) {
+    throw new Error("ApplicantWithdrawLocked")
+  }
+
+  const now = new Date().toISOString()
+  const nextApplication: TenancyApplicationRecord = {
+    ...existingApplication,
+    status: "withdrawn",
+    updatedAt: now,
+  }
+
+  const container = await getApplicationsContainer()
+  await syncStoredCommunicationEntries(nextApplication, nextApplication.postMoveInManagement.communicationEntries)
+  await container.item(nextApplication.id, nextApplication.applicantId).replace(stripStoredCommunicationEntries(nextApplication))
+
+  const auditEvents = [
+    ...buildApplicationAuditEvents(existingApplication, nextApplication, user),
+    ...buildCommunicationAuditEvents(
+      existingApplication.postMoveInManagement.communicationEntries,
+      nextApplication.postMoveInManagement.communicationEntries,
+      nextApplication,
+      user,
+    ),
+    {
+      entityType: "application",
+      entityId: nextApplication.id,
+      action: "application_withdrawn",
+      fieldPath: "status",
+      oldValue: existingApplication.status,
+      newValue: nextApplication.status,
+      performedBy: user.email,
+      metadata: getAuditMetadata(nextApplication, user),
+      timestamp: nextApplication.updatedAt,
+    },
+  ]
+
+  await writeAuditEvents(auditEvents)
 
   return nextApplication
 }

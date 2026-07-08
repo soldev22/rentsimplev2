@@ -20,6 +20,7 @@ export type TenancyApplicationStatus =
   | "approved"
   | "approved_with_guarantor"
   | "declined"
+  | "withdrawn"
   | "agreement_in_progress"
   | "pre_move_in_ready"
   | "move_in_ready"
