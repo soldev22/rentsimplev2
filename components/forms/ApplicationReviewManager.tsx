@@ -98,7 +98,7 @@ const refereeChannelOptions: Array<{ value: RefereeRequestChannel; label: string
 
 function createCommunicationDraft(): CommunicationDraft {
   return {
-    occurredAt: new Date().toISOString().slice(0, 16),
+    occurredAt: toDateTimeLocalInputValue(new Date().toISOString()),
     channel: "email",
     direction: "outbound",
     subject: "",
@@ -1357,7 +1357,7 @@ export default function ApplicationReviewManager({
                     <input
                       className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
                       type="datetime-local"
-                      value={siteVisitScheduledAt ? siteVisitScheduledAt.slice(0, 16) : ""}
+                      value={toDateTimeLocalInputValue(siteVisitScheduledAt)}
                       onChange={(event) =>
                         updateApplication(application.id, (current) => ({
                           ...current,
@@ -1371,7 +1371,7 @@ export default function ApplicationReviewManager({
                                 notes: "",
                                 inviteStatus: "not_sent",
                               }),
-                              scheduledAt: event.target.value ? new Date(event.target.value).toISOString() : undefined,
+                              scheduledAt: fromDateTimeLocalInputValue(event.target.value),
                               status:
                                 event.target.value && current.preMoveInCompliance.siteVisit?.status === "not_scheduled"
                                   ? "scheduled"
@@ -1388,7 +1388,7 @@ export default function ApplicationReviewManager({
                     <input
                       className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
                       type="datetime-local"
-                      value={siteVisitCompletedAt ? siteVisitCompletedAt.slice(0, 16) : ""}
+                      value={toDateTimeLocalInputValue(siteVisitCompletedAt)}
                       onChange={(event) =>
                         updateApplication(application.id, (current) => ({
                           ...current,
@@ -1402,7 +1402,7 @@ export default function ApplicationReviewManager({
                                 notes: "",
                                 inviteStatus: "not_sent",
                               }),
-                              completedAt: event.target.value ? new Date(event.target.value).toISOString() : undefined,
+                              completedAt: fromDateTimeLocalInputValue(event.target.value),
                               status: event.target.value ? "completed" : (current.preMoveInCompliance.siteVisit?.status ?? "not_scheduled"),
                             },
                           },
@@ -2406,4 +2406,36 @@ function getSiteVisitInviteTone(status: TenancyApplicationRecord["preMoveInCompl
   }
 
   return "text-slate-700"
+}
+
+function toDateTimeLocalInputValue(value?: string) {
+  if (!value) {
+    return ""
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return ""
+  }
+
+  const year = parsed.getFullYear()
+  const month = String(parsed.getMonth() + 1).padStart(2, "0")
+  const day = String(parsed.getDate()).padStart(2, "0")
+  const hours = String(parsed.getHours()).padStart(2, "0")
+  const minutes = String(parsed.getMinutes()).padStart(2, "0")
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+function fromDateTimeLocalInputValue(value: string) {
+  if (!value) {
+    return undefined
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined
+  }
+
+  return parsed.toISOString()
 }
