@@ -918,7 +918,7 @@ export async function listApplicationsForReviewPage(
     statusFilter === "withdrawn"
       ? " c.status = @withdrawnStatus"
       : statusFilter === "non_withdrawn"
-        ? " c.status != @withdrawnStatus"
+        ? " (NOT IS_DEFINED(c.status) OR IS_NULL(c.status) OR c.status != @withdrawnStatus)"
         : ""
   const statusParameters = statusFilter ? [{ name: "@withdrawnStatus", value: "withdrawn" }] : []
 
@@ -1516,4 +1516,60 @@ export async function withdrawApplicationForApplicant(user: AuthUser, applicatio
   await writeAuditEvents(auditEvents)
 
   return nextApplication
+}
+
+export async function deleteApplicationForAdmin(user: AuthUser, applicationId: string) {
+  if (getUserRole(user) !== "admin") {
+    throw new Error("Forbidden")
+  }
+
+  const existingApplication = await getApplicationById(applicationId)
+
+  if (!existingApplication) {
+    return null
+  }
+
+  const applicationsContainer = await getApplicationsContainer()
+  const communicationsContainer = await getApplicationCommunicationsContainer()
+  const communicationRecords = await listStoredCommunicationRecordsByApplicationIds([existingApplication.id])
+
+  await Promise.all(
+    communicationRecords.map((record) =>
+      communicationsContainer.item(record.id, record.applicationId).delete().catch((error: unknown) => {
+        if (!isNotFoundError(error)) {
+          throw error
+        }
+      }),
+    ),
+  )
+
+  await applicationsContainer.item(existingApplication.id, existingApplication.applicantId).delete()
+
+  const deletedCheck = await getApplicationById(existingApplication.id)
+  if (deletedCheck) {
+    throw new Error("ApplicationDeleteFailed")
+  }
+
+  await writeAuditEvents([
+    {
+      entityType: "application",
+      entityId: existingApplication.id,
+      action: "application_deleted_by_admin",
+      oldValue: {
+        status: existingApplication.status,
+        currentStage: existingApplication.currentStage,
+        applicantId: existingApplication.applicantId,
+        propertyId: existingApplication.propertyId,
+      },
+      newValue: null,
+      performedBy: user.email,
+      metadata: {
+        ...getAuditMetadata(existingApplication, user),
+        mode: "hard_delete",
+      },
+      timestamp: new Date().toISOString(),
+    },
+  ])
+
+  return existingApplication
 }

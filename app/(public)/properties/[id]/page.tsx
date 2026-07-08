@@ -26,23 +26,29 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
 
   const applicantApplications = sessionUser && getUserRole(sessionUser) === "applicant" ? await listApplicationsForApplicant(sessionUser) : []
   const existingApplication = applicantApplications.find(
-    (application) => application.propertyId === property.id && application.status !== "declined",
+    (application) =>
+      application.propertyId === property.id &&
+      application.status !== "declined" &&
+      application.status !== "withdrawn",
   )
 
   const approvedImages = property.images.filter((image) => image.moderationStatus === "approved")
   const heroImage = approvedImages[0] ?? null
+  const applicantPropertyPath = `/dashboard/applicant?propertyId=${property.id}`
+  const encodedApplicantPropertyPath = encodeURIComponent(applicantPropertyPath)
   const applicationCtaHref =
     existingApplication
       ? "/dashboard/applicant"
       : sessionUser && getUserRole(sessionUser) === "applicant"
-      ? `/dashboard/applicant?propertyId=${property.id}`
-      : "/login?mode=register"
+      ? applicantPropertyPath
+      : `/login?mode=register&redirectTo=${encodedApplicantPropertyPath}`
+  const signInApplyHref = `/login?redirectTo=${encodedApplicantPropertyPath}`
   const applicationCtaLabel =
     existingApplication
       ? "View your application"
       : sessionUser && getUserRole(sessionUser) === "applicant"
-      ? "Apply for tenancy"
-      : "Register as applicant"
+      ? "Apply for this flat"
+      : "Register to apply"
   const canQuickApply = Boolean(
     sessionUser &&
       getUserRole(sessionUser) === "applicant" &&
@@ -130,9 +136,17 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
               <div className="mt-6 space-y-3">
                 {existingApplication ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    You already have an active application for this property. Status: {existingApplication.status.replaceAll("_", " ")}.
+                    You are already registered for this flat. Status: {existingApplication.status.replaceAll("_", " ")}.
                   </div>
-                ) : null}
+                ) : sessionUser && getUserRole(sessionUser) === "applicant" ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                    You can apply for this flat now.
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
+                    Register as an applicant to apply for this flat and use Quick Apply.
+                  </div>
+                )}
                 {canQuickApply && sessionUser?.applicantProfile ? (
                   <QuickApplyCard
                     propertyId={property.id}
@@ -144,15 +158,17 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
                 <Link href={applicationCtaHref} className="block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-slate-800">
                   {applicationCtaLabel}
                 </Link>
-                <Link href="/login" className="block rounded-xl border border-slate-300 px-4 py-3 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">
-                  Sign in to save property
-                </Link>
+                {!sessionUser ? (
+                  <Link href={signInApplyHref} className="block rounded-xl border border-slate-300 px-4 py-3 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">
+                    Already registered? Sign in to apply
+                  </Link>
+                ) : null}
               </div>
             </aside>
           </div>
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid gap-6">
           <div className="space-y-6">
             <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">Property overview</h2>
@@ -180,15 +196,6 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
             </section>
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-            <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Why this works</div>
-              <div className="mt-3 space-y-3 text-sm text-slate-600">
-                <p>Quick facts up front, large hero image, then long-form detail below.</p>
-                <p>This keeps the detail view aligned with the faster portal-style search experience.</p>
-              </div>
-            </section>
-          </aside>
         </div>
 
         <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">

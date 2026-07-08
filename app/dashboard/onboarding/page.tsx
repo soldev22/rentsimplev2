@@ -127,7 +127,7 @@ export default async function OnboardingDashboardPage() {
               Open properties
             </Link>
             <Link
-              href="/dashboard/bookings"
+              href="/dashboard/applications"
               className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
             >
               Open applications

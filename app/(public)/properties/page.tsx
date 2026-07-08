@@ -1,8 +1,11 @@
 import Image from "next/image"
 import Link from "next/link"
 
+import { getUserRole } from "@/lib/auth"
+import { listApplicationsForApplicant } from "@/lib/server/applications"
 import { getPropertyImageLabel, getPropertyImagePath } from "@/lib/auth"
 import { listPublicAvailableProperties } from "@/lib/server/properties"
+import { getSessionUser } from "@/lib/server/session"
 
 type PropertiesPageProps = {
   searchParams: Promise<{
@@ -52,6 +55,14 @@ function sortProperties(
 
 export default async function PublicPropertiesPage({ searchParams }: PropertiesPageProps) {
   const { q = "", type = "", beds = "", maxRent = "", sort = "recommended" } = await searchParams
+  const sessionUser = await getSessionUser()
+  const isApplicant = Boolean(sessionUser && getUserRole(sessionUser) === "applicant")
+  const applicantApplications = isApplicant ? await listApplicationsForApplicant(sessionUser!) : []
+  const activeApplicationByPropertyId = new Map(
+    applicantApplications
+      .filter((application) => application.status !== "declined" && application.status !== "withdrawn")
+      .map((application) => [application.propertyId, application]),
+  )
   const allProperties = await listPublicAvailableProperties(q)
   const minimumBedrooms = parseNonNegativeNumber(beds)
   const maximumRent = parseNonNegativeNumber(maxRent)
@@ -177,6 +188,34 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
             <div className="space-y-4">
             {filteredProperties.map((property) => {
               const heroImage = property.images.find((image) => image.moderationStatus === "approved")
+              const existingApplication = activeApplicationByPropertyId.get(property.id)
+              const quickApplyStatus = !sessionUser
+                ? {
+                    tone: "border-cyan-200 bg-cyan-50 text-cyan-900",
+                    message: "Register as an applicant to apply for this flat with Quick Apply.",
+                    ctaHref: "/login?mode=register",
+                    ctaLabel: "Register to apply",
+                  }
+                : isApplicant
+                  ? existingApplication
+                    ? {
+                        tone: "border-amber-200 bg-amber-50 text-amber-900",
+                        message: "You are already registered for this flat.",
+                        ctaHref: "/dashboard/applicant",
+                        ctaLabel: "View your application",
+                      }
+                    : {
+                        tone: "border-emerald-200 bg-emerald-50 text-emerald-900",
+                        message: "You can apply for this flat now using Quick Apply.",
+                        ctaHref: `/dashboard/applicant?propertyId=${property.id}`,
+                        ctaLabel: "Apply now",
+                      }
+                  : {
+                      tone: "border-cyan-200 bg-cyan-50 text-cyan-900",
+                      message: "Register as an applicant to apply for this flat.",
+                      ctaHref: "/login?mode=register",
+                      ctaLabel: "Register to apply",
+                    }
 
               return (
               <article key={property.id} className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_14px_48px_rgba(15,23,42,0.08)] transition-transform hover:-translate-y-0.5 hover:shadow-[0_18px_58px_rgba(15,23,42,0.14)]">
@@ -235,6 +274,13 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                           Open listing
                         </Link>
                       </div>
+                    </div>
+
+                    <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${quickApplyStatus.tone}`}>
+                      <span className="font-medium">{quickApplyStatus.message}</span>
+                      <Link href={quickApplyStatus.ctaHref} className="font-semibold underline-offset-2 hover:underline">
+                        {quickApplyStatus.ctaLabel}
+                      </Link>
                     </div>
                   </div>
                 </div>

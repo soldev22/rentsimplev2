@@ -62,14 +62,19 @@ export default function AppChrome({
                     Login
                   </Link>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    disabled={isSigningOut}
-                    className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isSigningOut ? "Signing out..." : "Logout"}
-                  </button>
+                  <>
+                    <Link href="/dashboard" className="rounded border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white">
+                      Dashboard
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      disabled={isSigningOut}
+                      className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isSigningOut ? "Signing out..." : "Logout"}
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -98,14 +103,19 @@ export default function AppChrome({
                   Login
                 </Link>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  disabled={isSigningOut}
-                  className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSigningOut ? "Signing out..." : "Logout"}
-                </button>
+                <>
+                  <Link href="/dashboard" className="rounded border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white">
+                    Dashboard
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={isSigningOut}
+                    className="rounded bg-white px-4 py-2 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSigningOut ? "Signing out..." : "Logout"}
+                  </button>
+                </>
               )}
             </div>
           </div>

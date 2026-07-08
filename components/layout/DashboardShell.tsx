@@ -37,7 +37,7 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
           { name: "Properties", href: "/dashboard/properties" },
           { name: "Cases", href: "/dashboard/cases" },
           ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
-            ? [{ name: "Applications", href: "/dashboard/bookings" }]
+            ? [{ name: "Applications", href: "/dashboard/applications" }]
             : []),
           { name: "Tenants", href: "/dashboard/tenants" },
           { name: "Maintenance", href: "/dashboard/maintenance" },
@@ -96,6 +96,12 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
                   <div className="text-xs uppercase tracking-[0.2em] text-cyan-200">{displayRole}</div>
                 </div>
                 <Link
+                  href="/dashboard"
+                  className="rounded border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+                >
+                  Dashboard
+                </Link>
+                <Link
                   href="/"
                   className="rounded border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
                 >
@@ -129,7 +135,7 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
           </p>
           <h1 className="mt-3 text-2xl font-bold text-slate-900">Operations Hub</h1>
           <p className="mt-2 text-sm text-slate-600">
-            Properties, tenants, bookings, and settings in one focused workspace.
+            Properties, tenants, applications, and settings in one focused workspace.
           </p>
         </div>
 
@@ -163,6 +169,12 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
               <div>Logged in as: {displayName}</div>
               <div className="text-xs uppercase tracking-[0.2em] text-cyan-200">{displayRole}</div>
             </div>
+            <Link
+              href="/dashboard"
+              className="rounded border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+            >
+              Dashboard
+            </Link>
             <Link
               href="/"
               className="rounded border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
@@ -202,7 +214,7 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
         <footer className="brand-shell-surface mx-4 mb-4 mt-auto rounded-2xl border border-white/10 px-6 py-4 text-sm text-slate-200 shadow-sm">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <span className="font-semibold text-white">RentSimple Dashboard</span> for properties, tenants, bookings, and account operations.
+              <span className="font-semibold text-white">RentSimple Dashboard</span> for properties, tenants, applications, and account operations.
             </div>
             <div className="flex flex-wrap items-center gap-4 text-slate-300">
               <Link href="/dashboard" className="hover:text-white">
@@ -239,7 +251,7 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
                   Applications
                 </Link>
               ) : (
-                <Link href="/dashboard/bookings" className="hover:text-white">
+                <Link href="/dashboard/applications" className="hover:text-white">
                   Applications
                 </Link>
               )}

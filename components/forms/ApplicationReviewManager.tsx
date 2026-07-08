@@ -20,6 +20,7 @@ type ApplicationReviewManagerProps = {
   initialApplications: TenancyApplicationRecord[]
   initialAuditEventsByApplicationId: Record<string, AuditEventRecord[]>
   currentUserDisplayName: string
+  isAdmin?: boolean
 }
 
 type FeedbackState = Record<string, { type: "success" | "error"; message: string } | null>
@@ -158,12 +159,14 @@ export default function ApplicationReviewManager({
   initialApplications,
   initialAuditEventsByApplicationId,
   currentUserDisplayName,
+  isAdmin = false,
 }: ApplicationReviewManagerProps) {
   const [applications, setApplications] = useState(initialApplications)
   const [auditEventsByApplicationId, setAuditEventsByApplicationId] = useState(initialAuditEventsByApplicationId)
   const [feedback, setFeedback] = useState<FeedbackState>({})
+  const [globalFeedback, setGlobalFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
   const [communicationDrafts, setCommunicationDrafts] = useState<Record<string, CommunicationDraft>>({})
-  const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(initialApplications[0]?.id ?? null)
+  const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(null)
   const [fullAuditApplicationId, setFullAuditApplicationId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -234,6 +237,60 @@ export default function ApplicationReviewManager({
 
   function toggleApplication(applicationId: string) {
     setExpandedApplicationId((current) => (current === applicationId ? null : applicationId))
+  }
+
+  function deleteApplicationPermanently(applicationId: string) {
+    if (!isAdmin) {
+      return
+    }
+
+    const shouldDelete = window.confirm(
+      "Delete this application permanently? This cannot be undone and is intended for dev/testing use only.",
+    )
+
+    if (!shouldDelete) {
+      return
+    }
+
+    setGlobalFeedback(null)
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/applications/${applicationId}`, {
+          method: "DELETE",
+        })
+
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              message?: string
+              deletedApplicationId?: string
+              error?: string
+            }
+          | null
+
+        if (!response.ok) {
+          throw new Error(payload?.error || "Unable to delete application.")
+        }
+
+        setApplications((current) => current.filter((application) => application.id !== applicationId))
+        setAuditEventsByApplicationId((current) => {
+          const next = { ...current }
+          delete next[applicationId]
+          return next
+        })
+        setExpandedApplicationId((current) => (current === applicationId ? null : current))
+        setFullAuditApplicationId((current) => (current === applicationId ? null : current))
+        setGlobalFeedback({
+          type: "success",
+          message: payload?.message || "Application deleted.",
+        })
+      } catch (error) {
+        setGlobalFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to delete application.",
+        })
+      }
+    })
   }
 
   const fullAuditApplication = fullAuditApplicationId
@@ -319,6 +376,18 @@ export default function ApplicationReviewManager({
         </div>
       </section>
 
+      {globalFeedback ? (
+        <section
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            globalFeedback.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : "border-rose-200 bg-rose-50 text-rose-900"
+          }`}
+        >
+          {globalFeedback.message}
+        </section>
+      ) : null}
+
       {applications.length === 0 ? (
         <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600 shadow-sm">
           No applications have been submitted yet.
@@ -343,6 +412,16 @@ export default function ApplicationReviewManager({
                 <div className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getStatusTone(application.status)}`}>
                   {application.status.replaceAll("_", " ")}
                 </div>
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    className="rounded-md border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                    onClick={() => deleteApplicationPermanently(application.id)}
+                    disabled={isPending}
+                  >
+                    Delete permanently
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"

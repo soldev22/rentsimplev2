@@ -35,7 +35,7 @@ function buildWithdrawnBookingsPageHref(input: { page: number; pageSize: number;
   }
 
   const query = params.toString()
-  return query ? `/dashboard/bookings/withdrawn?${query}` : "/dashboard/bookings/withdrawn"
+  return query ? `/dashboard/applications/withdrawn?${query}` : "/dashboard/applications/withdrawn"
 }
 
 function buildBookingsPageHref(input: { landlordId?: string }) {
@@ -46,7 +46,7 @@ function buildBookingsPageHref(input: { landlordId?: string }) {
   }
 
   const query = params.toString()
-  return query ? `/dashboard/bookings?${query}` : "/dashboard/bookings"
+  return query ? `/dashboard/applications?${query}` : "/dashboard/applications"
 }
 
 export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnBookingsPageProps) {
@@ -74,11 +74,19 @@ export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnB
   const pageSize = Number.isFinite(Number(pageSizeParam))
     ? Math.min(100, Math.max(10, Math.floor(Number(pageSizeParam))))
     : 25
+  const landlords = role === "admin" || role === "agent" ? await listLandlordDirectoryForUser(user) : []
+  const effectiveLandlordId =
+    role === "admin" || role === "agent"
+      ? landlordId && landlords.some((landlord) => landlord.id === landlordId)
+        ? landlordId
+        : undefined
+      : undefined
 
-  const [pagedApplications, landlords] = await Promise.all([
-    listApplicationsForReviewPage(user, landlordId, { page, pageSize, statusFilter: "withdrawn" }),
-    role === "admin" || role === "agent" ? listLandlordDirectoryForUser(user) : Promise.resolve([]),
-  ])
+  const pagedApplications = await listApplicationsForReviewPage(user, effectiveLandlordId, {
+    page,
+    pageSize,
+    statusFilter: "withdrawn",
+  })
 
   const auditEventsByApplicationId = await listAuditEventsForEntities(
     "application",
@@ -90,7 +98,7 @@ export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnB
       {role === "admin" || role === "agent" ? (
         <LandlordScopePicker
           landlords={landlords}
-          selectedLandlordId={landlordId}
+          selectedLandlordId={effectiveLandlordId}
           allLabel={role === "admin" ? "All landlords" : "All managed landlords"}
         />
       ) : null}
@@ -103,13 +111,13 @@ export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnB
           </span>
           <div className="flex items-center gap-3">
             <Link
-              href={buildBookingsPageHref({ landlordId })}
+              href={buildBookingsPageHref({ landlordId: effectiveLandlordId })}
               className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
             >
               Back to active applications
             </Link>
             <form method="get" className="flex items-center gap-2">
-              {landlordId ? <input type="hidden" name="landlordId" value={landlordId} /> : null}
+              {effectiveLandlordId ? <input type="hidden" name="landlordId" value={effectiveLandlordId} /> : null}
               <label className="text-xs uppercase tracking-[0.14em] text-slate-500">Page size</label>
               <select
                 name="pageSize"
@@ -133,7 +141,7 @@ export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnB
             <div className="flex items-center gap-2">
               {pagedApplications.hasPreviousPage ? (
                 <Link
-                  href={buildWithdrawnBookingsPageHref({ page: pagedApplications.page - 1, pageSize, landlordId })}
+                  href={buildWithdrawnBookingsPageHref({ page: pagedApplications.page - 1, pageSize, landlordId: effectiveLandlordId })}
                   className="rounded-md border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100"
                 >
                   Previous
@@ -143,7 +151,7 @@ export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnB
               )}
               {pagedApplications.hasNextPage ? (
                 <Link
-                  href={buildWithdrawnBookingsPageHref({ page: pagedApplications.page + 1, pageSize, landlordId })}
+                  href={buildWithdrawnBookingsPageHref({ page: pagedApplications.page + 1, pageSize, landlordId: effectiveLandlordId })}
                   className="rounded-md border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100"
                 >
                   Next
@@ -165,6 +173,7 @@ export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnB
           initialApplications={pagedApplications.items}
           initialAuditEventsByApplicationId={Object.fromEntries(auditEventsByApplicationId)}
           currentUserDisplayName={`${user.first_name} ${user.last_name}`.trim() || user.email}
+          isAdmin={role === "admin"}
         />
       )}
     </div>

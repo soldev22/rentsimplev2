@@ -20,6 +20,18 @@ type FormState = {
 
 const redirectUrl = "/dashboard"
 
+function getSafeRedirectPath(redirectTo: string | null) {
+  if (!redirectTo) {
+    return null
+  }
+
+  if (!redirectTo.startsWith("/") || redirectTo.startsWith("//")) {
+    return null
+  }
+
+  return redirectTo
+}
+
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message
@@ -41,6 +53,12 @@ export default function LoginPage() {
       ? rawMode
       : "login"
   const token = searchParams.get("token") ?? ""
+  const redirectToParam = getSafeRedirectPath(searchParams.get("redirectTo"))
+  const redirectQuery = redirectToParam ? `&redirectTo=${encodeURIComponent(redirectToParam)}` : ""
+  const registerHref = `/login?mode=register${redirectQuery}`
+  const forgotHref = `/login?mode=forgot${redirectQuery}`
+  const verifyRequestHref = `/login?mode=verify-request${redirectQuery}`
+  const loginHref = redirectToParam ? `/login?redirectTo=${encodeURIComponent(redirectToParam)}` : "/login"
   const isRegistrationMode = mode === "register"
   const isForgotPasswordMode = mode === "forgot"
   const isResetPasswordMode = mode === "reset"
@@ -77,7 +95,7 @@ export default function LoginPage() {
         }
 
         if (data.user) {
-          router.replace(getDefaultDashboardPath(data.user))
+          router.replace(redirectToParam ?? getDefaultDashboardPath(data.user))
           router.refresh()
         }
       } catch {
@@ -90,7 +108,7 @@ export default function LoginPage() {
     return () => {
       isActive = false
     }
-  }, [router])
+  }, [redirectToParam, router])
 
   useEffect(() => {
     if (!isVerifyMode || !token) {
@@ -166,9 +184,9 @@ export default function LoginPage() {
         user?: Pick<AuthUser, "role" | "approval_status"> | null
       }
 
-      return getDefaultDashboardPath(data.user ?? null)
+        return redirectToParam ?? getDefaultDashboardPath(data.user ?? null)
     } catch {
-      return redirectUrl
+      return redirectToParam ?? redirectUrl
     }
   }
 
@@ -269,56 +287,26 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-6xl items-center px-6 py-12">
-      <div className="grid w-full gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.35em] text-cyan-700">
-            RentSimple Access
-          </p>
-          <h1 className="mt-6 text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
+    <div className="relative flex min-h-[calc(100dvh-4rem)] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,_#e0ecff_0%,_#f6f8fc_45%,_#f1f5f9_100%)] px-4 py-8">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white/95 p-6 shadow-2xl shadow-slate-300/40 backdrop-blur-sm sm:p-7">
+        <div className="mb-5 text-center">
+          <p className="text-[0.72rem] font-semibold tracking-[0.3em] text-slate-500">rentsimple</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
             {isRegistrationMode
-              ? "Create your account"
+              ? "Create account"
               : isForgotPasswordMode
-                ? "Reset your password"
+                ? "Reset password"
                 : isResetPasswordMode
-                  ? "Choose a new password"
+                  ? "Set new password"
                   : isVerifyMode
-                    ? "Verify your email"
+                    ? "Verify email"
                     : isVerifyRequestMode
                       ? "Resend verification"
-                      : "Sign in to your workspace"}
+                      : "Sign in"}
           </h1>
-          <p className="mt-5 max-w-2xl text-lg text-slate-600">
-            {isRegistrationMode
-              ? "Register directly as an applicant to start the tenancy process, or create a general account that waits for administrator allocation."
-              : isForgotPasswordMode
-                ? "Enter your email address and we will send you a password reset link if the account exists."
-                : isResetPasswordMode
-                  ? "Set a new password for your RentSimple account."
-                  : isVerifyMode
-                    ? "We are confirming your email address so your account can be activated."
-                    : isVerifyRequestMode
-                      ? "Request a fresh verification email if your original link expired or never arrived."
-                      : "Use your email and password to manage properties, applicants, and tenant activity from one place."}
-          </p>
-
-          <div className="mt-10 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-900">Property operations</p>
-              <p className="mt-2 text-sm text-slate-600">
-                Track homes, applications, and occupancy in one focused dashboard.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-slate-900">Approval workflow</p>
-              <p className="mt-2 text-sm text-slate-600">
-                Applicants can start straight away, while general accounts stay in the approval queue until an administrator assigns a role.
-              </p>
-            </div>
-          </div>
         </div>
 
-        <div className="mx-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-lg shadow-slate-200/60">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           {isVerifyMode ? (
             <div className="space-y-4">
               {errorMessage ? (
@@ -336,6 +324,7 @@ export default function LoginPage() {
               ) : null}
               <div className="text-center text-sm">
                 <Link href="/login" className="text-sky-700 hover:underline">
+                <Link href={loginHref} className="text-sky-700 hover:underline">
                   Back to login
                 </Link>
               </div>
@@ -480,47 +469,51 @@ export default function LoginPage() {
           </form>
           )}
 
-          <div className="mt-5 text-center text-sm">
+          <div className="mt-4 text-center text-sm">
             {isRegistrationMode ? (
               <>
                 Already have an account?{" "}
                 <Link href="/login" className="text-sky-700 hover:underline">
-                  Login
+                <Link href={loginHref} className="text-sky-700 hover:underline">
+                  Sign in
                 </Link>
               </>
             ) : isForgotPasswordMode ? (
               <>
                 Remembered your password?{" "}
                 <Link href="/login" className="text-sky-700 hover:underline">
-                  Back to login
+                <Link href={loginHref} className="text-sky-700 hover:underline">
+                  Sign in
                 </Link>
               </>
             ) : isResetPasswordMode ? (
               <>
                 Return to{" "}
                 <Link href="/login" className="text-sky-700 hover:underline">
-                  login
+                <Link href={loginHref} className="text-sky-700 hover:underline">
+                  sign in
                 </Link>
               </>
             ) : isVerifyRequestMode ? (
               <>
                 Already verified?{" "}
                 <Link href="/login" className="text-sky-700 hover:underline">
-                  Back to login
+                <Link href={loginHref} className="text-sky-700 hover:underline">
+                  Sign in
                 </Link>
               </>
             ) : (
               <>
                 Don&apos;t have an account?{" "}
-                <Link href="/login?mode=register" className="text-sky-700 hover:underline">
-                  Register
+                <Link href={registerHref} className="text-sky-700 hover:underline">
+                  Create one
                 </Link>
                 <span className="mx-2 text-slate-400">|</span>
-                <Link href="/login?mode=forgot" className="text-sky-700 hover:underline">
-                  Forgot password?
+                <Link href={forgotHref} className="text-sky-700 hover:underline">
+                  Reset password
                 </Link>
                 <span className="mx-2 text-slate-400">|</span>
-                <Link href="/login?mode=verify-request" className="text-sky-700 hover:underline">
+                <Link href={verifyRequestHref} className="text-sky-700 hover:underline">
                   Resend verification
                 </Link>
               </>

@@ -81,7 +81,7 @@ export default async function AgentDashboardPage() {
                 <Link href={`/dashboard/properties?landlordId=${landlord.id}`} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
                   View properties
                 </Link>
-                <Link href={`/dashboard/bookings?landlordId=${landlord.id}`} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
+                <Link href={`/dashboard/applications?landlordId=${landlord.id}`} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
                   View applicants
                 </Link>
                 <Link href={`/dashboard/tenants?landlordId=${landlord.id}`} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">

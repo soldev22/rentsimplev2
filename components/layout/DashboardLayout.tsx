@@ -10,7 +10,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Properties", href: "/dashboard/properties" },
     { name: "Cases", href: "/dashboard/cases" },
     { name: "Tenants", href: "/dashboard/tenants" },
-    { name: "Bookings", href: "/dashboard/bookings" },
+    { name: "Applications", href: "/dashboard/applications" },
     { name: "Settings", href: "/dashboard/settings" },
   ];
 
@@ -25,7 +25,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </p>
           <h1 className="mt-3 text-2xl font-bold text-white">Operations Hub</h1>
           <p className="mt-2 text-sm text-slate-200">
-            Properties, tenants, bookings, and settings from one control surface.
+            Properties, tenants, applications, and settings from one control surface.
           </p>
         </div>
 

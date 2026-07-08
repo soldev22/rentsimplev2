@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { getUserRole, isPendingApproval } from "@/lib/auth"
 import { listAuditEventsForEntity } from "@/lib/server/audit"
 import {
+  deleteApplicationForAdmin,
   getApplicationForApplicant,
   updateApplicationForApplicant,
   updateApplicationForReviewer,
@@ -133,12 +134,35 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Account pending approval" }, { status: 403 })
   }
 
-  if (getUserRole(user) !== "applicant") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-
   try {
     const { id } = await context.params
+
+    if (getUserRole(user) === "admin") {
+      const hardDeleteEnabled = (process.env.ADMIN_APPLICATION_HARD_DELETE_ENABLED ?? "true").trim().toLowerCase() !== "false"
+
+      if (!hardDeleteEnabled) {
+        return NextResponse.json(
+          { error: "Admin hard delete is disabled." },
+          { status: 403 },
+        )
+      }
+
+      const deletedApplication = await deleteApplicationForAdmin(user, id)
+
+      if (!deletedApplication) {
+        return NextResponse.json({ error: "Application not found." }, { status: 404 })
+      }
+
+      return NextResponse.json({
+        message: "Application deleted.",
+        deletedApplicationId: deletedApplication.id,
+      })
+    }
+
+    if (getUserRole(user) !== "applicant") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
     const application = await withdrawApplicationForApplicant(user, id)
 
     if (!application) {
@@ -156,6 +180,17 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json(
         { error: "This application can no longer be withdrawn by the applicant." },
         { status: 400 },
+      )
+    }
+
+    if (error instanceof Error && error.message === "Forbidden") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    if (error instanceof Error && error.message === "ApplicationDeleteFailed") {
+      return NextResponse.json(
+        { error: "Application deletion did not complete. Please retry." },
+        { status: 500 },
       )
     }
 
