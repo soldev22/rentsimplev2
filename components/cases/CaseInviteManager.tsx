@@ -75,6 +75,7 @@ export default function CaseInviteManager({ caseId, propertyId, currentUserRole 
   }, [propertyId, caseId])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadInvites()
   }, [loadInvites])
 

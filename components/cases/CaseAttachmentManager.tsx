@@ -80,6 +80,7 @@ export default function CaseAttachmentManager({ caseId, propertyId, readOnly = f
   }, [propertyId, caseId])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAttachments()
   }, [loadAttachments])
 

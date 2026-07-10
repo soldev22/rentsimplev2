@@ -242,6 +242,7 @@ export default function PropertyManager({
 
   useEffect(() => {
     if (!isAdmin) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPendingImageReviews([])
       return
     }
@@ -274,6 +275,7 @@ export default function PropertyManager({
       return
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCreateForm((current) => ({
       ...current,
       affordabilityMultiple: "2.5",
@@ -285,6 +287,7 @@ export default function PropertyManager({
       return
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCreateForm((current) => (current.ownerId ? current : { ...current, ownerId: defaultOwnerId }))
   }, [canAssignOwner, defaultOwnerId])
 

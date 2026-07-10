@@ -240,7 +240,7 @@ export default function DampInspectionReportForm({
                   <select
                     id="severityLevel"
                     value={formData.severityLevel}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, severityLevel: e.target.value as any }))}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, severityLevel: e.target.value as "none" | "minor" | "moderate" | "severe" }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="none">None</option>
@@ -256,7 +256,7 @@ export default function DampInspectionReportForm({
                   <select
                     id="rootCause"
                     value={formData.rootCause}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, rootCause: e.target.value as any }))}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, rootCause: e.target.value as "penetrating_damp" | "rising_damp" | "condensation" | "plumbing_leak" | "other" }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="penetrating_damp">Penetrating Damp</option>
@@ -323,7 +323,7 @@ export default function DampInspectionReportForm({
                   <select
                     id="urgencyLevel"
                     value={formData.urgencyLevel}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, urgencyLevel: e.target.value as any }))}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, urgencyLevel: e.target.value as "low" | "medium" | "high" | "emergency" }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="low">Low</option>
@@ -354,7 +354,7 @@ export default function DampInspectionReportForm({
                   <select
                     id="remediationTimeline"
                     value={formData.remediationTimeline}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, remediationTimeline: e.target.value as any }))}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, remediationTimeline: e.target.value as "immediate" | "7_days" | "14_days" | "28_days" | "other" }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="immediate">Immediate</option>

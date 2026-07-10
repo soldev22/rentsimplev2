@@ -87,7 +87,7 @@ export default function ThreadSummaryPanel({ caseId, propertyId }: ThreadSummary
         <div className="text-center py-8 text-gray-600">
           <p>No summary generated yet.</p>
           <p className="text-sm mt-2">
-            Click "Generate Summary" to use AI to summarize the case discussion.
+            Click &quot;Generate Summary&quot; to use AI to summarize the case discussion.
           </p>
         </div>
       )}

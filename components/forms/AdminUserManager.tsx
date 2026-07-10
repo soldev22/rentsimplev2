@@ -613,13 +613,13 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                           />
                         </label>
                         <p className="text-xs text-slate-500">
-                          Tenant correspondence uses this landlord transaction address in the app and always copies the landlord's registered onboarding email when it differs.
+                          Tenant correspondence uses this landlord transaction address in the app and always copies the landlord&apos;s registered onboarding email when it differs.
                         </p>
                       </div>
                     ) : null}
                     {user.role === "agent" ? (
                       <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                        Agents can manage the workflow, but legal correspondence is routed between the tenant and the landlord's transactional email and copied to the landlord's registered onboarding email.
+                        Agents can manage the workflow, but legal correspondence is routed between the tenant and the landlord&apos;s transactional email and copied to the landlord&apos;s registered onboarding email.
                       </div>
                     ) : null}
                   </td>

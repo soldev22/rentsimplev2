@@ -16,10 +16,6 @@ export default function WebhookStatusWidget({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadWebhooks()
-  }, [caseId])
-
   const loadWebhooks = async () => {
     try {
       const response = await fetch(
@@ -39,6 +35,11 @@ export default function WebhookStatusWidget({
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    void loadWebhooks()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseId])
 
   function getStatusIcon(status: string): string {
     switch (status) {

@@ -10,10 +10,6 @@ export default function AnalyticsPage() {
   const [properties, setProperties] = useState<Array<{ id: string; address: string }>>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadProperties()
-  }, [])
-
   const loadProperties = async () => {
     try {
       const response = await fetch("/api/properties")
@@ -30,6 +26,11 @@ export default function AnalyticsPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    void loadProperties()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (loading) {
     return <div className="text-center py-12">Loading...</div>
