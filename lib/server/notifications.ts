@@ -262,6 +262,224 @@ export async function sendCreditReportRequestNotification(
   }
 }
 
+type DepositRequestedNotificationParams = {
+  toEmail: string
+  tenantName: string
+  propertyAddress: string
+  amount: number
+  currency: string
+  dueDate?: string
+  paymentInstructions: string
+}
+
+export async function sendDepositRequestedNotification(params: DepositRequestedNotificationParams): Promise<boolean> {
+  const smtpConfig = getSmtpConfig()
+
+  if (!smtpConfig) {
+    console.warn("SMTP not configured - cannot send deposit request notification")
+    return false
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    })
+
+    const subject = `Deposit requested for ${params.propertyAddress}`
+    const text = [
+      `Hello ${params.tenantName},`,
+      "",
+      `A tenancy deposit of ${params.currency} ${params.amount.toLocaleString("en-GB")} has been requested for ${params.propertyAddress}.`,
+      params.dueDate ? `Payment due date: ${new Date(params.dueDate).toLocaleDateString("en-GB")}` : "",
+      "",
+      "Payment instructions:",
+      params.paymentInstructions || "Please check your RentSimple dashboard for payment instructions.",
+      "",
+      "Please log in to RentSimple to acknowledge this request and confirm once payment has been made.",
+    ].filter(Boolean).join("\n")
+
+    await transporter.sendMail({
+      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+      to: params.toEmail,
+      subject,
+      text,
+    })
+
+    return true
+  } catch (error) {
+    console.error("Error sending deposit request notification:", error)
+    return false
+  }
+}
+
+type DepositReminderNotificationParams = {
+  toEmail: string
+  tenantName: string
+  propertyAddress: string
+  amount: number
+  currency: string
+  dueDate?: string
+}
+
+export async function sendDepositReminderNotification(params: DepositReminderNotificationParams): Promise<boolean> {
+  const smtpConfig = getSmtpConfig()
+
+  if (!smtpConfig) {
+    console.warn("SMTP not configured - cannot send deposit reminder notification")
+    return false
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    })
+
+    const subject = `Deposit reminder for ${params.propertyAddress}`
+    const text = [
+      `Hello ${params.tenantName},`,
+      "",
+      `This is a reminder that your tenancy deposit of ${params.currency} ${params.amount.toLocaleString("en-GB")} is still outstanding.`,
+      params.dueDate ? `Due date: ${new Date(params.dueDate).toLocaleDateString("en-GB")}` : "",
+      "",
+      "Please review the deposit request in your RentSimple dashboard.",
+    ].filter(Boolean).join("\n")
+
+    await transporter.sendMail({
+      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+      to: params.toEmail,
+      subject,
+      text,
+    })
+
+    return true
+  } catch (error) {
+    console.error("Error sending deposit reminder notification:", error)
+    return false
+  }
+}
+
+type DepositPaymentReceivedNotificationParams = {
+  toEmail: string
+  propertyAddress: string
+  tenantName: string
+  amount: number
+  currency: string
+}
+
+export async function sendDepositPaymentReceivedNotification(
+  params: DepositPaymentReceivedNotificationParams,
+): Promise<boolean> {
+  const smtpConfig = getSmtpConfig()
+
+  if (!smtpConfig) {
+    console.warn("SMTP not configured - cannot send deposit payment received notification")
+    return false
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    })
+
+    const subject = `Deposit payment received confirmation for ${params.propertyAddress}`
+    const text = [
+      `Deposit payment for ${params.tenantName} at ${params.propertyAddress} has been marked as received.`,
+      "",
+      `Amount: ${params.currency} ${params.amount.toLocaleString("en-GB")}`,
+      "",
+      "Next action: record deposit protection details in RentSimple.",
+    ].join("\n")
+
+    await transporter.sendMail({
+      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+      to: params.toEmail,
+      subject,
+      text,
+    })
+
+    return true
+  } catch (error) {
+    console.error("Error sending deposit payment received notification:", error)
+    return false
+  }
+}
+
+type DepositProtectedNotificationParams = {
+  toEmail: string
+  tenantName: string
+  propertyAddress: string
+  providerName: string
+  protectionReference: string
+  protectedAmount: number
+  currency: string
+  protectedDate?: string
+}
+
+export async function sendDepositProtectedNotification(params: DepositProtectedNotificationParams): Promise<boolean> {
+  const smtpConfig = getSmtpConfig()
+
+  if (!smtpConfig) {
+    console.warn("SMTP not configured - cannot send deposit protected notification")
+    return false
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    })
+
+    const subject = `Deposit protection confirmed for ${params.propertyAddress}`
+    const text = [
+      `Hello ${params.tenantName},`,
+      "",
+      "Your deposit protection has been recorded.",
+      "",
+      `Provider: ${params.providerName}`,
+      `Reference: ${params.protectionReference}`,
+      `Protected amount: ${params.currency} ${params.protectedAmount.toLocaleString("en-GB")}`,
+      params.protectedDate ? `Protection date: ${new Date(params.protectedDate).toLocaleDateString("en-GB")}` : "",
+      "",
+      "You can review the latest details and documents in your RentSimple dashboard.",
+    ].filter(Boolean).join("\n")
+
+    await transporter.sendMail({
+      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+      to: params.toEmail,
+      subject,
+      text,
+    })
+
+    return true
+  } catch (error) {
+    console.error("Error sending deposit protected notification:", error)
+    return false
+  }
+}
+
 type GuarantorReferenceRequestNotificationParams = {
   toEmail: string
   requestedByEmail: string

@@ -2,7 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 
 import { getUserRole, isPendingApproval } from "@/lib/auth"
-import { listApplicationsForApplicantPage, listApplicationsForReviewPage } from "@/lib/server/applications"
+import { listApplicationsForApplicantPage, listApplicationsForReviewPage, listApplicationsForTenant } from "@/lib/server/applications"
 import { listPropertiesForUserPage, listPublicAvailableProperties } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
 import { listUsersForAdminPage } from "@/lib/server/users"
@@ -152,6 +152,9 @@ export default async function OnboardingDashboardPage() {
     )
   }
 
+  const tenantApplications = role === "tenant" ? await listApplicationsForTenant(user) : []
+  const tenantDepositApplications = tenantApplications.filter((application) => application.depositRecord.requestedDate)
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -175,6 +178,44 @@ export default async function OnboardingDashboardPage() {
             </p>
           </article>
         </div>
+
+        {role === "tenant" ? (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-900">Deposit summary</h2>
+                <p className="mt-2 text-sm text-slate-600">Track required deposit amounts, payment status, and protection details for your tenancy.</p>
+              </div>
+              <Link
+                href="/dashboard/documents"
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Open client documents
+              </Link>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {tenantDepositApplications.length > 0 ? (
+                tenantDepositApplications.map((application) => (
+                  <article key={application.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="text-sm font-semibold text-slate-900">{application.propertyAddress}</div>
+                    <div className="mt-2 text-sm text-slate-600">Deposit required: £{application.depositRecord.amount.toLocaleString()}</div>
+                    <div className="mt-1 text-sm text-slate-600">Status: {application.depositRecord.status.replaceAll("_", " ")}</div>
+                    <div className="mt-1 text-sm text-slate-600">
+                      Protection: {application.depositRecord.protectionProviderName
+                        ? `${application.depositRecord.protectionProviderName} (${application.depositRecord.protectionReference || "Reference pending"})`
+                        : "Awaiting protection details"}
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600 md:col-span-2">
+                  No deposit requests have been recorded for your tenancy yet.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Link

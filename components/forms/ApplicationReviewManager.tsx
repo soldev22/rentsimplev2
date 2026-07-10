@@ -5,6 +5,7 @@ import { useRef, useState, useTransition, type ChangeEvent } from "react"
 import TenantCommunicationThread from "@/components/forms/TenantCommunicationThread"
 import type {
   ApplicantScreeningScoreConfig,
+  DepositDocumentCategory,
   RefereeRequestChannel,
   TenantCommunicationChannel,
   TenantCommunicationDirection,
@@ -148,6 +149,10 @@ function formatAuditValue(value: AuditEventRecord["oldValue"] | AuditEventRecord
   return JSON.stringify(value)
 }
 
+function formatDepositStatus(status: TenancyApplicationRecord["depositRecord"]["status"]) {
+  return status.replaceAll("_", " ")
+}
+
 function AuditEventCard({ event }: { event: AuditEventRecord }) {
   return (
     <article className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
@@ -191,7 +196,9 @@ export default function ApplicationReviewManager({
   const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(null)
   const [fullAuditApplicationId, setFullAuditApplicationId] = useState<string | null>(null)
   const [verificationUploadStateBySlot, setVerificationUploadStateBySlot] = useState<Record<string, boolean>>({})
+  const [depositUploadStateBySlot, setDepositUploadStateBySlot] = useState<Record<string, boolean>>({})
   const verificationFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const depositFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const [isPending, startTransition] = useTransition()
   const effectiveScreeningScoreConfig = normalizeApplicantScreeningScoreConfig(screeningScoreConfig)
 
@@ -201,6 +208,128 @@ export default function ApplicationReviewManager({
 
   function getVerificationDocumentDownloadHref(applicationId: string, documentId: string) {
     return `/api/applications/${applicationId}/verification-documents/${documentId}`
+  }
+
+  function getDepositUploadSlot(applicationId: string, category: DepositDocumentCategory, documentId?: string) {
+    return `${applicationId}:${category}:${documentId ?? "new"}`
+  }
+
+  function getDepositDocumentDownloadHref(applicationId: string, documentId: string) {
+    return `/api/applications/${applicationId}/deposit-documents/${documentId}`
+  }
+
+  async function runDepositAction(
+    applicationId: string,
+    body: Record<string, string | number | boolean | null | undefined>,
+    fallbackMessage: string,
+  ) {
+    setFeedback((current) => ({ ...current, [applicationId]: null }))
+
+    try {
+      const response = await fetch(`/api/applications/${applicationId}/deposit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            application?: TenancyApplicationRecord
+            auditEvents?: AuditEventRecord[]
+            error?: string
+          }
+        | null
+
+      if (!response.ok || !payload?.application) {
+        throw new Error(payload?.error || fallbackMessage)
+      }
+
+      const updatedApplication = payload.application
+
+      setApplications((current) => current.map((candidate) => (candidate.id === updatedApplication.id ? updatedApplication : candidate)))
+
+      if (payload.auditEvents) {
+        setAuditEventsByApplicationId((current) => ({
+          ...current,
+          [updatedApplication.id]: payload.auditEvents ?? [],
+        }))
+      }
+
+      setFeedback((current) => ({
+        ...current,
+        [applicationId]: { type: "success", message: fallbackMessage },
+      }))
+    } catch (error) {
+      setFeedback((current) => ({
+        ...current,
+        [applicationId]: {
+          type: "error",
+          message: error instanceof Error ? error.message : fallbackMessage,
+        },
+      }))
+    }
+  }
+
+  async function uploadDepositDocument(
+    applicationId: string,
+    category: DepositDocumentCategory,
+    event: ChangeEvent<HTMLInputElement>,
+    replaceDocumentId?: string,
+  ) {
+    const file = event.target.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    const slot = getDepositUploadSlot(applicationId, category, replaceDocumentId)
+    setDepositUploadStateBySlot((current) => ({ ...current, [slot]: true }))
+    setFeedback((current) => ({ ...current, [applicationId]: null }))
+
+    try {
+      const formData = new FormData()
+      formData.append("category", category)
+      formData.append("file", file)
+      if (replaceDocumentId) {
+        formData.append("replaceDocumentId", replaceDocumentId)
+      }
+
+      const response = await fetch(`/api/applications/${applicationId}/deposit-documents`, {
+        method: "POST",
+        body: formData,
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            application?: TenancyApplicationRecord
+            message?: string
+            error?: string
+          }
+        | null
+
+      if (!response.ok || !payload?.application) {
+        throw new Error(payload?.error || "Unable to upload deposit document.")
+      }
+
+      setApplications((current) => current.map((candidate) => (candidate.id === payload.application?.id ? payload.application : candidate)))
+      setFeedback((current) => ({
+        ...current,
+        [applicationId]: { type: "success", message: payload.message || "Deposit document uploaded." },
+      }))
+    } catch (error) {
+      setFeedback((current) => ({
+        ...current,
+        [applicationId]: {
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to upload deposit document.",
+        },
+      }))
+    } finally {
+      setDepositUploadStateBySlot((current) => ({ ...current, [slot]: false }))
+      event.target.value = ""
+    }
   }
 
   async function uploadVerificationDocument(
@@ -1794,6 +1923,376 @@ export default function ApplicationReviewManager({
                       }
                     />
                   </label>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900">Deposit management</h3>
+                        <p className="mt-1 text-sm text-slate-600">
+                          Request the deposit, record payment, track protection, and keep every deposit document visible in one place.
+                        </p>
+                      </div>
+                      <a
+                        href={`/dashboard/documents?applicationId=${encodeURIComponent(application.id)}`}
+                        className="rounded-md border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-100"
+                      >
+                        Open client docs
+                      </a>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="block text-sm font-medium text-slate-700">
+                        Deposit amount
+                        <input
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                          type="number"
+                          min="0"
+                          value={application.depositRecord.amount}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              depositRecord: {
+                                ...current.depositRecord,
+                                amount: Number(event.target.value),
+                                protectedAmount: Number(event.target.value),
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Payment due date
+                        <input
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                          type="date"
+                          value={application.depositRecord.paymentDueDate}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              depositRecord: {
+                                ...current.depositRecord,
+                                paymentDueDate: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700 md:col-span-2">
+                        Payment instructions
+                        <textarea
+                          className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2"
+                          value={application.depositRecord.paymentInstructions}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              depositRecord: {
+                                ...current.depositRecord,
+                                paymentInstructions: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700 md:col-span-2">
+                        Deposit notes
+                        <textarea
+                          className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2"
+                          value={application.depositRecord.notes}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              depositRecord: {
+                                ...current.depositRecord,
+                                notes: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Protection provider
+                        <input
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                          value={application.depositRecord.protectionProviderName}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              depositRecord: {
+                                ...current.depositRecord,
+                                protectionProviderName: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Protection reference
+                        <input
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                          value={application.depositRecord.protectionReference}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              depositRecord: {
+                                ...current.depositRecord,
+                                protectionReference: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Protected amount
+                        <input
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                          type="number"
+                          min="0"
+                          value={application.depositRecord.protectedAmount}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              depositRecord: {
+                                ...current.depositRecord,
+                                protectedAmount: Number(event.target.value),
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Protection date
+                        <input
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2"
+                          type="date"
+                          value={application.depositRecord.protectedDate?.slice(0, 10) ?? ""}
+                          onChange={(event) =>
+                            updateApplication(application.id, (current) => ({
+                              ...current,
+                              depositRecord: {
+                                ...current.depositRecord,
+                                protectedDate: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+                      <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Deposit status</div>
+                      <div className="mt-2 text-lg font-semibold capitalize text-slate-900">{formatDepositStatus(application.depositRecord.status)}</div>
+                      <div className="mt-2 grid gap-2 md:grid-cols-2">
+                        <div>Requested: {formatAuditTimestamp(application.depositRecord.requestedDate)}</div>
+                        <div>Acknowledged: {formatAuditTimestamp(application.depositRecord.acknowledgedAt)}</div>
+                        <div>Tenant payment confirmation: {formatAuditTimestamp(application.depositRecord.paymentConfirmedByTenantAt)}</div>
+                        <div>Payment received: {formatAuditTimestamp(application.depositRecord.paymentDate)}</div>
+                        <div>Protected: {formatAuditTimestamp(application.depositRecord.protectedDate)}</div>
+                        <div>Returned: {formatAuditTimestamp(application.depositRecord.returnedDate)}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                        disabled={isPending}
+                        onClick={() => {
+                          void runDepositAction(
+                            application.id,
+                            {
+                              action: "request",
+                              amount: application.depositRecord.amount,
+                              paymentDueDate: application.depositRecord.paymentDueDate,
+                              paymentInstructions: application.depositRecord.paymentInstructions,
+                              notes: application.depositRecord.notes,
+                            },
+                            "Deposit request sent.",
+                          )
+                        }}
+                      >
+                        Request deposit
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                        disabled={isPending}
+                        onClick={() => {
+                          void runDepositAction(application.id, { action: "send_reminder" }, "Deposit reminder sent.")
+                        }}
+                      >
+                        Send reminder
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                        disabled={isPending}
+                        onClick={() => {
+                          void runDepositAction(application.id, { action: "confirm_received" }, "Deposit payment marked as received.")
+                        }}
+                      >
+                        Confirm payment received
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                        disabled={isPending}
+                        onClick={() => {
+                          void runDepositAction(
+                            application.id,
+                            { action: "mark_protection_pending", notes: application.depositRecord.notes },
+                            "Deposit moved to protection pending.",
+                          )
+                        }}
+                      >
+                        Mark protection pending
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+                        disabled={isPending}
+                        onClick={() => {
+                          void runDepositAction(
+                            application.id,
+                            {
+                              action: "record_protection",
+                              protectionProviderName: application.depositRecord.protectionProviderName,
+                              protectionReference: application.depositRecord.protectionReference,
+                              protectedAmount: application.depositRecord.protectedAmount,
+                              protectedDate: application.depositRecord.protectedDate?.slice(0, 10),
+                              notes: application.depositRecord.notes,
+                            },
+                            "Deposit protection recorded.",
+                          )
+                        }}
+                      >
+                        Record protection
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                        disabled={isPending}
+                        onClick={() => {
+                          void runDepositAction(application.id, { action: "mark_returned", notes: application.depositRecord.notes }, "Deposit marked as returned.")
+                        }}
+                      >
+                        Mark returned
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800 hover:bg-rose-100 disabled:opacity-60"
+                        disabled={isPending}
+                        onClick={() => {
+                          void runDepositAction(application.id, { action: "mark_disputed", notes: application.depositRecord.notes }, "Deposit marked as disputed.")
+                        }}
+                      >
+                        Mark disputed
+                      </button>
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-slate-200 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-700">Deposit documents</h4>
+                          <p className="mt-1 text-xs text-slate-500">Keep receipts and protection certificates here and in the client documents vault.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            ref={(node) => {
+                              depositFileInputRefs.current[getDepositUploadSlot(application.id, "payment_receipt")] = node
+                            }}
+                            type="file"
+                            className="hidden"
+                            onChange={(event) => {
+                              void uploadDepositDocument(application.id, "payment_receipt", event)
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                            disabled={depositUploadStateBySlot[getDepositUploadSlot(application.id, "payment_receipt")]}
+                            onClick={() => depositFileInputRefs.current[getDepositUploadSlot(application.id, "payment_receipt")]?.click()}
+                          >
+                            Upload payment receipt
+                          </button>
+                          <input
+                            ref={(node) => {
+                              depositFileInputRefs.current[getDepositUploadSlot(application.id, "protection_certificate")] = node
+                            }}
+                            type="file"
+                            className="hidden"
+                            onChange={(event) => {
+                              void uploadDepositDocument(application.id, "protection_certificate", event)
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                            disabled={depositUploadStateBySlot[getDepositUploadSlot(application.id, "protection_certificate")]}
+                            onClick={() => depositFileInputRefs.current[getDepositUploadSlot(application.id, "protection_certificate")]?.click()}
+                          >
+                            Upload protection certificate
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-2 text-sm text-slate-700">
+                        {application.depositRecord.documents.length > 0 ? (
+                          application.depositRecord.documents.map((document) => (
+                            <div key={document.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                              <div className="font-medium text-slate-900">{document.fileName}</div>
+                              <div className="mt-1 text-xs text-slate-600">
+                                {document.category.replaceAll("_", " ")} uploaded {formatAuditTimestamp(document.uploadedAt)} by {document.uploadedByEmail}
+                              </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                                <a
+                                  className="font-semibold text-cyan-800 underline"
+                                  href={getDepositDocumentDownloadHref(application.id, document.id)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  View
+                                </a>
+                                <a
+                                  className="font-semibold text-cyan-800 underline"
+                                  href={`${getDepositDocumentDownloadHref(application.id, document.id)}?download=1`}
+                                >
+                                  Download
+                                </a>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-sm text-slate-500">No deposit documents uploaded yet.</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-xs uppercase tracking-[0.16em] text-slate-500">Deposit history</div>
+                      <div className="mt-3 space-y-2 text-sm text-slate-700">
+                        {application.depositRecord.history.length > 0 ? (
+                          application.depositRecord.history.map((entry) => (
+                            <div key={entry.id} className="rounded-md border border-slate-200 bg-white p-3">
+                              <div className="font-medium capitalize text-slate-900">{entry.action.replaceAll("_", " ")}</div>
+                              <div className="mt-1 text-xs text-slate-600">
+                                {formatDepositStatus(entry.status)} · {formatAuditTimestamp(entry.timestamp)} · {entry.performedBy}
+                              </div>
+                              {entry.notes ? <div className="mt-2 text-sm text-slate-700">{entry.notes}</div> : null}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-sm text-slate-500">No deposit history recorded yet.</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
                 </div>
               </section>

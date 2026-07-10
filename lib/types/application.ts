@@ -236,6 +236,80 @@ export type DepositProtection = {
   certificateReference: string
 }
 
+export type DepositStatus =
+  | "requested"
+  | "awaiting_payment"
+  | "payment_received"
+  | "protection_pending"
+  | "protected"
+  | "returned"
+  | "disputed"
+
+export type DepositDocumentCategory = "request_notice" | "payment_receipt" | "protection_certificate" | "other"
+
+export type DepositDocumentRecord = {
+  id: string
+  category: DepositDocumentCategory
+  fileName: string
+  blobName: string
+  url: string
+  contentType: string
+  size: number
+  uploadedAt: string
+  uploadedByEmail: string
+}
+
+export type DepositHistoryAction =
+  | "deposit_requested"
+  | "deposit_acknowledged"
+  | "deposit_payment_confirmed_by_tenant"
+  | "deposit_payment_received"
+  | "deposit_protection_recorded"
+  | "deposit_returned"
+  | "deposit_disputed"
+  | "deposit_document_uploaded"
+  | "deposit_document_deleted"
+  | "deposit_reminder_sent"
+
+export type DepositHistoryEntry = {
+  id: string
+  action: DepositHistoryAction
+  status: DepositStatus
+  performedBy: string
+  timestamp: string
+  notes: string
+}
+
+export type DepositRecord = {
+  id: string
+  tenancyId: string
+  propertyId: string
+  landlordId: string
+  tenantId: string
+  amount: number
+  currency: string
+  status: DepositStatus
+  requestedDate?: string
+  paymentDueDate: string
+  paymentDate?: string
+  protectedDate?: string
+  returnedDate?: string
+  requestedByEmail: string
+  paymentInstructions: string
+  notes: string
+  acknowledgedAt?: string
+  acknowledgedByUserId?: string
+  acknowledgementIp?: string
+  acknowledgementUserAgent?: string
+  paymentConfirmedByTenantAt?: string
+  paymentConfirmedByReviewerAt?: string
+  protectionProviderName: string
+  protectionReference: string
+  protectedAmount: number
+  documents: DepositDocumentRecord[]
+  history: DepositHistoryEntry[]
+}
+
 export type TenantCommunicationChannel = "email" | "phone" | "sms" | "whatsapp" | "portal" | "letter" | "in_person" | "other"
 
 export type TenantCommunicationDirection = "outbound" | "inbound"
@@ -298,5 +372,6 @@ export type TenancyApplicationRecord = {
   preMoveInCompliance: PreMoveInCompliance
   moveInChecklist: MoveInChecklist
   depositProtection: DepositProtection
+  depositRecord: DepositRecord
   postMoveInManagement: PostMoveInManagement
 }

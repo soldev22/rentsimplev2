@@ -142,6 +142,33 @@ function createTimelineEntries(application: TenancyApplicationRecord) {
     })
   }
 
+  if (application.depositRecord.requestedDate) {
+    entries.push({
+      occurredAt: application.depositRecord.requestedDate,
+      title: "Deposit requested",
+      detail: `${application.depositRecord.currency} ${application.depositRecord.amount.toLocaleString()} requested.${application.depositRecord.paymentDueDate ? ` Due ${formatDateTime(application.depositRecord.paymentDueDate)}.` : ""}`,
+      category: "event",
+    })
+  }
+
+  if (application.depositRecord.paymentDate) {
+    entries.push({
+      occurredAt: application.depositRecord.paymentDate,
+      title: "Deposit payment received",
+      detail: "Deposit payment recorded as received.",
+      category: "event",
+    })
+  }
+
+  if (application.depositRecord.protectedDate) {
+    entries.push({
+      occurredAt: application.depositRecord.protectedDate,
+      title: "Deposit protected",
+      detail: `${application.depositRecord.protectionProviderName || "Provider pending"}${application.depositRecord.protectionReference ? ` · ${application.depositRecord.protectionReference}` : ""}`,
+      category: "event",
+    })
+  }
+
   if (application.postMoveInManagement.firstInspectionDate) {
     entries.push({
       occurredAt: application.postMoveInManagement.firstInspectionDate,
@@ -184,6 +211,7 @@ export function buildTenancyLogText(application: TenancyApplicationRecord) {
     `- Monthly rent: GBP ${application.monthlyRent.toLocaleString()}`,
     `- Preferred contact methods: ${application.applicantProfile.preferredContactMethods.join(", ") || "Not provided"}`,
     `- Approval outcome: ${application.approvalDecision.outcome.replaceAll("_", " ")}`,
+    `- Deposit status: ${application.depositRecord.status.replaceAll("_", " ")}`,
     `- Agreement provider: ${application.tenancyAgreement.agreementProvider || "Not set"}`,
     `- Maintenance notes: ${application.postMoveInManagement.maintenanceLogNotes || "None recorded"}`,
     "",

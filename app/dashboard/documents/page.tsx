@@ -123,12 +123,13 @@ export default async function Page({ searchParams }: DocumentsPageProps) {
       application.tenancyAgreement.leaseDocument.url,
       application.tenancyAgreement.supportingLegalDocuments.url,
     ].filter(Boolean).length
+    const depositCount = application.depositRecord.documents.length
 
     const guarantorCount = (application.referencingInstruction.referenceRequests ?? []).filter(
       (request) => request.status === "completed" || request.status === "declined",
     ).length
 
-    return count + verificationCount + tenancyCount + guarantorCount
+    return count + verificationCount + tenancyCount + guarantorCount + depositCount
   }, 0)
 
   return (
@@ -161,7 +162,7 @@ export default async function Page({ searchParams }: DocumentsPageProps) {
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
           {applicationIdFilter ? (
             <span>
-              Showing documents for application {applicationIdFilter}.
+              Showing documents for the selected application.
             </span>
           ) : (
             <span>
@@ -171,10 +172,10 @@ export default async function Page({ searchParams }: DocumentsPageProps) {
           )}
           <div className="flex items-center gap-3">
             <Link
-              href="/dashboard/applications"
+              href={isReviewer ? "/dashboard/applications" : role === "tenant" ? "/dashboard/onboarding" : "/dashboard/applicant"}
               className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
             >
-              Back to applications
+              Back
             </Link>
             {isReviewer && !applicationIdFilter ? (
               <>
@@ -249,7 +250,7 @@ export default async function Page({ searchParams }: DocumentsPageProps) {
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-4 xl:grid-cols-3">
+              <div className="mt-5 grid gap-4 xl:grid-cols-4">
                 <div className="rounded-xl border border-slate-200 p-4">
                   <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-700">Verification uploads</h3>
                   <ul className="mt-3 space-y-2 text-sm text-slate-700">
@@ -370,6 +371,46 @@ export default async function Page({ searchParams }: DocumentsPageProps) {
                       })
                     ) : (
                       <li className="text-slate-500">No guarantor declaration responses recorded yet.</li>
+                    )}
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 p-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-700">Deposit documents</h3>
+                  <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                    <div className="font-medium text-slate-900">Status: {application.depositRecord.status.replaceAll("_", " ")}</div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      {application.depositRecord.protectionProviderName
+                        ? `${application.depositRecord.protectionProviderName} · ${application.depositRecord.protectionReference || "Reference pending"}`
+                        : "Protection details not recorded yet."}
+                    </div>
+                  </div>
+                  <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                    {application.depositRecord.documents.length > 0 ? (
+                      application.depositRecord.documents.map((document) => (
+                        <li key={document.id} className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                          <div className="font-medium text-slate-900">{document.fileName}</div>
+                          <div className="mt-1 text-xs text-slate-600">{document.category.replaceAll("_", " ")} · uploaded {formatDate(document.uploadedAt)}</div>
+                          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                            <a
+                              className="font-semibold text-cyan-800 underline"
+                              href={`/api/applications/${application.id}/deposit-documents/${document.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              View
+                            </a>
+                            <a
+                              className="font-semibold text-cyan-800 underline"
+                              href={`/api/applications/${application.id}/deposit-documents/${document.id}?download=1`}
+                            >
+                              Download
+                            </a>
+                          </div>
+                        </li>
+                      ))
+                    ) : (
+                      <li className="text-slate-500">No deposit documents uploaded yet.</li>
                     )}
                   </ul>
                 </div>
