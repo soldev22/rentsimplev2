@@ -410,6 +410,44 @@ export default function ApplicantTenancyWorkflow({
     })
   }
 
+  function handleDepositAction(application: TenancyApplicationRecord, action: "acknowledge" | "confirm_paid", successMessage: string) {
+    setFeedback(null)
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/applications/${application.id}/deposit`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action }),
+        })
+
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              application?: TenancyApplicationRecord
+              error?: string
+            }
+          | null
+
+        if (!response.ok || !payload?.application) {
+          throw new Error(payload?.error || "Unable to update deposit status.")
+        }
+
+        setApplications((current) => current.map((entry) => (entry.id === payload.application?.id ? payload.application : entry)))
+        setFeedback({
+          type: "success",
+          message: successMessage,
+        })
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to update deposit status.",
+        })
+      }
+    })
+  }
+
   function renderApplicationFormContent() {
     return (
       <>
@@ -739,6 +777,108 @@ export default function ApplicantTenancyWorkflow({
                         {application.applicantProfile.creditCheckConsentGivenAt
                           ? `Credit check consent recorded at ${new Date(application.applicantProfile.creditCheckConsentGivenAt).toLocaleString()}.`
                           : "Credit check consent has not been recorded on this application yet."}
+                      </div>
+
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Deposit</div>
+                            <h4 className="mt-1 text-lg font-semibold text-slate-900">Deposit status and protection</h4>
+                          </div>
+                          <Link
+                            href={`/dashboard/documents?applicationId=${application.id}`}
+                            className="rounded-md border border-cyan-300 px-3 py-2 text-sm font-semibold text-cyan-700 transition-colors hover:bg-cyan-50"
+                          >
+                            Open documents
+                          </Link>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Required amount</div>
+                            <div className="mt-1 text-lg font-semibold text-slate-900">£{application.depositRecord.amount.toLocaleString()}</div>
+                          </div>
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Current status</div>
+                            <div className="mt-1 text-lg font-semibold capitalize text-slate-900">{application.depositRecord.status.replaceAll("_", " ")}</div>
+                          </div>
+                          <div className="rounded-xl bg-slate-50 p-3 md:col-span-2">
+                            <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Payment instructions</div>
+                            <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
+                              {application.depositRecord.paymentInstructions || "No payment instructions have been recorded yet."}
+                            </div>
+                          </div>
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Due date</div>
+                            <div className="mt-1 text-sm text-slate-700">
+                              {application.depositRecord.paymentDueDate ? new Date(application.depositRecord.paymentDueDate).toLocaleDateString() : "Not set"}
+                            </div>
+                          </div>
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Protection</div>
+                            <div className="mt-1 text-sm text-slate-700">
+                              {application.depositRecord.protectionProviderName
+                                ? `${application.depositRecord.protectionProviderName} · ${application.depositRecord.protectionReference || "Reference pending"}`
+                                : "Protection details not recorded yet."}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+                            disabled={isPending || Boolean(application.depositRecord.acknowledgedAt) || !application.depositRecord.requestedDate}
+                            onClick={() => handleDepositAction(application, "acknowledge", "Deposit acknowledgement recorded.")}
+                          >
+                            {application.depositRecord.acknowledgedAt ? "Deposit acknowledged" : "Acknowledge deposit"}
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                            disabled={isPending || !application.depositRecord.acknowledgedAt || Boolean(application.depositRecord.paymentConfirmedByTenantAt)}
+                            onClick={() => handleDepositAction(application, "confirm_paid", "Deposit payment confirmation recorded.")}
+                          >
+                            {application.depositRecord.paymentConfirmedByTenantAt ? "Payment marked as made" : "I have made payment"}
+                          </button>
+                        </div>
+
+                        <div className="mt-4 grid gap-2 md:grid-cols-2 text-xs text-slate-600">
+                          <div>Acknowledged: {application.depositRecord.acknowledgedAt ? new Date(application.depositRecord.acknowledgedAt).toLocaleString() : "Pending"}</div>
+                          <div>Tenant payment confirmation: {application.depositRecord.paymentConfirmedByTenantAt ? new Date(application.depositRecord.paymentConfirmedByTenantAt).toLocaleString() : "Pending"}</div>
+                          <div>Payment received by landlord/agent: {application.depositRecord.paymentDate ? new Date(application.depositRecord.paymentDate).toLocaleString() : "Pending"}</div>
+                          <div>Protected date: {application.depositRecord.protectedDate ? new Date(application.depositRecord.protectedDate).toLocaleString() : "Pending"}</div>
+                        </div>
+
+                        {application.depositRecord.documents.length > 0 ? (
+                          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Deposit documents</div>
+                            <div className="mt-3 space-y-2">
+                              {application.depositRecord.documents.map((document) => (
+                                <div key={document.id} className="rounded-md border border-slate-200 bg-white p-3">
+                                  <div className="font-medium text-slate-900">{document.fileName}</div>
+                                  <div className="mt-1 text-xs text-slate-600">{document.category.replaceAll("_", " ")} · uploaded {new Date(document.uploadedAt).toLocaleString()}</div>
+                                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                                    <a
+                                      className="font-semibold text-cyan-800 underline"
+                                      href={`/api/applications/${application.id}/deposit-documents/${document.id}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      View
+                                    </a>
+                                    <a
+                                      className="font-semibold text-cyan-800 underline"
+                                      href={`/api/applications/${application.id}/deposit-documents/${document.id}?download=1`}
+                                    >
+                                      Download
+                                    </a>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
 
                       {editingApplicationId === application.id ? (

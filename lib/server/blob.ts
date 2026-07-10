@@ -242,6 +242,74 @@ export async function deleteTenancyVerificationDocument(blobName: string) {
   await blobClient.deleteIfExists({ deleteSnapshots: "include" })
 }
 
+// ==================== DEPOSIT DOCUMENTS ====================
+
+const depositDocumentsContainerName = process.env.DEPOSIT_DOCUMENTS_CONTAINER?.trim() || "deposit-documents"
+
+async function getDepositDocumentsContainerClient() {
+  const serviceClient = getBlobServiceClient()
+  const containerClient = serviceClient.getContainerClient(depositDocumentsContainerName)
+  await containerClient.createIfNotExists()
+  return containerClient
+}
+
+export async function uploadDepositDocument(input: {
+  applicationId: string
+  category: string
+  fileName: string
+  fileBuffer: Buffer
+  mimeType: string
+}) {
+  if (input.fileBuffer.length > TENANCY_VERIFICATION_MAX_FILE_SIZE) {
+    throw new Error("FileSizeExceeded")
+  }
+
+  if (!TENANCY_VERIFICATION_ALLOWED_MIME_TYPES.includes(input.mimeType)) {
+    throw new Error("FileTypeNotAllowed")
+  }
+
+  const containerClient = await getDepositDocumentsContainerClient()
+  const timestamp = Date.now()
+  const uuid = randomUUID().slice(0, 8)
+  const sanitized = sanitizeFileName(input.fileName)
+  const blobName = `applications/${input.applicationId}/deposit/${input.category}/${timestamp}-${uuid}-${sanitized}`
+  const blobClient = containerClient.getBlockBlobClient(blobName)
+
+  await blobClient.uploadData(input.fileBuffer, {
+    blobHTTPHeaders: {
+      blobContentType: input.mimeType,
+    },
+  })
+
+  return {
+    blobName,
+    url: blobClient.url,
+    size: input.fileBuffer.length,
+  }
+}
+
+export async function downloadDepositDocument(blobName: string) {
+  const containerClient = await getDepositDocumentsContainerClient()
+  const blobClient = containerClient.getBlobClient(blobName)
+  const download = await blobClient.download()
+
+  if (!download.readableStreamBody) {
+    throw new Error("Blob stream unavailable")
+  }
+
+  return {
+    stream: Readable.toWeb(download.readableStreamBody as Readable) as ReadableStream,
+    contentType: download.contentType || "application/octet-stream",
+    contentLength: download.contentLength,
+  }
+}
+
+export async function deleteDepositDocument(blobName: string) {
+  const containerClient = await getDepositDocumentsContainerClient()
+  const blobClient = containerClient.getBlobClient(blobName)
+  await blobClient.deleteIfExists({ deleteSnapshots: "include" })
+}
+
 // ==================== CASE ATTACHMENTS ====================
 
 const caseAttachmentsContainerName = process.env.CASE_ATTACHMENTS_CONTAINER?.trim() || "case-attachments"
