@@ -43,12 +43,14 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
     displayRole === "applicant"
       ? [
           { name: "My Applications", href: "/dashboard/applicant" },
+          { name: "Client Documents", href: "/dashboard/documents" },
           { name: "Settings", href: "/dashboard/settings" },
         ]
       : displayRole === "tenant" || displayRole === "builder"
         ? [
             { name: "Onboarding", href: "/dashboard/onboarding" },
             { name: "Maintenance", href: "/dashboard/maintenance" },
+            ...(displayRole === "tenant" ? [{ name: "Client Documents", href: "/dashboard/documents" }] : []),
             { name: "Settings", href: "/dashboard/settings" },
           ]
       : [
@@ -57,6 +59,9 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
           { name: "Cases", href: "/dashboard/cases" },
           ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
             ? [{ name: "Applications", href: "/dashboard/applications" }]
+            : []),
+          ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
+            ? [{ name: "Client Documents", href: "/dashboard/documents" }]
             : []),
           { name: "Tenants", href: "/dashboard/tenants" },
           { name: "Maintenance", href: "/dashboard/maintenance" },
@@ -264,13 +269,30 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
                 </>
               ) : null}
               {displayRole === "applicant" ? (
-                <Link href="/dashboard/applicant" className="hover:text-white">
-                  Applications
-                </Link>
+                <>
+                  <Link href="/dashboard/applicant" className="hover:text-white">
+                    Applications
+                  </Link>
+                  <Link href="/dashboard/documents" className="hover:text-white">
+                    Client Documents
+                  </Link>
+                </>
               ) : (
-                <Link href="/dashboard/applications" className="hover:text-white">
-                  Applications
-                </Link>
+                <>
+                  <Link href="/dashboard/applications" className="hover:text-white">
+                    Applications
+                  </Link>
+                  {(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord") ? (
+                    <Link href="/dashboard/documents" className="hover:text-white">
+                      Client Documents
+                    </Link>
+                  ) : null}
+                  {displayRole === "tenant" ? (
+                    <Link href="/dashboard/documents" className="hover:text-white">
+                      Client Documents
+                    </Link>
+                  ) : null}
+                </>
               )}
             </div>
           </div>

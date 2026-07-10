@@ -8,6 +8,8 @@ import type {
   CaseType,
   CaseStatus,
   EscalationLevel,
+  CaseStage,
+  EscalationEvent,
 } from "@/lib/auth"
 import { getCasesContainer, getCaseMessagesContainer } from "./cosmos"
 import { randomUUID } from "crypto"
@@ -252,14 +254,14 @@ export async function getPropertyAnalytics(
 
   for (const c of cases) {
     const escalationCount = c.stages.reduce(
-      (sum: number, s: any) => sum + (s.escalations?.length || 0),
+      (sum: number, s: CaseStage) => sum + (s.escalations?.length || 0),
       0
     )
     const escalationLevels = Array.from(
       new Set(
         c.stages.flatMap(
-          (s: any) =>
-            s.escalations?.map((e: any) => e.level) || []
+          (s: CaseStage) =>
+            s.escalations?.map((e: EscalationEvent) => e.level) || []
         )
       )
     ) as EscalationLevel[]
@@ -314,14 +316,14 @@ export async function getPortfolioAnalytics(
 
   for (const c of cases) {
     const escalationCount = c.stages.reduce(
-      (sum: number, s: any) => sum + (s.escalations?.length || 0),
+      (sum: number, s: CaseStage) => sum + (s.escalations?.length || 0),
       0
     )
     const escalationLevels = Array.from(
       new Set(
         c.stages.flatMap(
-          (s: any) =>
-            s.escalations?.map((e: any) => e.level) || []
+          (s: CaseStage) =>
+            s.escalations?.map((e: EscalationEvent) => e.level) || []
         )
       )
     ) as EscalationLevel[]

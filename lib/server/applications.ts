@@ -127,6 +127,12 @@ function assertApplicant(user: AuthUser) {
   }
 }
 
+function assertTenant(user: AuthUser) {
+  if (getUserRole(user) !== "tenant") {
+    throw new Error("Forbidden")
+  }
+}
+
 function assertReviewer(user: AuthUser) {
   if (!canReviewTenancyApplications(user)) {
     throw new Error("Forbidden")
@@ -1036,6 +1042,26 @@ export async function getApplicationByIdForSystem(id: string) {
 export async function listApplicationsForApplicant(user: AuthUser) {
   const paged = await listApplicationsForApplicantPage(user, { page: 1, pageSize: 1000 })
   return paged.items
+}
+
+export async function listApplicationsForTenant(user: AuthUser) {
+  assertTenant(user)
+
+  const container = await getApplicationsContainer()
+  const { resources } = await container.items
+    .query<TenancyApplicationRecord>({
+      query:
+        "SELECT * FROM c WHERE c.status = @activeTenantStatus AND (c.applicantId = @applicantId OR c.applicantEmail = @applicantEmail) ORDER BY c.createdAt DESC",
+      parameters: [
+        { name: "@activeTenantStatus", value: "active_tenant" },
+        { name: "@applicantId", value: user.id },
+        { name: "@applicantEmail", value: user.email },
+      ],
+    })
+    .fetchAll()
+
+  const hydratedApplications = await hydrateApplicationsWithCommunications(resources)
+  return sortApplications(hydratedApplications)
 }
 
 export async function listApplicationsForApplicantPage(user: AuthUser, options?: PageOptions) {
@@ -2242,7 +2268,7 @@ export async function recordGuarantorReferenceDecision(input: {
   const existingApplication = await getApplicationById(input.applicationId)
 
   if (!existingApplication) {
-    return { application: null, error: "ApplicationNotFound" as const }
+    return { application: null, declarationContext: null, error: "ApplicationNotFound" as const }
   }
 
   const existingRequests = (existingApplication.referencingInstruction.referenceRequests ?? []).map((request) =>
@@ -2254,14 +2280,17 @@ export async function recordGuarantorReferenceDecision(input: {
   )
 
   if (targetIndex === -1) {
-    return { application: null, error: "RequestNotFound" as const }
+    return { application: null, declarationContext: null, error: "RequestNotFound" as const }
   }
+
+  const referee = (existingApplication.referencingInstruction.referees ?? []).find((candidate) => candidate.id === input.refereeId)
 
   const targetRequest = existingRequests[targetIndex]
 
   if (targetRequest.status === "completed" || targetRequest.status === "declined") {
     return {
       application: existingApplication,
+      declarationContext: null,
       alreadyResponded: true,
       existingStatus: targetRequest.status,
       error: null,
@@ -2309,8 +2338,26 @@ export async function recordGuarantorReferenceDecision(input: {
     },
   ])
 
+  const nextRequest = nextRequests[targetIndex]
+  const declarationContext = referee
+    ? {
+        applicationId: nextApplication.id,
+        applicantName: nextApplication.applicantName,
+        applicantEmail: nextApplication.applicantEmail,
+        propertyAddress: nextApplication.propertyAddress,
+        refereeName: referee.fullName,
+        refereeEmail: referee.email ?? input.responderEmail,
+        requestedByEmail: nextRequest.requestedByEmail,
+        requestedAt: nextRequest.requestedAt,
+        requestStatus: nextRequest.status,
+        respondedAt: nextRequest.respondedAt ?? null,
+        expiresAt: nextRequest.expiresAt ?? null,
+      }
+    : null
+
   return {
     application: nextApplication,
+    declarationContext,
     alreadyResponded: false,
     existingStatus: null,
     error: null,
@@ -2356,6 +2403,55 @@ export async function getGuarantorReferenceConsentContext(token: string) {
       expiresAt: request.expiresAt ?? inspected.expiresAt,
       tokenConsumedAt: inspected.consumedAt,
       tokenExpired: inspected.isExpired,
+      canRespond,
+    },
+    error: null,
+  }
+}
+
+export async function getGuarantorReferenceConsentContextForRequest(user: AuthUser, applicationId: string, requestId: string) {
+  assertReviewer(user)
+
+  const application = await getApplicationById(applicationId)
+
+  if (!application) {
+    return { context: null, error: "ApplicationNotFound" as const }
+  }
+
+  const request = (application.referencingInstruction.referenceRequests ?? [])
+    .map((candidate) => normalizeReferenceRequest(candidate))
+    .find((candidate) => candidate.id === requestId)
+
+  if (!request) {
+    return { context: null, error: "RequestNotFound" as const }
+  }
+
+  const referee = (application.referencingInstruction.referees ?? []).find((candidate) => candidate.id === request.refereeId)
+
+  if (!referee) {
+    return { context: null, error: "RequestNotFound" as const }
+  }
+
+  const expiresAt = request.expiresAt ?? null
+  const expiryTime = expiresAt ? Date.parse(expiresAt) : Number.NaN
+  const tokenExpired = Number.isFinite(expiryTime) ? Date.now() >= expiryTime : false
+  const canRespond = !tokenExpired && request.status !== "completed" && request.status !== "declined"
+
+  return {
+    context: {
+      applicationId: application.id,
+      applicantName: application.applicantName,
+      applicantEmail: application.applicantEmail,
+      propertyAddress: application.propertyAddress,
+      refereeName: referee.fullName,
+      refereeEmail: referee.email ?? "",
+      requestedByEmail: request.requestedByEmail,
+      requestedAt: request.requestedAt,
+      requestStatus: request.status,
+      respondedAt: request.respondedAt ?? null,
+      expiresAt,
+      tokenConsumedAt: null,
+      tokenExpired,
       canRespond,
     },
     error: null,

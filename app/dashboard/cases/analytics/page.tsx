@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import AnalyticsDashboard from "@/components/cases/AnalyticsDashboard"
 
@@ -11,25 +10,24 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadProperties()
-  }, [])
-
-  const loadProperties = async () => {
-    try {
-      const response = await fetch("/api/properties")
-      if (response.ok) {
-        const data = await response.json()
-        setProperties(data)
-        if (data.length > 0) {
-          setSelectedPropertyId(data[0].id)
+    const loadProperties = async () => {
+      try {
+        const response = await fetch("/api/properties")
+        if (response.ok) {
+          const data = await response.json()
+          setProperties(data)
+          if (data.length > 0) {
+            setSelectedPropertyId(data[0].id)
+          }
         }
+      } catch (err) {
+        console.error("Error loading properties:", err)
+      } finally {
+        setLoading(false)
       }
-    } catch (err) {
-      console.error("Error loading properties:", err)
-    } finally {
-      setLoading(false)
     }
-  }
+    void loadProperties()
+  }, [])
 
   if (loading) {
     return <div className="text-center py-12">Loading...</div>

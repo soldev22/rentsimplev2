@@ -2,7 +2,7 @@ import {
   BlobServiceClient,
   ContainerClient,
 } from "@azure/storage-blob"
-import type { WebhookEvent, WebhookEventType, AdvisoryNotification } from "@/lib/auth"
+import type { WebhookEvent, WebhookEventType, AdvisoryNotification, CaseType } from "@/lib/auth"
 import { randomUUID } from "crypto"
 
 const blobConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING
@@ -119,7 +119,7 @@ export async function createAdvisoryNotification(input: {
     id: randomUUID(),
     caseId: input.caseId,
     propertyId: input.propertyId,
-    caseType: input.caseType as any,
+    caseType: input.caseType as CaseType,
     status: "pending",
     deliveryAttempts: 0,
     nextRetryAt: new Date().toISOString(),

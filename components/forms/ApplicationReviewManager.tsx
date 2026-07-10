@@ -973,6 +973,12 @@ export default function ApplicationReviewManager({
                 <div className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getSiteVisitTone(siteVisitStatus)}`}>
                   Site visit {formatSiteVisitStatus(siteVisitStatus)}
                 </div>
+                <a
+                  href={`/dashboard/documents?applicationId=${encodeURIComponent(application.id)}`}
+                  className="rounded-md border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-100"
+                >
+                  View client docs
+                </a>
                 {isAdmin ? (
                   <button
                     type="button"
@@ -1556,9 +1562,9 @@ export default function ApplicationReviewManager({
                     <div className="mt-3 space-y-3">
                       {signedOffCount > 0 || declinedCount > 0 ? (
                         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                          {signedOffCount > 0 ? `${signedOffCount} guarantor sign-off${signedOffCount > 1 ? "s" : ""} recorded.` : ""}
+                          {signedOffCount > 0 ? `${signedOffCount} guarantor declaration approval${signedOffCount > 1 ? "s" : ""} recorded.` : ""}
                           {signedOffCount > 0 && declinedCount > 0 ? " " : ""}
-                          {declinedCount > 0 ? `${declinedCount} guarantor response${declinedCount > 1 ? "s" : ""} declined.` : ""}
+                          {declinedCount > 0 ? `${declinedCount} guarantor declaration response${declinedCount > 1 ? "s" : ""} declined.` : ""}
                         </div>
                       ) : null}
 
@@ -1689,12 +1695,12 @@ export default function ApplicationReviewManager({
                               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
                                 {latestRequest?.status === "completed" ? (
                                   <span className="rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-900">
-                                    Signed off {latestRequest.respondedAt ? `on ${new Date(latestRequest.respondedAt).toLocaleString()}` : ""}
+                                    Guarantor declaration accepted {latestRequest.respondedAt ? `on ${new Date(latestRequest.respondedAt).toLocaleString()}` : ""}
                                   </span>
                                 ) : null}
                                 {latestRequest?.status === "declined" ? (
                                   <span className="rounded-full bg-rose-100 px-2 py-1 font-semibold text-rose-900">
-                                    Declined {latestRequest.respondedAt ? `on ${new Date(latestRequest.respondedAt).toLocaleString()}` : ""}
+                                    Guarantor declaration declined {latestRequest.respondedAt ? `on ${new Date(latestRequest.respondedAt).toLocaleString()}` : ""}
                                   </span>
                                 ) : null}
                                 <span>
@@ -1702,6 +1708,26 @@ export default function ApplicationReviewManager({
                                     ? `Latest guarantor approval request: ${formatReferenceRequestStatus(latestRequest.status)} via ${latestRequest.channel}.`
                                     : "No guarantor approval request sent yet."}
                                 </span>
+                                {latestRequest ? (
+                                  <a
+                                    className="font-semibold text-cyan-800 underline"
+                                    href={`/api/applications/${application.id}/guarantor-reference-requests/${latestRequest.id}/consent-document`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Review guarantor declaration
+                                  </a>
+                                ) : null}
+                                {latestRequest ? (
+                                  <a
+                                    className="font-semibold text-cyan-800 underline"
+                                    href={`/api/applications/${application.id}/guarantor-reference-requests/${latestRequest.id}/consent-document?format=pdf`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Open guarantor declaration (PDF)
+                                  </a>
+                                ) : null}
                               </div>
                               <button
                                 type="button"

@@ -17,28 +17,27 @@ export default function WebhookStatusWidget({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadWebhooks()
-  }, [caseId])
-
-  const loadWebhooks = async () => {
-    try {
-      const response = await fetch(
-        `/api/properties/${propertyId}/cases/${caseId}/webhooks`
-      )
-      if (response.ok) {
-        const data = await response.json()
-        setWebhooks(data)
-        setError(null)
-      } else {
-        setError("Failed to load webhook status")
+    const loadWebhooks = async () => {
+      try {
+        const response = await fetch(
+          `/api/properties/${propertyId}/cases/${caseId}/webhooks`
+        )
+        if (response.ok) {
+          const data = await response.json()
+          setWebhooks(data)
+          setError(null)
+        } else {
+          setError("Failed to load webhook status")
+        }
+      } catch (err) {
+        console.error("Error loading webhooks:", err)
+        setError("Error loading webhook status")
+      } finally {
+        setLoading(false)
       }
-    } catch (err) {
-      console.error("Error loading webhooks:", err)
-      setError("Error loading webhook status")
-    } finally {
-      setLoading(false)
     }
-  }
+    void loadWebhooks()
+  }, [caseId, propertyId])
 
   function getStatusIcon(status: string): string {
     switch (status) {
