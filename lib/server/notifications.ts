@@ -327,6 +327,76 @@ export async function sendGuarantorReferenceRequestNotification(
   }
 }
 
+type GuarantorDeclarationCopyNotificationParams = {
+  toEmail: string
+  refereeName: string
+  applicantName: string
+  applicantEmail: string
+  propertyAddress: string
+  applicationId: string
+  respondedAt: string
+  declarationPdfBytes: Buffer
+}
+
+export async function sendGuarantorDeclarationCopyNotification(
+  params: GuarantorDeclarationCopyNotificationParams,
+): Promise<boolean> {
+  const smtpConfig = getSmtpConfig()
+
+  if (!smtpConfig) {
+    console.warn("SMTP not configured - cannot send guarantor declaration copy")
+    return false
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    })
+
+    const subject = `Signed guarantor declaration for ${params.applicantName}`
+    const text = [
+      `Hello ${params.refereeName},`,
+      "",
+      "Thank you for confirming your guarantor declaration.",
+      "",
+      "A PDF copy of your signed declaration is attached for your records.",
+      "",
+      `Application ID: ${params.applicationId}`,
+      `Applicant: ${params.applicantName} (${params.applicantEmail})`,
+      `Property: ${params.propertyAddress}`,
+      `Recorded at: ${new Date(params.respondedAt).toLocaleString("en-GB")}`,
+      "",
+      "Regards,",
+      "RentSimple",
+    ].join("\n")
+
+    await transporter.sendMail({
+      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+      to: params.toEmail,
+      subject,
+      text,
+      attachments: [
+        {
+          filename: `guarantor-declaration-${params.applicationId}.pdf`,
+          content: params.declarationPdfBytes,
+          contentType: "application/pdf",
+        },
+      ],
+    })
+
+    return true
+  } catch (error) {
+    console.error("Error sending guarantor declaration copy notification:", error)
+    return false
+  }
+}
+
 // ==================== CASE ESCALATION NOTIFICATIONS ====================
 
 type EscalationNotificationParams = {
