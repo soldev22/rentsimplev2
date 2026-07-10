@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import AnalyticsDashboard from "@/components/cases/AnalyticsDashboard"
 
@@ -10,26 +9,24 @@ export default function AnalyticsPage() {
   const [properties, setProperties] = useState<Array<{ id: string; address: string }>>([])
   const [loading, setLoading] = useState(true)
 
-  const loadProperties = async () => {
-    try {
-      const response = await fetch("/api/properties")
-      if (response.ok) {
-        const data = await response.json()
-        setProperties(data)
-        if (data.length > 0) {
-          setSelectedPropertyId(data[0].id)
-        }
-      }
-    } catch (err) {
-      console.error("Error loading properties:", err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
+    const loadProperties = async () => {
+      try {
+        const response = await fetch("/api/properties")
+        if (response.ok) {
+          const data = await response.json()
+          setProperties(data)
+          if (data.length > 0) {
+            setSelectedPropertyId(data[0].id)
+          }
+        }
+      } catch (err) {
+        console.error("Error loading properties:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
     void loadProperties()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (loading) {
