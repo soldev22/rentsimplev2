@@ -148,35 +148,35 @@ export default function GuarantorConsentPage() {
           ) : context ? (
             <dl className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
               <div>
-                <dt className="text-xs uppercase tracking-[0.1em] text-slate-500">Application</dt>
+                <dt className="text-xs uppercase tracking-widest text-slate-500">Application</dt>
                 <dd>{context.applicationId}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-[0.1em] text-slate-500">Property</dt>
+                <dt className="text-xs uppercase tracking-widest text-slate-500">Property</dt>
                 <dd>{context.propertyAddress}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-[0.1em] text-slate-500">Applicant</dt>
+                <dt className="text-xs uppercase tracking-widest text-slate-500">Applicant</dt>
                 <dd>{context.applicantName} ({context.applicantEmail})</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-[0.1em] text-slate-500">Guarantor contact</dt>
+                <dt className="text-xs uppercase tracking-widest text-slate-500">Guarantor contact</dt>
                 <dd>{context.refereeName}{context.refereeEmail ? ` (${context.refereeEmail})` : ""}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-[0.1em] text-slate-500">Requested by</dt>
+                <dt className="text-xs uppercase tracking-widest text-slate-500">Requested by</dt>
                 <dd>{context.requestedByEmail}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-[0.1em] text-slate-500">Requested at</dt>
+                <dt className="text-xs uppercase tracking-widest text-slate-500">Requested at</dt>
                 <dd>{formatDate(context.requestedAt)}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-[0.1em] text-slate-500">Current status</dt>
+                <dt className="text-xs uppercase tracking-widest text-slate-500">Current status</dt>
                 <dd>{context.requestStatus.replaceAll("_", " ")}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-[0.1em] text-slate-500">Responded at</dt>
+                <dt className="text-xs uppercase tracking-widest text-slate-500">Responded at</dt>
                 <dd>{formatDate(context.respondedAt)}</dd>
               </div>
             </dl>
