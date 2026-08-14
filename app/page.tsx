@@ -19,7 +19,12 @@ export default async function HomePage() {
       <div id="available-properties" className="mx-auto max-w-6xl px-6 py-10">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Live listings</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Live listings</p>
+              <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                V1
+              </span>
+            </div>
             <h2 className="mt-2 text-2xl font-bold text-slate-900 md:text-3xl">Latest 10 available properties</h2>
             <p className="mt-2 text-sm text-slate-600">Newest available homes are shown here first.</p>
           </div>
