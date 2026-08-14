@@ -44,6 +44,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   try {
     const body = (await request.json()) as {
+      uid?: string
+      nickname?: string
       address?: string
       addressLine1?: string
       addressLine2?: string
@@ -58,6 +60,10 @@ export async function PATCH(request: Request, context: RouteContext) {
       bathrooms?: number
       monthlyRent?: number
       affordabilityMultiple?: number
+      parking?: string
+      heating?: string
+      councilTaxBand?: string
+      broadbandAvailable?: boolean | string
     }
 
     const { id } = await context.params

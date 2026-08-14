@@ -74,6 +74,10 @@ export async function POST(request: Request) {
       bathrooms?: number
       monthlyRent?: number
       affordabilityMultiple?: number
+      parking?: string
+      heating?: string
+      councilTaxBand?: string
+      broadbandAvailable?: boolean | string
     }
 
     if (!body.addressLine1 || !body.city || !body.postcode || !body.type || !body.status) {
@@ -95,6 +99,10 @@ export async function POST(request: Request) {
       bathrooms: body.bathrooms,
       monthlyRent: body.monthlyRent,
       affordabilityMultiple: body.affordabilityMultiple,
+      parking: body.parking,
+      heating: body.heating,
+      councilTaxBand: body.councilTaxBand,
+      broadbandAvailable: body.broadbandAvailable,
     })
 
     return NextResponse.json({ property }, { status: 201 })

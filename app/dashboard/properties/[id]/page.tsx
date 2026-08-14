@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 
+import PropertyHeaderEditor from "@/components/properties/PropertyHeaderEditor"
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
 import { MAX_PROPERTY_IMAGES, isPendingApproval } from "@/lib/auth"
 import { getPropertyForUser } from "@/lib/server/properties"
@@ -37,17 +38,26 @@ export default async function PropertyDetail({ params }: PageContext) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Property</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">{property.address}</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            {property.type} · {property.status} · £{property.monthlyRent.toLocaleString()}/month
-          </p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <PropertyHeaderEditor property={property} />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/dashboard/properties?edit=${encodeURIComponent(property.id)}`}
+            className="rounded-md bg-cyan-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-800"
+          >
+            Edit property
+          </Link>
+          <Link
+            href={`/dashboard/properties/${property.id}/compliance`}
+            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            Compliance details
+          </Link>
+          <Link href="/dashboard/properties" className="text-sm font-medium text-sky-700 hover:underline">
+            Back to properties
+          </Link>
         </div>
-        <Link href="/dashboard/properties" className="text-sm font-medium text-sky-700 hover:underline">
-          Back to properties
-        </Link>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -74,9 +84,7 @@ export default async function PropertyDetail({ params }: PageContext) {
 
           <div className="mt-6">
             <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Short description</h3>
-            <p className="mt-3 text-slate-800">
-              {property.shortDescription || "No short description has been added yet."}
-            </p>
+            <p className="mt-3 text-slate-800">{property.shortDescription || "No short description has been added yet."}</p>
           </div>
 
           <div className="mt-6">

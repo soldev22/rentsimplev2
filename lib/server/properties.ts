@@ -78,6 +78,8 @@ const seedProperties: PropertyRecord[] = [
 const publicRentalStatuses = ["available"] as const
 
 export type PropertyInput = {
+  uid?: string
+  nickname?: string
   ownerId?: string
   address?: string
   addressLine1?: string
@@ -93,6 +95,10 @@ export type PropertyInput = {
   bathrooms?: number
   monthlyRent?: number
   affordabilityMultiple?: number
+  parking?: string
+  heating?: string
+  councilTaxBand?: string
+  broadbandAvailable?: boolean | string
 }
 
 async function getAccessibleLandlordIds(user: AuthUser, selectedLandlordId?: string) {
@@ -303,9 +309,18 @@ function normalizePropertyRecord(property: PropertyRecord) {
     typeof property.shortDescription === "string" && property.shortDescription.trim()
       ? property.shortDescription.trim()
       : deriveShortDescription(longDescription)
+  const broadbandValue = property.broadbandAvailable as unknown
+  const broadbandAvailable =
+    typeof broadbandValue === "boolean"
+      ? broadbandValue
+      : typeof broadbandValue === "string"
+        ? ["yes", "true", "1"].includes(broadbandValue.trim().toLowerCase())
+        : false
 
   return {
     ...property,
+    uid: typeof property.uid === "string" && property.uid.trim() ? property.uid.trim() : property.id,
+    nickname: typeof property.nickname === "string" && property.nickname.trim() ? property.nickname.trim() : undefined,
     addressLine1,
     addressLine2,
     city,
@@ -318,6 +333,10 @@ function normalizePropertyRecord(property: PropertyRecord) {
     bathrooms: toNonNegativeNumber(property.bathrooms),
     monthlyRent: toNonNegativeNumber(property.monthlyRent),
     affordabilityMultiple: toNonNegativeNumber(property.affordabilityMultiple) || DEFAULT_AFFORDABILITY_MULTIPLE,
+    parking: typeof property.parking === "string" ? property.parking.trim() : "",
+    heating: typeof property.heating === "string" ? property.heating.trim() : "",
+    councilTaxBand: typeof property.councilTaxBand === "string" ? property.councilTaxBand.trim() : "",
+    broadbandAvailable,
     images: Array.isArray(property.images) ? property.images.map(normalizePropertyImageRecord) : [],
     insurance: normalizePropertyInsurance(property.insurance),
     financials: normalizePropertyFinancials(property.financials),
@@ -330,8 +349,20 @@ function normalizePropertyInput(input: PropertyInput) {
   const addressLine2 = input.addressLine2?.trim() || ""
   const city = input.city?.trim() || ""
   const postcode = input.postcode?.trim().toUpperCase() || ""
+  const parking = typeof input.parking === "string" ? input.parking.trim() : ""
+  const heating = typeof input.heating === "string" ? input.heating.trim() : ""
+  const councilTaxBand = typeof input.councilTaxBand === "string" ? input.councilTaxBand.trim() : ""
+  const broadbandValue = input.broadbandAvailable as unknown
+  const broadbandAvailable =
+    typeof broadbandValue === "boolean"
+      ? broadbandValue
+      : typeof broadbandValue === "string"
+        ? ["yes", "true", "1"].includes(broadbandValue.trim().toLowerCase())
+        : false
 
   return {
+    uid: typeof input.uid === "string" && input.uid.trim() ? input.uid.trim() : undefined,
+    nickname: typeof input.nickname === "string" && input.nickname.trim() ? input.nickname.trim() : undefined,
     addressLine1,
     addressLine2,
     city,
@@ -348,8 +379,14 @@ function normalizePropertyInput(input: PropertyInput) {
     affordabilityMultiple: Number.isFinite(input.affordabilityMultiple)
       ? Math.max(0, Number(input.affordabilityMultiple))
       : DEFAULT_AFFORDABILITY_MULTIPLE,
+    parking,
+    heating,
+    councilTaxBand,
+    broadbandAvailable,
   }
 }
+
+export { normalizePropertyInput }
 
 async function getPropertyById(id: string) {
   const container = await getPropertiesContainer()
@@ -712,10 +749,12 @@ export async function createProperty(user: AuthUser, input: PropertyInput) {
   const ownerId = await resolvePropertyOwnerIdForCreate(user, input.ownerId)
   const property: PropertyRecord = {
     id: randomUUID(),
+    uid: input.uid?.trim() || randomUUID(),
     ownerId,
     address: normalized.address,
     addressLine1: normalized.addressLine1,
     addressLine2: normalized.addressLine2,
+    nickname: normalized.nickname,
     city: normalized.city,
     postcode: normalized.postcode,
     type: normalized.type,
@@ -727,6 +766,10 @@ export async function createProperty(user: AuthUser, input: PropertyInput) {
     bathrooms: normalized.bathrooms,
     monthlyRent: normalized.monthlyRent,
     affordabilityMultiple: normalized.affordabilityMultiple,
+    parking: normalized.parking || undefined,
+    heating: normalized.heating || undefined,
+    councilTaxBand: normalized.councilTaxBand || undefined,
+    broadbandAvailable: normalized.broadbandAvailable,
     images: [],
     createdAt: now,
     updatedAt: now,
@@ -752,6 +795,8 @@ export async function updateProperty(user: AuthUser, propertyId: string, input: 
 
   const nextProperty: PropertyRecord = {
     ...property,
+    uid: typeof input.uid === "string" && input.uid.trim() ? input.uid.trim() : property.uid ?? property.id,
+    nickname: typeof input.nickname === "string" ? (input.nickname.trim() || undefined) : property.nickname,
     ownerId: nextOwnerId,
     ...(typeof input.addressLine1 === "string" ? { addressLine1: input.addressLine1.trim() } : null),
     ...(typeof input.addressLine2 === "string" ? { addressLine2: input.addressLine2.trim() } : null),
@@ -773,6 +818,14 @@ export async function updateProperty(user: AuthUser, propertyId: string, input: 
     ...(typeof input.affordabilityMultiple === "number"
       ? { affordabilityMultiple: Math.max(0, input.affordabilityMultiple) || DEFAULT_AFFORDABILITY_MULTIPLE }
       : null),
+    ...(typeof input.parking === "string" ? { parking: input.parking.trim() || undefined } : null),
+    ...(typeof input.heating === "string" ? { heating: input.heating.trim() || undefined } : null),
+    ...(typeof input.councilTaxBand === "string" ? { councilTaxBand: input.councilTaxBand.trim() || undefined } : null),
+    ...(typeof input.broadbandAvailable === "boolean"
+      ? { broadbandAvailable: input.broadbandAvailable }
+      : typeof input.broadbandAvailable === "string"
+        ? { broadbandAvailable: ["yes", "true", "1"].includes(input.broadbandAvailable.trim().toLowerCase()) }
+        : null),
     updatedAt: new Date().toISOString(),
   }
 

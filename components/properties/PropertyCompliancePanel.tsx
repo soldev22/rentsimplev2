@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
 
 import type { PropertyCompliance, PropertyRecord, ComplianceType } from "@/lib/auth"
 
@@ -108,6 +108,41 @@ function getStatusLabel(status: "expired" | "expiring_soon" | "ok") {
   }
 }
 
+export type ComplianceSummaryRow = {
+  type: ComplianceType
+  label: string
+  renewalLabel: string
+  done: string
+  due: string
+  uploadUrl: string
+  status: "expired" | "expiring_soon" | "ok"
+  recordId?: string
+}
+
+export function buildComplianceSummaryRows(property: PropertyRecord): ComplianceSummaryRow[] {
+  const recordIndex = new Map(
+    (property.compliance ?? []).map((item) => [item.type, item] as const),
+  )
+
+  return COMPLIANCE_TYPES.map((type) => {
+    const record = recordIndex.get(type)
+    const dueDate = record?.expirationDate ?? ""
+    const doneDate = record?.lastCheckedDate ?? ""
+    const status = dueDate ? getComplianceStatus(dueDate) : "ok"
+
+    return {
+      type,
+      label: COMPLIANCE_LABELS[type],
+      renewalLabel: `Every ${DEFAULT_COMPLIANCE_YEARS[type]} ${DEFAULT_COMPLIANCE_YEARS[type] === 1 ? "year" : "years"}`,
+      done: doneDate,
+      due: dueDate,
+      uploadUrl: record?.documentUrl ?? "",
+      status,
+      recordId: record?.id,
+    }
+  })
+}
+
 type PropertyCompliancePanelProps = {
   property: PropertyRecord
   canManage: boolean
@@ -121,6 +156,7 @@ export default function PropertyCompliancePanel({
 }: PropertyCompliancePanelProps) {
   const [isEditMode, setIsEditMode] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [uploadingRowType, setUploadingRowType] = useState<ComplianceType | null>(null)
   const [formState, setFormState] = useState<ComplianceFormState>({
     type: "electrical",
     lastCheckedDate: new Date().toISOString().split("T")[0],
@@ -131,8 +167,11 @@ export default function PropertyCompliancePanel({
     notes: "",
   })
   const [isPending, startTransition] = useTransition()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const currentUploadTypeRef = useRef<ComplianceType | null>(null)
 
   const compliance = property.compliance ?? []
+  const summaryRows = buildComplianceSummaryRows(property)
 
   const handleAdd = () => {
     setEditingId(null)
@@ -246,6 +285,86 @@ export default function PropertyCompliancePanel({
     })
   }
 
+  const handleUploadClick = (type?: ComplianceType) => {
+    const uploadType = type ?? formState.type
+    currentUploadTypeRef.current = uploadType
+    setUploadingRowType(uploadType)
+    fileInputRef.current?.click()
+  }
+
+  const handleUploadFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    const type = currentUploadTypeRef.current ?? formState.type
+
+    if (!file || !type) {
+      setUploadingRowType(null)
+      currentUploadTypeRef.current = null
+      return
+    }
+
+    const allowedExtensions = ["pdf", "png", "jpg", "jpeg", "gif", "webp", "doc", "docx", "xls", "xlsx", "csv", "txt"]
+    const extension = file.name.split(".").pop()?.toLowerCase()
+
+    if (!extension || !allowedExtensions.includes(extension)) {
+      alert("Unsupported file type. Please upload a PDF, image, or office document.")
+      event.target.value = ""
+      setUploadingRowType(null)
+      currentUploadTypeRef.current = null
+      return
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("File is too large. Please upload a file smaller than 10MB.")
+      event.target.value = ""
+      setUploadingRowType(null)
+      currentUploadTypeRef.current = null
+      return
+    }
+
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("type", type)
+
+      const response = await fetch(`/api/properties/${property.id}/compliance/upload`, {
+        method: "POST",
+        body: formData,
+      })
+
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to upload compliance certificate")
+      }
+
+      const url = payload.url as string | undefined
+      const record = compliance.find((item) => item.type === type)
+      const nextFormState = {
+        type,
+        lastCheckedDate: record?.lastCheckedDate ?? new Date().toISOString().split("T")[0],
+        expirationDate: record?.expirationDate ?? "",
+        certificateNumber: record?.certificateNumber ?? "",
+        provider: record?.provider ?? "",
+        documentUrl: url ?? record?.documentUrl ?? "",
+        notes: record?.notes ?? "",
+      }
+
+      setFormState(nextFormState)
+      setEditingId(record?.id ?? null)
+      setIsEditMode(true)
+      setUploadingRowType(null)
+      currentUploadTypeRef.current = null
+      event.target.value = ""
+      alert("Certificate uploaded. Save the compliance record to keep the file link.")
+    } catch (error) {
+      console.error("Error uploading compliance file:", error)
+      alert(error instanceof Error ? error.message : "Failed to upload compliance file")
+      event.target.value = ""
+      setUploadingRowType(null)
+      currentUploadTypeRef.current = null
+    }
+  }
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
@@ -260,6 +379,14 @@ export default function PropertyCompliancePanel({
           </button>
         )}
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt"
+        onChange={handleUploadFileChange}
+      />
 
       {isEditMode ? (
         <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 mb-6">
@@ -335,13 +462,22 @@ export default function PropertyCompliancePanel({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Document URL</label>
-              <input
-                type="url"
-                value={formState.documentUrl}
-                onChange={(e) => setFormState({ ...formState, documentUrl: e.target.value })}
-                placeholder="https://..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={formState.documentUrl}
+                  onChange={(e) => setFormState({ ...formState, documentUrl: e.target.value })}
+                  placeholder="https://..."
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleUploadClick(formState.type)}
+                  className="px-3 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors text-sm font-medium"
+                >
+                  {uploadingRowType === formState.type ? "Uploading..." : "Upload"}
+                </button>
+              </div>
             </div>
 
             <div>
@@ -375,116 +511,104 @@ export default function PropertyCompliancePanel({
         </div>
       ) : null}
 
-      {compliance.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          {canManage ? "No compliance records yet. Add one to get started." : "No compliance records available."}
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+        <div className="grid grid-cols-[1.7fr_1fr_1fr_1.1fr] border-b border-slate-200 bg-slate-100 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+          <div className="px-4 py-3">Requirement</div>
+          <div className="px-4 py-3">Done</div>
+          <div className="px-4 py-3">Due</div>
+          <div className="px-4 py-3">Evidence</div>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {compliance.map((item) => {
-            const status = getComplianceStatus(item.expirationDate)
-            return (
-              <div
-                key={item.id}
-                className={`rounded-lg border p-4 ${getStatusColor(status)} flex items-start justify-between`}
-              >
-                <div className="flex gap-3 flex-1">
-                  <div className="mt-1">{getStatusIcon(status)}</div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-medium text-gray-900">{COMPLIANCE_LABELS[item.type]}</span>
-                      <span className={`text-xs font-medium px-2 py-1 rounded ${getStatusBadgeClass(status)}`}>
-                        {getStatusLabel(status)}
-                      </span>
-                    </div>
-                    <dl className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <dt className="text-gray-600">Expires:</dt>
-                        <dd className="font-medium text-gray-900">{new Date(item.expirationDate).toLocaleDateString()}</dd>
-                      </div>
-                      {item.certificateNumber && (
-                        <div>
-                          <dt className="text-gray-600">Certificate:</dt>
-                          <dd className="font-medium text-gray-900">{item.certificateNumber}</dd>
-                        </div>
-                      )}
-                      {item.provider && (
-                        <div>
-                          <dt className="text-gray-600">Provider:</dt>
-                          <dd className="font-medium text-gray-900">{item.provider}</dd>
-                        </div>
-                      )}
-                      <div>
-                        <dt className="text-gray-600">Checked:</dt>
-                        <dd className="font-medium text-gray-900">{new Date(item.lastCheckedDate).toLocaleDateString()}</dd>
-                      </div>
-                    </dl>
-                    {item.documentUrl && (
-                      <div className="mt-2">
-                        <a
-                          href={item.documentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                        >
-                          View Document →
-                        </a>
-                      </div>
-                    )}
-                    {item.notes && <p className="text-sm text-gray-600 mt-2">{item.notes}</p>}
-                  </div>
+
+        {summaryRows.map((row) => {
+          const rowStatus = row.status
+          const record = compliance.find((item) => item.type === row.type)
+          const isMissing = !record
+
+          return (
+            <div
+              key={row.type}
+              className={`grid grid-cols-[1.7fr_1fr_1fr_1.1fr] border-b border-slate-200 last:border-b-0 ${getStatusColor(rowStatus)}`}
+            >
+              <div className="flex items-center gap-3 px-4 py-4">
+                <div className="mt-0.5">{getStatusIcon(rowStatus)}</div>
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">{row.label}</div>
+                  <div className="text-xs text-slate-600">{row.renewalLabel}</div>
                 </div>
-                {canManage && (
-                  <div className="flex gap-2 ml-4">
-                    <button
-                      onClick={() => handleEdit(item)}
-                      className="px-2 py-1 text-sm text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="px-2 py-1 text-sm text-red-600 hover:bg-red-100 rounded transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
+              </div>
+
+              <div className="px-4 py-4 text-sm text-slate-800">
+                {row.done ? (
+                  <div className="font-medium">{new Date(row.done).toLocaleDateString()}</div>
+                ) : (
+                  <div className="text-slate-400">Not recorded</div>
                 )}
               </div>
-            )
-          })}
-        </div>
-      )}
 
-      <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <h4 className="font-medium text-blue-900 mb-2">Typical Renewal Periods</h4>
-        <dl className="grid grid-cols-2 gap-2 text-sm text-blue-800">
-          <div>
-            <dt className="font-medium">Electrical (EICR):</dt>
-            <dd>Every 5 years</dd>
-          </div>
-          <div>
-            <dt className="font-medium">Gas Safety:</dt>
-            <dd>Every 12 months</dd>
-          </div>
-          <div>
-            <dt className="font-medium">Fire Alarm:</dt>
-            <dd>Every 12 months</dd>
-          </div>
-          <div>
-            <dt className="font-medium">Legionella:</dt>
-            <dd>Every 12 months</dd>
-          </div>
-          <div>
-            <dt className="font-medium">EPC:</dt>
-            <dd>Every 10 years</dd>
-          </div>
-          <div>
-            <dt className="font-medium">Boiler Service:</dt>
-            <dd>Every 12 months</dd>
-          </div>
-        </dl>
+              <div className="px-4 py-4 text-sm text-slate-800">
+                {row.due ? (
+                  <div className="font-medium">{new Date(row.due).toLocaleDateString()}</div>
+                ) : (
+                  <div className="text-slate-400">No due date</div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-2 px-4 py-4">
+                <div className="flex items-center gap-2">
+                  {row.uploadUrl ? (
+                    <a
+                      href={row.uploadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-blue-700 hover:text-blue-900 underline"
+                    >
+                      View
+                    </a>
+                  ) : (
+                    <span className="text-sm text-slate-400">No file</span>
+                  )}
+                  {canManage && (
+                    <button
+                      type="button"
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700"
+                      onClick={() => handleUploadClick(row.type)}
+                    >
+                      {uploadingRowType === row.type ? "Uploading..." : "Upload certificate"}
+                    </button>
+                  )}
+                </div>
+                {canManage && (
+                  <button
+                    type="button"
+                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700"
+                    onClick={() => {
+                      if (record) {
+                        handleEdit(record)
+                        return
+                      }
+
+                      setFormState({
+                        type: row.type,
+                        lastCheckedDate: new Date().toISOString().split("T")[0],
+                        expirationDate: "",
+                        certificateNumber: "",
+                        provider: "",
+                        documentUrl: "",
+                        notes: "",
+                      })
+                      setEditingId(null)
+                      setIsEditMode(true)
+                    }}
+                  >
+                    {isMissing ? "Add" : "Edit"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })}
       </div>
+
     </div>
   )
 }

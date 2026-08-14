@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react"
 
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
@@ -20,6 +21,7 @@ type PropertyManagerProps = {
   }>
   canAssignOwner?: boolean
   defaultOwnerId?: string
+  defaultEditPropertyId?: string
 }
 
 type PropertyFormState = {
@@ -36,6 +38,10 @@ type PropertyFormState = {
   bathrooms: string
   monthlyRent: string
   affordabilityMultiple: string
+  parking: string
+  heating: string
+  councilTaxBand: string
+  broadbandAvailable: string
 }
 
 const emptyForm: PropertyFormState = {
@@ -52,6 +58,10 @@ const emptyForm: PropertyFormState = {
   bathrooms: "0",
   monthlyRent: "0",
   affordabilityMultiple: "2.5",
+  parking: "",
+  heating: "",
+  councilTaxBand: "",
+  broadbandAvailable: "yes",
 }
 
 const propertyTypeOptions = [
@@ -95,6 +105,10 @@ function toFormState(property: PropertyRecord): PropertyFormState {
     bathrooms: String(property.bathrooms),
     monthlyRent: String(property.monthlyRent),
     affordabilityMultiple: String(property.affordabilityMultiple),
+    parking: property.parking ?? "",
+    heating: property.heating ?? "",
+    councilTaxBand: property.councilTaxBand ?? "",
+    broadbandAvailable: property.broadbandAvailable ? "yes" : "no",
   }
 }
 
@@ -113,6 +127,10 @@ function toPayload(form: PropertyFormState) {
     bathrooms: Number(form.bathrooms),
     monthlyRent: Number(form.monthlyRent),
     affordabilityMultiple: Number(form.affordabilityMultiple),
+    parking: form.parking || undefined,
+    heating: form.heating || undefined,
+    councilTaxBand: form.councilTaxBand || undefined,
+    broadbandAvailable: form.broadbandAvailable === "yes",
   }
 }
 
@@ -184,6 +202,7 @@ export default function PropertyManager({
   landlordOptions = [],
   canAssignOwner = false,
   defaultOwnerId,
+  defaultEditPropertyId,
 }: PropertyManagerProps) {
   const [properties, setProperties] = useState(initialProperties)
   const [selectedPropertyId, setSelectedPropertyId] = useState("")
@@ -207,6 +226,7 @@ export default function PropertyManager({
   const editFormRef = useRef<HTMLFormElement | null>(null)
   const exitEditModeAfterSaveRef = useRef(false)
   const deferredPortfolioSearch = useDeferredValue(portfolioSearch)
+  const router = useRouter()
 
   const selectedProperty = useMemo(
     () => properties.find((property) => property.id === selectedPropertyId) ?? null,
@@ -290,6 +310,23 @@ export default function PropertyManager({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCreateForm((current) => (current.ownerId ? current : { ...current, ownerId: defaultOwnerId }))
   }, [canAssignOwner, defaultOwnerId])
+
+  useEffect(() => {
+    if (!defaultEditPropertyId) {
+      return
+    }
+
+    const targetProperty = properties.find((property) => property.id === defaultEditPropertyId)
+
+    if (!targetProperty) {
+      return
+    }
+
+    setSelectedPropertyId(targetProperty.id)
+    setEditForm(toFormState(targetProperty))
+    setIsEditMode(true)
+    setExpandedPortfolioId(targetProperty.id)
+  }, [defaultEditPropertyId, properties])
 
   function selectProperty(property: PropertyRecord | null, nextEditMode = false) {
     setSelectedPropertyId(property?.id ?? "")
@@ -990,6 +1027,55 @@ export default function PropertyManager({
             <span className="mt-1 block text-xs text-slate-500">Common UK affordability benchmarks are typically around 2.5x to 3.0x annual rent.</span>
           </label>
 
+          <label className="text-sm font-medium text-slate-700">
+            Parking
+            <select
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+              value={createForm.parking}
+              onChange={(event) => updateCreateField("parking", event.target.value)}
+            >
+              <option value="">Not specified</option>
+              <option value="On Street">On Street</option>
+              <option value="Private Parking">Private Parking</option>
+            </select>
+          </label>
+
+          <label className="text-sm font-medium text-slate-700">
+            Heating
+            <select
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+              value={createForm.heating}
+              onChange={(event) => updateCreateField("heating", event.target.value)}
+            >
+              <option value="">Not specified</option>
+              <option value="Gas">Gas</option>
+              <option value="Electric">Electric</option>
+              <option value="HeatPump">HeatPump</option>
+            </select>
+          </label>
+
+          <label className="text-sm font-medium text-slate-700">
+            Council Tax Band
+            <input
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 uppercase text-slate-900"
+              value={createForm.councilTaxBand}
+              onChange={(event) => updateCreateField("councilTaxBand", event.target.value.toUpperCase())}
+              placeholder="A, B, C..."
+            />
+          </label>
+
+          <label className="text-sm font-medium text-slate-700">
+            Broadband available
+            <select
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+              value={createForm.broadbandAvailable}
+              onChange={(event) => updateCreateField("broadbandAvailable", event.target.value)}
+            >
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+
           <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-sm font-semibold text-slate-900">Images</div>
             <p className="mt-1 text-sm text-slate-600">
@@ -1094,14 +1180,19 @@ export default function PropertyManager({
               <h2 className="text-lg font-semibold text-slate-900">Portfolio</h2>
               <p className="mt-1 text-sm text-slate-600">Browse the properties assigned to the logged-in user.</p>
             </div>
-            <button
-              type="button"
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
-              aria-label={isPortfolioOpen ? "Collapse panel" : "Expand panel"}
-              onClick={() => setIsPortfolioOpen((current) => !current)}
-            >
-              <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isPortfolioOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="inline-flex items-center rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-sky-800">
+                {properties.length} property{properties.length === 1 ? "" : "ies"}
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+                aria-label={isPortfolioOpen ? "Collapse panel" : "Expand panel"}
+                onClick={() => setIsPortfolioOpen((current) => !current)}
+              >
+                <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isPortfolioOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:flex-row lg:items-end lg:justify-between">
@@ -1176,7 +1267,24 @@ export default function PropertyManager({
                           </div>
                         ) : (
                           approvedThumbnails.map((image) => (
-                            <div key={image.id} className="relative h-12 w-12 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+                            <div
+                              key={image.id}
+                              className="relative h-12 w-12 cursor-pointer overflow-hidden rounded-md border border-slate-200 bg-slate-100 transition hover:opacity-80"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                router.push(`/dashboard/properties/${property.id}`)
+                              }}
+                              role="link"
+                              tabIndex={0}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault()
+                                  event.stopPropagation()
+                                  router.push(`/dashboard/properties/${property.id}`)
+                                }
+                              }}
+                              aria-label={`Open details for ${property.address}`}
+                            >
                               <Image
                                 src={getPropertyImagePath(property.id, image.id, "thumbnail")}
                                 alt={image.blobName}
@@ -1196,9 +1304,16 @@ export default function PropertyManager({
                       <button
                         type="button"
                         className="text-sm font-medium text-sky-700 hover:underline"
-                        onClick={() => selectProperty(property)}
+                        onClick={() => router.push(`/dashboard/properties/${property.id}`)}
                       >
                         Details
+                      </button>
+                      <button
+                        type="button"
+                        className="text-sm font-medium text-slate-700 hover:underline"
+                        onClick={() => router.push(`/dashboard/properties/${property.id}/compliance`)}
+                      >
+                        Compliance
                       </button>
                       {canManage ? (
                         <button
@@ -1242,7 +1357,21 @@ export default function PropertyManager({
                   {selectedProperty.type} · {selectedProperty.status} · £{selectedProperty.monthlyRent.toLocaleString()}/month
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+                  onClick={() => router.push(`/dashboard/properties/${selectedProperty.id}`)}
+                >
+                  Open details page
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+                  onClick={() => router.push(`/dashboard/properties/${selectedProperty.id}/compliance`)}
+                >
+                  Open compliance page
+                </button>
                 {canManage ? (
                   <button
                     type="button"
@@ -1461,6 +1590,59 @@ export default function PropertyManager({
                             value={editForm.affordabilityMultiple}
                             onChange={(event) => updateEditField("affordabilityMultiple", event.target.value)}
                           />
+                        </label>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="text-sm font-medium text-slate-700">
+                          Parking
+                          <select
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                            value={editForm.parking}
+                            onChange={(event) => updateEditField("parking", event.target.value)}
+                          >
+                            <option value="">Not specified</option>
+                            <option value="On Street">On Street</option>
+                            <option value="Private Parking">Private Parking</option>
+                          </select>
+                        </label>
+
+                        <label className="text-sm font-medium text-slate-700">
+                          Heating
+                          <select
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                            value={editForm.heating}
+                            onChange={(event) => updateEditField("heating", event.target.value)}
+                          >
+                            <option value="">Not specified</option>
+                            <option value="Gas">Gas</option>
+                            <option value="Electric">Electric</option>
+                            <option value="HeatPump">HeatPump</option>
+                          </select>
+                        </label>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="text-sm font-medium text-slate-700">
+                          Council Tax Band
+                          <input
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 uppercase text-slate-900"
+                            value={editForm.councilTaxBand}
+                            onChange={(event) => updateEditField("councilTaxBand", event.target.value.toUpperCase())}
+                            placeholder="A, B, C..."
+                          />
+                        </label>
+
+                        <label className="text-sm font-medium text-slate-700">
+                          Broadband available
+                          <select
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                            value={editForm.broadbandAvailable}
+                            onChange={(event) => updateEditField("broadbandAvailable", event.target.value)}
+                          >
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                          </select>
                         </label>
                       </div>
 

@@ -15,6 +15,7 @@ type PropertiesPageProps = {
     landlordId?: string
     page?: string
     pageSize?: string
+    edit?: string
   }>
 }
 
@@ -49,7 +50,7 @@ export default async function PropertiesPage({ searchParams }: PropertiesPagePro
   }
 
   const role = getUserRole(user)
-  const { landlordId, page: pageParam, pageSize: pageSizeParam } = await searchParams
+  const { landlordId, page: pageParam, pageSize: pageSizeParam, edit } = await searchParams
   const page = Number.isFinite(Number(pageParam)) ? Math.max(1, Math.floor(Number(pageParam))) : 1
   const pageSize = Number.isFinite(Number(pageSizeParam))
     ? Math.min(100, Math.max(10, Math.floor(Number(pageSizeParam))))
@@ -132,6 +133,7 @@ export default async function PropertiesPage({ searchParams }: PropertiesPagePro
         landlordOptions={landlords}
         canAssignOwner={role === "admin" || role === "agent"}
         defaultOwnerId={landlordId ?? landlords[0]?.id ?? user.id}
+        defaultEditPropertyId={edit}
       />
       {(role === "landlord" || role === "agent" || role === "admin") && (
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

@@ -2,6 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 
 import { getPropertyImageLabel, getPropertyImagePath } from "@/lib/auth"
+import { hasCosmosConfiguration } from "@/lib/server/cosmos"
 import { listPublicAvailableProperties } from "@/lib/server/properties"
 
 const APP_VERSION = "1.0.16"
@@ -21,7 +22,7 @@ function formatPublishedDate(date: Date) {
 }
 
 export default async function HomePage() {
-  const properties = await listPublicAvailableProperties("")
+  const properties = hasCosmosConfiguration() ? await listPublicAvailableProperties("") : []
   const latestProperties = [...properties]
     .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
     .slice(0, 10)

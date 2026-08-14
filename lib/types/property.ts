@@ -69,12 +69,14 @@ export type PropertyCompliance = {
 
 export type PropertyRecord = {
   id: string
+  uid?: string
   ownerId: string
   address: string
   addressLine1: string
   addressLine2: string
   city: string
   postcode: string
+  nickname?: string
   type: string
   status: string
   shortDescription: string
@@ -84,6 +86,10 @@ export type PropertyRecord = {
   bathrooms: number
   monthlyRent: number
   affordabilityMultiple: number
+  parking?: string
+  heating?: string
+  councilTaxBand?: string
+  broadbandAvailable?: boolean
   images: PropertyImageRecord[]
   insurance?: PropertyInsurance
   financials?: PropertyFinancials

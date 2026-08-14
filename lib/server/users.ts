@@ -512,6 +512,9 @@ export async function updateUserForAdmin(
   adminUser: AuthUser,
   email: string,
   input: {
+    first_name?: string
+    last_name?: string
+    mobile?: string
     role?: UserRole
     approval_status?: ApprovalStatus
     managedByAgentId?: string | null
@@ -536,6 +539,9 @@ export async function updateUserForAdmin(
   const nextLandlordAccountId = managedInput.role === "landlord" ? getLandlordAccountId(storedUser) : undefined
   const updatedUser: StoredUser = {
     ...storedUser,
+    first_name: typeof input.first_name === "string" ? input.first_name.trim() : storedUser.first_name,
+    last_name: typeof input.last_name === "string" ? input.last_name.trim() : storedUser.last_name,
+    mobile: typeof input.mobile === "string" ? input.mobile.trim() : storedUser.mobile,
     role: managedInput.role,
     approval_status: normalizedEmail === adminUser.email ? "approved" : managedInput.approval_status,
     landlordAccountId: nextLandlordAccountId,
@@ -547,6 +553,27 @@ export async function updateUserForAdmin(
   await writeStoredUser(updatedUser)
 
   return sanitizeUser(updatedUser)
+}
+
+export async function deleteUserForAdmin(adminUser: AuthUser, email: string) {
+  assertAdmin(adminUser)
+
+  const normalizedEmail = normalizeEmail(email)
+
+  if (normalizedEmail === adminUser.email) {
+    throw new Error("CannotDeleteOwnAccount")
+  }
+
+  const storedUser = await readStoredUser(normalizedEmail)
+
+  if (!storedUser) {
+    return null
+  }
+
+  const container = await getUsersContainer()
+  await container.item(normalizedEmail, normalizedEmail).delete()
+
+  return sanitizeUser(storedUser)
 }
 
 async function listAllUsers() {

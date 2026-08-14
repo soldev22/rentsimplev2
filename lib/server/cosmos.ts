@@ -23,6 +23,10 @@ const maintenanceContainerId = process.env.COSMOSDB_MAINTENANCE_CONTAINER?.trim(
 const casesContainerId = process.env.COSMOSDB_CASES_CONTAINER?.trim() || "cases"
 const caseMessagesContainerId = process.env.COSMOSDB_CASE_MESSAGES_CONTAINER?.trim() || "case-messages"
 
+export function hasCosmosConfiguration() {
+  return Boolean(endpoint)
+}
+
 function createCosmosClient() {
   if (!endpoint) {
     throw new Error("COSMOSDB_ENDPOINT is not configured.")
