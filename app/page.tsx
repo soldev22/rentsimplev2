@@ -4,8 +4,20 @@ import Link from "next/link"
 import { getPropertyImageLabel, getPropertyImagePath } from "@/lib/auth"
 import { listPublicAvailableProperties } from "@/lib/server/properties"
 
+const APP_VERSION = "1.0.16"
+
 function formatCurrency(value: number) {
   return `GBP ${value.toLocaleString()} pcm`
+}
+
+function formatPublishedDate(date: Date) {
+  const day = date.getDate()
+  const month = date.toLocaleString("en-GB", { month: "long" })
+  const year = date.getFullYear()
+  const hour = String(date.getHours()).padStart(2, "0")
+  const minute = String(date.getMinutes()).padStart(2, "0")
+
+  return `${day} ${month} ${year} ${hour}:${minute}`
 }
 
 export default async function HomePage() {
@@ -13,6 +25,7 @@ export default async function HomePage() {
   const latestProperties = [...properties]
     .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
     .slice(0, 10)
+  const publishedDate = formatPublishedDate(new Date())
 
   return (
     <div className="bg-slate-50 text-gray-900">
@@ -77,6 +90,11 @@ export default async function HomePage() {
           </div>
         )}
       </div>
+
+      <footer className="border-t border-slate-200 bg-white/80 px-6 py-4 text-center text-sm text-slate-600 backdrop-blur-sm">
+        <div>Version: {APP_VERSION}</div>
+        <div>Published: {publishedDate}</div>
+      </footer>
     </div>
   )
 }
