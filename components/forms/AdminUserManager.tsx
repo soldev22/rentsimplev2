@@ -353,8 +353,8 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-700">Testing reset</p>
             <h2 className="mt-2 text-2xl font-bold text-slate-900">Reset workflow data</h2>
             <p className="mt-2 max-w-3xl text-sm text-slate-700">
-              Delete all applications, properties, and property images so you can re-test flows from a clean state.
-              All user accounts are preserved.
+              Delete all workspace data, non-admin user accounts, properties, images, and application records while
+              preserving the admin account you are currently signed in with.
             </p>
           </div>
           <button
