@@ -81,7 +81,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       },
     })
 
-    return NextResponse.json({ url: blobClient.url, blobName }, { status: 201 })
+    return NextResponse.json({
+      url: `/api/properties/${propertyId}/compliance/documents/${blobName}`,
+      blobName,
+    }, { status: 201 })
   } catch (error) {
     console.error("Error uploading compliance document:", error)
     return NextResponse.json(

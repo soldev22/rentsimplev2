@@ -32,6 +32,7 @@ export async function PUT(request: Request) {
         firstName: updatedUser.first_name,
         lastName: updatedUser.last_name,
         mobile: updatedUser.mobile,
+        landlordProfile: updatedUser.landlordProfile ?? null,
         notificationProfile: updatedUser.notificationProfile ?? null,
         screeningScoreConfig: updatedUser.screeningScoreConfig ?? null,
       },

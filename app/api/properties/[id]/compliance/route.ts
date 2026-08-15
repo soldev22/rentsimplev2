@@ -19,9 +19,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const body = await request.json()
     const { compliance } = body as { compliance: PropertyCompliance }
 
-    if (!compliance || !compliance.type || !compliance.expirationDate) {
+    if (!compliance || !compliance.type || (!compliance.notApplicable && !compliance.expirationDate)) {
       return NextResponse.json(
-        { error: "Missing required fields: type and expirationDate" },
+        { error: "Missing required fields: type and expirationDate (unless not applicable)" },
         { status: 400 },
       )
     }
@@ -55,9 +55,9 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
     const body = await request.json()
     const { complianceId, compliance } = body as { complianceId: string; compliance: PropertyCompliance }
 
-    if (!complianceId || !compliance || !compliance.type || !compliance.expirationDate) {
+    if (!complianceId || !compliance || !compliance.type || (!compliance.notApplicable && !compliance.expirationDate)) {
       return NextResponse.json(
-        { error: "Missing required fields: complianceId, type, and expirationDate" },
+        { error: "Missing required fields: complianceId, type, and expirationDate (unless not applicable)" },
         { status: 400 },
       )
     }

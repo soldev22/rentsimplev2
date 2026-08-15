@@ -9,6 +9,7 @@ import {
   type AuthUser,
   type BuilderProfileDefaults,
   type NotificationProfileDefaults,
+  type LandlordProfile,
   type UserRole,
   getUserRole,
   normalizeEmail,
@@ -211,6 +212,23 @@ function normalizeNotificationProfile(input: Partial<NotificationProfileDefaults
     outboundEmail,
     copyLandlordOnTenantEmails,
   }
+}
+
+function normalizeLandlordProfile(input: Partial<LandlordProfile> | undefined): LandlordProfile | undefined {
+  if (!input) {
+    return undefined
+  }
+
+  const profile = {
+    tradingName: typeof input.tradingName === "string" ? input.tradingName.trim() : "",
+    registrationNumber: typeof input.registrationNumber === "string" ? input.registrationNumber.trim() : "",
+    addressLine1: typeof input.addressLine1 === "string" ? input.addressLine1.trim() : "",
+    addressLine2: typeof input.addressLine2 === "string" ? input.addressLine2.trim() : "",
+    city: typeof input.city === "string" ? input.city.trim() : "",
+    postcode: typeof input.postcode === "string" ? input.postcode.trim().toUpperCase() : "",
+  }
+
+  return Object.values(profile).some(Boolean) ? profile : undefined
 }
 
 function normalizeScreeningScoreConfig(
@@ -614,7 +632,7 @@ export async function listLandlordDirectoryForUser(user: AuthUser) {
     .map<LandlordDirectoryEntry>((candidate) => ({
       id: candidate.id,
       email: candidate.email,
-      fullName: getFullName(candidate),
+      fullName: candidate.landlordProfile?.tradingName?.trim() || getFullName(candidate),
     }))
     .sort((left, right) => left.fullName.localeCompare(right.fullName))
 }
@@ -700,6 +718,7 @@ export async function updateLandlordProfile(
     lastName: string
     mobile: string
     notificationProfile: Partial<NotificationProfileDefaults>
+    landlordProfile: Partial<LandlordProfile>
     screeningScoreConfig: Partial<ApplicantScreeningScoreConfig>
   }>,
 ) {
@@ -723,6 +742,10 @@ export async function updateLandlordProfile(
     ...(storedUser.screeningScoreConfig ?? {}),
     ...(input.screeningScoreConfig ?? {}),
   })
+  const nextLandlordProfile = normalizeLandlordProfile({
+    ...(storedUser.landlordProfile ?? {}),
+    ...(input.landlordProfile ?? {}),
+  })
 
   const updatedUser: StoredUser = {
     ...storedUser,
@@ -730,6 +753,7 @@ export async function updateLandlordProfile(
     last_name: lastName,
     mobile,
     notificationProfile: nextNotificationProfile,
+    landlordProfile: nextLandlordProfile,
     screeningScoreConfig: nextScreeningScoreConfig,
     updatedAt: new Date().toISOString(),
   }

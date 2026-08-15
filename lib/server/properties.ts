@@ -9,6 +9,8 @@ import {
   type AuthUser,
   type PendingPropertyImageReview,
   type PropertyFinancials,
+  type PropertyIncludedItem,
+  type PropertyLettingPreferences,
   type PropertyImageRecord,
   type PropertyInsurance,
   type PropertyRecord,
@@ -99,6 +101,8 @@ export type PropertyInput = {
   heating?: string
   councilTaxBand?: string
   broadbandAvailable?: boolean | string
+  includedItems?: PropertyIncludedItem[]
+  lettingPreferences?: PropertyLettingPreferences
 }
 
 async function getAccessibleLandlordIds(user: AuthUser, selectedLandlordId?: string) {
@@ -289,6 +293,66 @@ function normalizePropertyFinancials(financials: PropertyFinancials | undefined)
     propertyValue,
     annualAppreciationRate,
     estimatedAnnualCosts,
+    purchaseCost: typeof financials.purchaseCost === "number" ? Math.max(0, financials.purchaseCost) : undefined,
+    mortgageLender: typeof financials.mortgageLender === "string" && financials.mortgageLender.trim()
+      ? financials.mortgageLender.trim()
+      : undefined,
+    mortgageBalance: typeof financials.mortgageBalance === "number" ? Math.max(0, financials.mortgageBalance) : undefined,
+    mortgageInterestRate: typeof financials.mortgageInterestRate === "number"
+      ? Math.max(0, financials.mortgageInterestRate)
+      : undefined,
+    mortgageMonthlyPayment: typeof financials.mortgageMonthlyPayment === "number"
+      ? Math.max(0, financials.mortgageMonthlyPayment)
+      : undefined,
+    mortgageRenewalDate: typeof financials.mortgageRenewalDate === "string" && financials.mortgageRenewalDate.trim()
+      ? financials.mortgageRenewalDate.trim()
+      : undefined,
+    depositAmount: typeof financials.depositAmount === "number" ? Math.max(0, financials.depositAmount) : undefined,
+    depositProtectionScheme: typeof financials.depositProtectionScheme === "string" && financials.depositProtectionScheme.trim()
+      ? financials.depositProtectionScheme.trim()
+      : undefined,
+    depositReference: typeof financials.depositReference === "string" && financials.depositReference.trim()
+      ? financials.depositReference.trim()
+      : undefined,
+    paymentFrequency: ["weekly", "monthly", "quarterly"].includes(financials.paymentFrequency ?? "")
+      ? financials.paymentFrequency
+      : undefined,
+    paymentDueDay: typeof financials.paymentDueDay === "number" && Number.isInteger(financials.paymentDueDay)
+      ? Math.min(31, Math.max(1, financials.paymentDueDay))
+      : undefined,
+    latePaymentPolicy: typeof financials.latePaymentPolicy === "string" && financials.latePaymentPolicy.trim()
+      ? financials.latePaymentPolicy.trim()
+      : undefined,
+  }
+}
+
+function normalizePropertyIncludedItems(items: PropertyIncludedItem[] | undefined): PropertyIncludedItem[] {
+  if (!Array.isArray(items)) {
+    return []
+  }
+
+  return items
+    .filter((item) => item && typeof item.name === "string" && item.name.trim())
+    .map((item) => ({
+      id: typeof item.id === "string" && item.id.trim() ? item.id : randomUUID(),
+      name: item.name.trim(),
+      isElectrical: item.isElectrical === true,
+    }))
+}
+
+function normalizeLettingPreferences(preferences: PropertyLettingPreferences | undefined): PropertyLettingPreferences | undefined {
+  if (!preferences || typeof preferences !== "object") {
+    return undefined
+  }
+
+  return {
+    petsAllowed: preferences.petsAllowed === true,
+    smokingAllowed: preferences.smokingAllowed === true,
+    studentsAccepted: preferences.studentsAccepted === true,
+    universalCreditConsidered: preferences.universalCreditConsidered === true,
+    guarantorRequired: preferences.guarantorRequired === true,
+    maximumOccupants: typeof preferences.maximumOccupants === "number" ? Math.max(0, Math.floor(preferences.maximumOccupants)) : undefined,
+    minimumTenancyLengthMonths: typeof preferences.minimumTenancyLengthMonths === "number" ? Math.max(0, Math.floor(preferences.minimumTenancyLengthMonths)) : undefined,
   }
 }
 
@@ -340,6 +404,8 @@ function normalizePropertyRecord(property: PropertyRecord) {
     images: Array.isArray(property.images) ? property.images.map(normalizePropertyImageRecord) : [],
     insurance: normalizePropertyInsurance(property.insurance),
     financials: normalizePropertyFinancials(property.financials),
+    includedItems: normalizePropertyIncludedItems(property.includedItems),
+    lettingPreferences: normalizeLettingPreferences(property.lettingPreferences),
     compliance: normalizePropertyComplianceArray(property.compliance),
   }
 }
@@ -383,6 +449,8 @@ function normalizePropertyInput(input: PropertyInput) {
     heating,
     councilTaxBand,
     broadbandAvailable,
+    includedItems: normalizePropertyIncludedItems(input.includedItems),
+    lettingPreferences: normalizeLettingPreferences(input.lettingPreferences),
   }
 }
 
@@ -770,6 +838,8 @@ export async function createProperty(user: AuthUser, input: PropertyInput) {
     heating: normalized.heating || undefined,
     councilTaxBand: normalized.councilTaxBand || undefined,
     broadbandAvailable: normalized.broadbandAvailable,
+    includedItems: normalized.includedItems,
+    lettingPreferences: normalized.lettingPreferences,
     images: [],
     createdAt: now,
     updatedAt: now,
@@ -826,6 +896,8 @@ export async function updateProperty(user: AuthUser, propertyId: string, input: 
       : typeof input.broadbandAvailable === "string"
         ? { broadbandAvailable: ["yes", "true", "1"].includes(input.broadbandAvailable.trim().toLowerCase()) }
         : null),
+    ...(Array.isArray(input.includedItems) ? { includedItems: normalizePropertyIncludedItems(input.includedItems) } : null),
+    ...(input.lettingPreferences ? { lettingPreferences: normalizeLettingPreferences(input.lettingPreferences) } : null),
     updatedAt: new Date().toISOString(),
   }
 
@@ -960,10 +1032,34 @@ function normalizePropertyCompliance(compliance: PropertyCompliance | undefined)
   }
 
   const type = compliance.type as ComplianceType
+  const legacyDocumentUrl = typeof compliance.documentUrl === "string" && compliance.documentUrl.trim()
+    ? compliance.documentUrl.trim()
+    : undefined
+  const documents = Array.isArray(compliance.documents)
+    ? compliance.documents
+        .filter((document) => document && typeof document.url === "string" && document.url.trim())
+        .map((document) => ({
+          url: document.url.trim(),
+          blobName: typeof document.blobName === "string" && document.blobName.trim()
+            ? document.blobName.trim()
+            : undefined,
+          fileName: typeof document.fileName === "string" && document.fileName.trim()
+            ? document.fileName.trim()
+            : "Certificate",
+          uploadedAt: typeof document.uploadedAt === "string" && document.uploadedAt.trim()
+            ? document.uploadedAt.trim()
+            : new Date().toISOString(),
+        }))
+    : legacyDocumentUrl
+      ? [{ url: legacyDocumentUrl, fileName: "Certificate", uploadedAt: new Date().toISOString() }]
+      : []
 
   return {
     id: typeof compliance.id === "string" && compliance.id.trim() ? compliance.id : randomUUID(),
     type,
+    patItemId: type === "pat_testing" && typeof compliance.patItemId === "string" && compliance.patItemId.trim()
+      ? compliance.patItemId.trim()
+      : undefined,
     lastCheckedDate: typeof compliance.lastCheckedDate === "string" && compliance.lastCheckedDate.trim() 
       ? compliance.lastCheckedDate.trim() 
       : new Date().toISOString(),
@@ -973,12 +1069,15 @@ function normalizePropertyCompliance(compliance: PropertyCompliance | undefined)
     certificateNumber: typeof compliance.certificateNumber === "string" && compliance.certificateNumber.trim() 
       ? compliance.certificateNumber.trim() 
       : undefined,
+    epcRating: compliance.type === "epc" && typeof compliance.epcRating === "string" && /^[A-G]$/.test(compliance.epcRating)
+      ? compliance.epcRating
+      : undefined,
     provider: typeof compliance.provider === "string" && compliance.provider.trim() 
       ? compliance.provider.trim() 
       : undefined,
-    documentUrl: typeof compliance.documentUrl === "string" && compliance.documentUrl.trim() 
-      ? compliance.documentUrl.trim() 
-      : undefined,
+    documentUrl: legacyDocumentUrl ?? documents.at(-1)?.url,
+    documents: documents.length ? documents : undefined,
+    notApplicable: compliance.notApplicable === true,
     notes: typeof compliance.notes === "string" && compliance.notes.trim() 
       ? compliance.notes.trim() 
       : undefined,

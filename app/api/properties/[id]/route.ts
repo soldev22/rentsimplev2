@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 
 import { isPendingApproval } from "@/lib/auth"
+import type { PropertyIncludedItem } from "@/lib/auth"
+import type { PropertyLettingPreferences } from "@/lib/auth"
 import { deletePropertyForUser, getPropertyForUser, updateProperty } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
 
@@ -64,6 +66,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       heating?: string
       councilTaxBand?: string
       broadbandAvailable?: boolean | string
+      includedItems?: PropertyIncludedItem[]
+      lettingPreferences?: PropertyLettingPreferences
     }
 
     const { id } = await context.params
