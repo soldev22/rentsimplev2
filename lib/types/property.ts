@@ -20,6 +20,7 @@ export type PropertyImageRecord = {
   moderationScores?: PropertyImageModerationScores
   moderationReviewedAt?: string
   uploadedByUserId?: string
+  isCoverImage?: boolean
   size: number
   uploadedAt: string
 }

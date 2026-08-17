@@ -11,6 +11,7 @@ type PropertyImageGalleryProps = {
   canManage?: boolean
   isPending?: boolean
   onRemove?: (blobName: string) => void
+  onSetCover?: (imageId: string) => void
   gridClassName?: string
 }
 
@@ -34,6 +35,7 @@ export default function PropertyImageGallery({
   canManage = false,
   isPending = false,
   onRemove,
+  onSetCover,
   gridClassName = "grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6",
 }: PropertyImageGalleryProps) {
   const [activeImageId, setActiveImageId] = useState<string | null>(null)
@@ -96,15 +98,22 @@ export default function PropertyImageGallery({
                   </button>
                 ) : null}
               </div>
-              {image.moderationStatus === "pending_review" ? (
+              {image.isCoverImage ? (
+                <div className="mt-2 text-xs font-semibold text-cyan-800">Listing cover image</div>
+              ) : canManage && onSetCover && image.moderationStatus === "approved" ? (
+                <button type="button" disabled={isPending} onClick={() => onSetCover(image.id)} className="mt-2 text-xs font-semibold text-cyan-700 hover:underline disabled:opacity-60">
+                  Set as listing cover
+                </button>
+              ) : null}
+              {canManage && image.moderationStatus === "pending_review" ? (
                 <div className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${moderationStatus.className}`}>
                   {moderationStatus.label}
                 </div>
-              ) : (
+              ) : canManage ? (
                 <div className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${moderationStatus.className}`}>
                   {moderationStatus.label}
                 </div>
-              )}
+              ) : null}
               <div className="mt-2 text-xs text-slate-500">
                 {image.contentType} · {(image.size / 1024).toFixed(1)} KB
               </div>
@@ -129,9 +138,11 @@ export default function PropertyImageGallery({
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-slate-900">{getPropertyImageLabel(activeImage)}</div>
-                <div className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${moderationStatus.className}`}>
-                  {moderationStatus.label}
-                </div>
+                {canManage ? (
+                  <div className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${moderationStatus.className}`}>
+                    {moderationStatus.label}
+                  </div>
+                ) : null}
                 <div className="mt-1 text-xs text-slate-500">
                   {activeImage.contentType} · {(activeImage.size / 1024).toFixed(1)} KB
                 </div>

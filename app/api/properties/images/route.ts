@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { MAX_PROPERTY_IMAGES, isPendingApproval } from "@/lib/auth"
 import { deletePropertyImageAssets, uploadPropertyImage } from "@/lib/server/blob"
 import { moderatePropertyImageUpload } from "@/lib/server/image-moderation"
-import { addPropertyImage, getPropertyForUser, removePropertyImage } from "@/lib/server/properties"
+import { addPropertyImage, getPropertyForUser, removePropertyImage, setPropertyCoverImage } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
 
 export async function POST(request: Request) {
@@ -140,5 +140,22 @@ export async function DELETE(request: Request) {
     }
 
     return NextResponse.json({ error: "Unable to delete image." }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: Request) {
+  const user = await getSessionUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (isPendingApproval(user)) return NextResponse.json({ error: "Account pending approval" }, { status: 403 })
+
+  try {
+    const body = (await request.json()) as { propertyId?: string; imageId?: string }
+    if (!body.propertyId || !body.imageId) return NextResponse.json({ error: "propertyId and imageId are required." }, { status: 400 })
+    const property = await setPropertyCoverImage(user, body.propertyId, body.imageId)
+    if (!property) return NextResponse.json({ error: "Approved property image not found." }, { status: 404 })
+    return NextResponse.json({ property })
+  } catch (error) {
+    if (error instanceof Error && error.message === "Forbidden") return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    return NextResponse.json({ error: "Unable to set cover image." }, { status: 500 })
   }
 }

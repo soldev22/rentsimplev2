@@ -54,6 +54,7 @@ export default function LoginPage() {
       : "login"
   const token = searchParams.get("token") ?? ""
   const redirectToParam = getSafeRedirectPath(searchParams.get("redirectTo"))
+  const isApplicantPropertyRegistration = searchParams.get("accountType") === "applicant"
   const redirectQuery = redirectToParam ? `&redirectTo=${encodeURIComponent(redirectToParam)}` : ""
   const registerHref = `/login?mode=register${redirectQuery}`
   const forgotHref = `/login?mode=forgot${redirectQuery}`
@@ -70,7 +71,7 @@ export default function LoginPage() {
     mobile: "",
     email: "",
     password: "",
-    accountType: "general",
+    accountType: isApplicantPropertyRegistration ? "applicant" : "general",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -91,6 +92,12 @@ export default function LoginPage() {
     const nextQuery = sanitizedParams.toString()
     router.replace(nextQuery ? `/login?${nextQuery}` : "/login")
   }, [router, searchParams])
+
+  useEffect(() => {
+    if (isApplicantPropertyRegistration) {
+      setFormState((current) => ({ ...current, accountType: "applicant" }))
+    }
+  }, [isApplicantPropertyRegistration])
 
   useEffect(() => {
     let isActive = true
@@ -236,7 +243,7 @@ export default function LoginPage() {
                 mobile: formState.mobile,
                 email: formState.email,
                 password: formState.password,
-                accountType: formState.accountType === "applicant" ? "applicant" : undefined,
+                accountType: (isApplicantPropertyRegistration || formState.accountType === "applicant") ? "applicant" : undefined,
               }
             : isForgotPasswordMode || isVerifyRequestMode
               ? {
@@ -407,18 +414,24 @@ export default function LoginPage() {
             {isRegistrationMode ? (
               <label className="block text-sm font-medium text-slate-700">
                 Registering as
-                <select
-                  className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 focus:border-sky-500"
-                  name="accountType"
-                  value={formState.accountType}
-                  onChange={handleInputChange}
-                  aria-label="Account type"
-                >
-                  <option value="applicant">Applicant</option>
-                  <option value="general">General account</option>
-                </select>
+                {isApplicantPropertyRegistration ? (
+                  <div className="mt-2 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900">Applicant</div>
+                ) : (
+                  <select
+                    className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 focus:border-sky-500"
+                    name="accountType"
+                    value={formState.accountType}
+                    onChange={handleInputChange}
+                    aria-label="Account type"
+                  >
+                    <option value="applicant">Applicant</option>
+                    <option value="general">General account</option>
+                  </select>
+                )}
                 <span className="mt-2 block text-xs text-slate-500">
-                  General accounts enter the admin approval queue after email verification. Applicants can start the tenancy workflow immediately.
+                  {isApplicantPropertyRegistration
+                    ? "Property applications require an applicant account."
+                    : "General accounts enter the admin approval queue after email verification. Applicants can start the tenancy workflow immediately."}
                 </span>
               </label>
             ) : null}

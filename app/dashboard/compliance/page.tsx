@@ -21,15 +21,20 @@ const complianceLabels: Record<ComplianceType, string> = {
   pat_testing: "PAT Testing",
 }
 
+const standardComplianceTypes: ComplianceType[] = [
+  "electrical", "gas", "fire_alarm", "smoke_alarm", "legionella", "epc", "damp_survey", "asbestos_survey", "pest_control", "boiler_service",
+]
+
 type ComplianceWorkItem = {
   propertyId: string
   propertyAddress: string
   label: string
-  dueDate: string
-  daysUntilDue: number
+  dueDate?: string
+  daysUntilDue?: number
 }
 
-function getStatus(daysUntilDue: number) {
+function getStatus(daysUntilDue: number | undefined) {
+  if (daysUntilDue === undefined) return { label: "Not recorded", className: "border-red-300 bg-red-100 text-red-900" }
   if (daysUntilDue < 0) return { label: "Overdue", className: "border-red-300 bg-red-100 text-red-900" }
   if (daysUntilDue <= 30) return { label: "Due within 30 days", className: "border-red-300 bg-red-100 text-red-900" }
   return { label: "Due in 31-90 days", className: "border-amber-300 bg-amber-100 text-amber-900" }
@@ -46,6 +51,19 @@ export default async function ComplianceWorklistPage() {
   const workItems: ComplianceWorkItem[] = []
 
   for (const property of properties) {
+    for (const type of standardComplianceTypes) {
+      const compliance = property.compliance?.find((item) => item.type === type)
+      if (compliance?.notApplicable) continue
+
+      if (!compliance || !compliance.expirationDate) {
+        workItems.push({
+          propertyId: property.id,
+          propertyAddress: property.address,
+          label: complianceLabels[type],
+        })
+      }
+    }
+
     for (const compliance of property.compliance ?? []) {
       if (compliance.notApplicable || !compliance.expirationDate) continue
 
@@ -69,7 +87,7 @@ export default async function ComplianceWorklistPage() {
     }
   }
 
-  workItems.sort((left, right) => left.daysUntilDue - right.daysUntilDue || left.propertyAddress.localeCompare(right.propertyAddress))
+  workItems.sort((left, right) => (left.daysUntilDue ?? Number.NEGATIVE_INFINITY) - (right.daysUntilDue ?? Number.NEGATIVE_INFINITY) || left.propertyAddress.localeCompare(right.propertyAddress))
 
   return (
     <div className="space-y-6">
@@ -95,7 +113,7 @@ export default async function ComplianceWorklistPage() {
               <Link key={`${item.propertyId}-${item.label}-${item.dueDate}`} href={`/dashboard/properties/${item.propertyId}/compliance`} className="grid grid-cols-[1.4fr_1.2fr_1fr_auto] items-center gap-3 border-b border-slate-100 px-4 py-4 text-sm hover:bg-slate-50 last:border-b-0">
                 <span className="font-semibold text-slate-900">{item.propertyAddress}</span>
                 <span className="text-slate-700">{item.label}</span>
-                <span className="text-slate-700">{new Date(`${item.dueDate}T00:00:00`).toLocaleDateString("en-GB")}</span>
+                <span className="text-slate-700">{item.dueDate ? new Date(`${item.dueDate}T00:00:00`).toLocaleDateString("en-GB") : "Not recorded"}</span>
                 <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${status.className}`}>{status.label}</span>
               </Link>
             )

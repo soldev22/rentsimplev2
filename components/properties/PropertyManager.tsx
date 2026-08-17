@@ -221,6 +221,8 @@ export default function PropertyManager({
   const [isEditMode, setIsEditMode] = useState(false)
   const [isGeneratingCreateDescription, setIsGeneratingCreateDescription] = useState(false)
   const [isGeneratingEditDescription, setIsGeneratingEditDescription] = useState(false)
+  const [isCreatingProperty, setIsCreatingProperty] = useState(false)
+  const [createUploadProgress, setCreateUploadProgress] = useState({ completed: 0, total: 0 })
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingImageReviews, setPendingImageReviews] = useState<PendingPropertyImageReview[]>([])
@@ -456,6 +458,7 @@ export default function PropertyManager({
       }
 
       uploadedImages.push(payload.image)
+      setCreateUploadProgress((current) => ({ ...current, completed: current.completed + 1 }))
     }
 
     return uploadedImages
@@ -531,7 +534,11 @@ export default function PropertyManager({
       return
     }
 
+    setIsCreatingProperty(true)
+    setCreateUploadProgress({ completed: 0, total: createImageFiles.length })
+
     startTransition(async () => {
+      try {
       const response = await fetch("/api/properties", {
         method: "POST",
         headers: {
@@ -596,6 +603,9 @@ export default function PropertyManager({
           ? "Property created. Uploaded images are now pending admin approval."
           : "Property created.",
       )
+      } finally {
+        setIsCreatingProperty(false)
+      }
     })
   }
 
@@ -706,6 +716,20 @@ export default function PropertyManager({
     })
   }
 
+  function handleSetCoverImage(imageId: string) {
+    if (!selectedProperty) return
+    startTransition(async () => {
+      const response = await fetch("/api/properties/images", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ propertyId: selectedProperty.id, imageId }) })
+      const payload = (await response.json()) as { property?: PropertyRecord; error?: string }
+      if (!response.ok || !payload.property) {
+        setError(payload.error || "Unable to set listing cover image.")
+        return
+      }
+      setProperties((current) => current.map((property) => property.id === payload.property?.id ? payload.property : property))
+      selectProperty(payload.property, isEditMode)
+    })
+  }
+
   function handleImageDelete(blobName: string) {
     if (!selectedProperty) {
       return
@@ -777,6 +801,19 @@ export default function PropertyManager({
 
   return (
     <div className="flex flex-col gap-6">
+      {isCreatingProperty ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" role="status" aria-live="polite">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-cyan-700" />
+            <h2 className="mt-4 text-lg font-semibold text-slate-900">Creating property</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              {createUploadProgress.total > 0
+                ? `Uploading image ${Math.min(createUploadProgress.completed + 1, createUploadProgress.total)} of ${createUploadProgress.total}.`
+                : "Saving property details."}
+            </p>
+          </div>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Properties</h1>
@@ -1749,6 +1786,7 @@ export default function PropertyManager({
                       canManage={canManage}
                       isPending={isPending}
                       onRemove={handleImageDelete}
+                      onSetCover={handleSetCoverImage}
                     />
                   )}
                 </div>

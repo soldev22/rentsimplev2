@@ -54,7 +54,8 @@ export default async function HomePage() {
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {latestProperties.map((property) => {
-              const heroImage = property.images.find((image) => image.moderationStatus === "approved")
+              const heroImage = property.images.find((image) => image.moderationStatus === "approved" && image.isCoverImage)
+                ?? property.images.find((image) => image.moderationStatus === "approved")
 
               return (
                 <article key={property.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

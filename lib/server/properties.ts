@@ -250,6 +250,7 @@ function normalizePropertyImageRecord(image: PropertyImageRecord): PropertyImage
     moderationReason: typeof image.moderationReason === "string" ? image.moderationReason : undefined,
     moderationReviewedAt: typeof image.moderationReviewedAt === "string" ? image.moderationReviewedAt : undefined,
     uploadedByUserId: typeof image.uploadedByUserId === "string" ? image.uploadedByUserId : undefined,
+    isCoverImage: image.isCoverImage === true,
     moderationScores:
       image.moderationScores && typeof image.moderationScores === "object"
         ? {
@@ -1354,4 +1355,23 @@ export async function reviewPropertyImageForAdmin(
   await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
   await deletePropertyImageAssets(image)
   return normalizePropertyRecord(nextProperty)
+}
+
+export async function setPropertyCoverImage(user: AuthUser, propertyId: string, imageId: string) {
+  const property = await getPropertyById(propertyId)
+  if (!property) return null
+  if (!(await canAccessPropertyForUser(user, property)) || !canManageProperties(user)) throw new Error("Forbidden")
+
+  const image = property.images.find((candidate) => candidate.id === imageId)
+  if (!image || image.moderationStatus !== "approved") return null
+
+  const nextProperty: PropertyRecord = {
+    ...property,
+    images: property.images.map((candidate) => ({ ...candidate, isCoverImage: candidate.id === imageId })),
+    updatedAt: new Date().toISOString(),
+  }
+
+  const container = await getPropertiesContainer()
+  await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
+  return nextProperty
 }
