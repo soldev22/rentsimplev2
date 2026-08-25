@@ -10,18 +10,22 @@ export type {
   BuilderTrade,
   EmploymentStatus,
   NotificationProfileDefaults,
+  LandlordProfile,
   PreferredContactMethod,
   UserRole,
 } from "./types/user"
 export type {
   PendingPropertyImageReview,
   PropertyFinancials,
+  PropertyIncludedItem,
+  PropertyLettingPreferences,
   PropertyImageModerationScores,
   PropertyImageModerationStatus,
   PropertyImageRecord,
   PropertyInsurance,
   PropertyRecord,
   ComplianceType,
+  ComplianceDocument,
   PropertyCompliance,
 } from "./types/property"
 export type {

@@ -1,11 +1,14 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 
+import PropertyHeaderEditor from "@/components/properties/PropertyHeaderEditor"
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
 import PropertyMarketingPackButton from "@/components/properties/PropertyMarketingPackButton"
-import { MAX_PROPERTY_IMAGES, isPendingApproval } from "@/lib/auth"
+import PropertyTabs from "@/components/properties/PropertyTabs"
+import { MAX_PROPERTY_IMAGES, canManageProperties, isPendingApproval } from "@/lib/auth"
 import { getPropertyForUser } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
+import { getUserById } from "@/lib/server/users"
 
 export const dynamic = "force-dynamic"
 
@@ -35,17 +38,18 @@ export default async function PropertyDetail({ params }: PageContext) {
 
   const pendingImages = property.images.filter((image) => image.moderationStatus === "pending_review").length
   const approvedImages = property.images.length - pendingImages
+  const epcRating = property.compliance?.find((item) => item.type === "epc")?.epcRating
+  const canManage = canManageProperties(user)
+  const owner = await getUserById(property.ownerId)
+  const ownerLabel = owner?.landlordProfile?.tradingName?.trim()
+    || [owner?.first_name, owner?.last_name].filter(Boolean).join(" ")
+    || property.ownerId
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Property</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">{property.address}</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            {property.type} · {property.status} · £{property.monthlyRent.toLocaleString()}/month
-          </p>
-        </div>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <PropertyHeaderEditor property={property} />
+
         <div className="flex flex-wrap items-center justify-end gap-3">
           <PropertyMarketingPackButton property={property} />
           <Link href="/dashboard/properties" className="text-sm font-medium text-sky-700 hover:underline">
@@ -54,9 +58,21 @@ export default async function PropertyDetail({ params }: PageContext) {
         </div>
       </div>
 
+      <PropertyTabs propertyId={property.id} />
+
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Overview</h2>
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-lg font-semibold text-slate-900">Details</h2>
+            {canManage ? (
+              <Link
+                href={`/dashboard/properties?edit=${encodeURIComponent(property.id)}`}
+                className="rounded-md bg-cyan-700 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-cyan-800"
+              >
+                Edit details
+              </Link>
+            ) : null}
+          </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <div className="rounded-xl bg-slate-50 p-4">
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Bedrooms</div>
@@ -68,19 +84,21 @@ export default async function PropertyDetail({ params }: PageContext) {
             </div>
             <div className="rounded-xl bg-slate-50 p-4">
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Owner</div>
-              <div className="mt-2 text-sm font-semibold text-slate-900">{property.ownerId}</div>
+              <div className="mt-2 text-sm font-semibold text-slate-900">{ownerLabel}</div>
             </div>
             <div className="rounded-xl bg-slate-50 p-4">
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Affordability ratio</div>
               <div className="mt-2 text-sm font-semibold text-slate-900">{property.affordabilityMultiple.toFixed(1)}x annual rent</div>
             </div>
+            <div className="rounded-xl bg-slate-50 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">EPC rating</div>
+              <div className="mt-2 text-2xl font-semibold text-slate-900">{epcRating ?? "Not recorded"}</div>
+            </div>
           </div>
 
           <div className="mt-6">
             <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Short description</h3>
-            <p className="mt-3 text-slate-800">
-              {property.shortDescription || "No short description has been added yet."}
-            </p>
+            <p className="mt-3 text-slate-800">{property.shortDescription || "No short description has been added yet."}</p>
           </div>
 
           <div className="mt-6">
@@ -88,6 +106,19 @@ export default async function PropertyDetail({ params }: PageContext) {
             <p className="mt-3 whitespace-pre-wrap text-slate-700">
               {property.longDescription || "No long description has been added yet."}
             </p>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Included items</h3>
+            {property.includedItems?.length ? (
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {property.includedItems.map((item) => (
+                  <li key={item.id} className="rounded-md bg-slate-100 px-3 py-1.5 text-sm text-slate-800">
+                    {item.name}{item.isElectrical ? " (electrical)" : ""}
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="mt-3 text-slate-700">No included items have been recorded.</p>}
           </div>
         </section>
 

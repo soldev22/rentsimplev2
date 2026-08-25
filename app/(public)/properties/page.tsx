@@ -187,13 +187,14 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
           <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
             <div className="space-y-4">
             {filteredProperties.map((property) => {
-              const heroImage = property.images.find((image) => image.moderationStatus === "approved")
+              const heroImage = property.images.find((image) => image.moderationStatus === "approved" && image.isCoverImage)
+                ?? property.images.find((image) => image.moderationStatus === "approved")
               const existingApplication = activeApplicationByPropertyId.get(property.id)
               const quickApplyStatus = !sessionUser
                 ? {
                     tone: "border-cyan-200 bg-cyan-50 text-cyan-900",
                     message: "Register as an applicant to apply for this flat with Quick Apply.",
-                    ctaHref: "/login?mode=register",
+                    ctaHref: "/login?mode=register&accountType=applicant",
                     ctaLabel: "Register to apply or sign in",
                   }
                 : isApplicant
@@ -213,7 +214,7 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                   : {
                       tone: "border-cyan-200 bg-cyan-50 text-cyan-900",
                       message: "Register as an applicant to apply for this flat.",
-                      ctaHref: "/login?mode=register",
+                      ctaHref: "/login?mode=register&accountType=applicant",
                       ctaLabel: "Register to apply or sign in",
                     }
 

@@ -73,8 +73,8 @@ function getRiskBand(score: number) {
 
 export default async function LandlordDashboardPage() {
   const now = new Date()
-  const inThirtyDays = new Date(now)
-  inThirtyDays.setDate(inThirtyDays.getDate() + 30)
+  const inNinetyDays = new Date(now)
+  inNinetyDays.setDate(inNinetyDays.getDate() + 90)
 
   const user = await getSessionUser()
 
@@ -150,12 +150,20 @@ export default async function LandlordDashboardPage() {
   )
 
   const complianceDueSoon = properties.reduce((count, property) => {
+    const standardComplianceTypes = ["electrical", "gas", "fire_alarm", "smoke_alarm", "legionella", "epc", "damp_survey", "asbestos_survey", "pest_control", "boiler_service"] as const
+    const missingItems = standardComplianceTypes.filter((type) => {
+      const record = property.compliance?.find((item) => item.type === type)
+      return !record || (!record.notApplicable && !record.expirationDate)
+    })
     const dueItems = (property.compliance ?? []).filter((item) => {
       const expiry = Date.parse(item.expirationDate)
-      return Number.isFinite(expiry) && expiry <= inThirtyDays.getTime()
+      const isOrphanedPatItem = item.type === "pat_testing" && !property.includedItems?.some(
+        (includedItem) => includedItem.id === item.patItemId && includedItem.isElectrical,
+      )
+      return !item.notApplicable && !isOrphanedPatItem && Number.isFinite(expiry) && expiry <= inNinetyDays.getTime()
     })
 
-    return count + dueItems.length
+    return count + missingItems.length + dueItems.length
   }, 0)
 
   const riskScore = Math.min(
@@ -244,10 +252,11 @@ export default async function LandlordDashboardPage() {
               <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Overdue case files</div>
               <div className="mt-1 text-2xl font-bold text-slate-900">{analytics.overdueCases}</div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Compliance due soon</div>
+            <Link href="/dashboard/compliance" className="rounded-xl border border-slate-200 bg-slate-50 p-3 transition-colors hover:bg-slate-100">
+              <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Compliance issues</div>
               <div className="mt-1 text-2xl font-bold text-slate-900">{complianceDueSoon}</div>
-            </div>
+              <div className="mt-1 text-xs font-medium text-sky-700">View worklist</div>
+            </Link>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Urgent maintenance</div>
               <div className="mt-1 text-2xl font-bold text-slate-900">{urgentMaintenance.length}</div>

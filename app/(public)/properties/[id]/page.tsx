@@ -33,7 +33,7 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
   )
 
   const approvedImages = property.images.filter((image) => image.moderationStatus === "approved")
-  const heroImage = approvedImages[0] ?? null
+  const heroImage = approvedImages.find((image) => image.isCoverImage) ?? approvedImages[0] ?? null
   const applicantPropertyPath = `/dashboard/applicant?propertyId=${property.id}`
   const encodedApplicantPropertyPath = encodeURIComponent(applicantPropertyPath)
   const applicationCtaHref =
@@ -41,7 +41,7 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
       ? "/dashboard/applicant"
       : sessionUser && getUserRole(sessionUser) === "applicant"
       ? applicantPropertyPath
-      : `/login?mode=register&redirectTo=${encodedApplicantPropertyPath}`
+      : `/login?mode=register&accountType=applicant&redirectTo=${encodedApplicantPropertyPath}`
   const signInApplyHref = `/login?redirectTo=${encodedApplicantPropertyPath}`
   const applicationCtaLabel =
     existingApplication

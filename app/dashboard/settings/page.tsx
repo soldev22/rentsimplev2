@@ -38,6 +38,7 @@ export default async function SettingsPage() {
           lastName: user.last_name,
           mobile: user.mobile,
           email: user.email,
+          landlordProfile: user.landlordProfile,
           notificationProfile: user.notificationProfile,
           screeningScoreConfig: user.screeningScoreConfig,
         }}

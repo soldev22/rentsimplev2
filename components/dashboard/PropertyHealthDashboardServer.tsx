@@ -2,6 +2,8 @@ import type { PropertyRecord } from "@/lib/auth"
 import { getCasesByProperty } from "@/lib/server/cases"
 import PropertyHealthDashboard from "@/components/dashboard/PropertyHealthDashboard"
 
+const standardComplianceTypes = ["electrical", "gas", "fire_alarm", "smoke_alarm", "legionella", "epc", "damp_survey", "asbestos_survey", "pest_control", "boiler_service"] as const
+
 type PropertyHealthDashboardServerProps = {
   property: PropertyRecord
 }
@@ -12,16 +14,20 @@ export default async function PropertyHealthDashboardServer({ property }: Proper
   // Calculate compliance status
   const compliance = property.compliance || []
   const now = new Date()
-  const expiredCompliance = compliance.filter((c) => c.expirationDate && new Date(c.expirationDate) < now)
+  const missingCompliance = standardComplianceTypes.some((type) => {
+    const record = compliance.find((item) => item.type === type)
+    return !record || (!record.notApplicable && !record.expirationDate)
+  })
+  const expiredCompliance = compliance.filter((c) => !c.notApplicable && c.expirationDate && new Date(c.expirationDate) < now)
   const expiringSoonCompliance = compliance.filter(
     (c) =>
-      c.expirationDate &&
+      !c.notApplicable && c.expirationDate &&
       new Date(c.expirationDate) > now &&
       (new Date(c.expirationDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24) < 30,
   )
 
   let complianceStatus: "green" | "amber" | "red" = "green"
-  if (expiredCompliance.length > 0) {
+  if (missingCompliance || expiredCompliance.length > 0) {
     complianceStatus = "red"
   } else if (expiringSoonCompliance.length > 0) {
     complianceStatus = "amber"

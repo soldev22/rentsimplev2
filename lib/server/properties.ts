@@ -9,6 +9,8 @@ import {
   type AuthUser,
   type PendingPropertyImageReview,
   type PropertyFinancials,
+  type PropertyIncludedItem,
+  type PropertyLettingPreferences,
   type PropertyImageRecord,
   type PropertyInsurance,
   type PropertyRecord,
@@ -78,6 +80,8 @@ const seedProperties: PropertyRecord[] = [
 const publicRentalStatuses = ["available"] as const
 
 export type PropertyInput = {
+  uid?: string
+  nickname?: string
   ownerId?: string
   address?: string
   addressLine1?: string
@@ -93,6 +97,12 @@ export type PropertyInput = {
   bathrooms?: number
   monthlyRent?: number
   affordabilityMultiple?: number
+  parking?: string
+  heating?: string
+  councilTaxBand?: string
+  broadbandAvailable?: boolean | string
+  includedItems?: PropertyIncludedItem[]
+  lettingPreferences?: PropertyLettingPreferences
 }
 
 async function getAccessibleLandlordIds(user: AuthUser, selectedLandlordId?: string) {
@@ -240,6 +250,7 @@ function normalizePropertyImageRecord(image: PropertyImageRecord): PropertyImage
     moderationReason: typeof image.moderationReason === "string" ? image.moderationReason : undefined,
     moderationReviewedAt: typeof image.moderationReviewedAt === "string" ? image.moderationReviewedAt : undefined,
     uploadedByUserId: typeof image.uploadedByUserId === "string" ? image.uploadedByUserId : undefined,
+    isCoverImage: image.isCoverImage === true,
     moderationScores:
       image.moderationScores && typeof image.moderationScores === "object"
         ? {
@@ -283,6 +294,66 @@ function normalizePropertyFinancials(financials: PropertyFinancials | undefined)
     propertyValue,
     annualAppreciationRate,
     estimatedAnnualCosts,
+    purchaseCost: typeof financials.purchaseCost === "number" ? Math.max(0, financials.purchaseCost) : undefined,
+    mortgageLender: typeof financials.mortgageLender === "string" && financials.mortgageLender.trim()
+      ? financials.mortgageLender.trim()
+      : undefined,
+    mortgageBalance: typeof financials.mortgageBalance === "number" ? Math.max(0, financials.mortgageBalance) : undefined,
+    mortgageInterestRate: typeof financials.mortgageInterestRate === "number"
+      ? Math.max(0, financials.mortgageInterestRate)
+      : undefined,
+    mortgageMonthlyPayment: typeof financials.mortgageMonthlyPayment === "number"
+      ? Math.max(0, financials.mortgageMonthlyPayment)
+      : undefined,
+    mortgageRenewalDate: typeof financials.mortgageRenewalDate === "string" && financials.mortgageRenewalDate.trim()
+      ? financials.mortgageRenewalDate.trim()
+      : undefined,
+    depositAmount: typeof financials.depositAmount === "number" ? Math.max(0, financials.depositAmount) : undefined,
+    depositProtectionScheme: typeof financials.depositProtectionScheme === "string" && financials.depositProtectionScheme.trim()
+      ? financials.depositProtectionScheme.trim()
+      : undefined,
+    depositReference: typeof financials.depositReference === "string" && financials.depositReference.trim()
+      ? financials.depositReference.trim()
+      : undefined,
+    paymentFrequency: ["weekly", "monthly", "quarterly"].includes(financials.paymentFrequency ?? "")
+      ? financials.paymentFrequency
+      : undefined,
+    paymentDueDay: typeof financials.paymentDueDay === "number" && Number.isInteger(financials.paymentDueDay)
+      ? Math.min(31, Math.max(1, financials.paymentDueDay))
+      : undefined,
+    latePaymentPolicy: typeof financials.latePaymentPolicy === "string" && financials.latePaymentPolicy.trim()
+      ? financials.latePaymentPolicy.trim()
+      : undefined,
+  }
+}
+
+function normalizePropertyIncludedItems(items: PropertyIncludedItem[] | undefined): PropertyIncludedItem[] {
+  if (!Array.isArray(items)) {
+    return []
+  }
+
+  return items
+    .filter((item) => item && typeof item.name === "string" && item.name.trim())
+    .map((item) => ({
+      id: typeof item.id === "string" && item.id.trim() ? item.id : randomUUID(),
+      name: item.name.trim(),
+      isElectrical: item.isElectrical === true,
+    }))
+}
+
+function normalizeLettingPreferences(preferences: PropertyLettingPreferences | undefined): PropertyLettingPreferences | undefined {
+  if (!preferences || typeof preferences !== "object") {
+    return undefined
+  }
+
+  return {
+    petsAllowed: preferences.petsAllowed === true,
+    smokingAllowed: preferences.smokingAllowed === true,
+    studentsAccepted: preferences.studentsAccepted === true,
+    universalCreditConsidered: preferences.universalCreditConsidered === true,
+    guarantorRequired: preferences.guarantorRequired === true,
+    maximumOccupants: typeof preferences.maximumOccupants === "number" ? Math.max(0, Math.floor(preferences.maximumOccupants)) : undefined,
+    minimumTenancyLengthMonths: typeof preferences.minimumTenancyLengthMonths === "number" ? Math.max(0, Math.floor(preferences.minimumTenancyLengthMonths)) : undefined,
   }
 }
 
@@ -303,9 +374,18 @@ function normalizePropertyRecord(property: PropertyRecord) {
     typeof property.shortDescription === "string" && property.shortDescription.trim()
       ? property.shortDescription.trim()
       : deriveShortDescription(longDescription)
+  const broadbandValue = property.broadbandAvailable as unknown
+  const broadbandAvailable =
+    typeof broadbandValue === "boolean"
+      ? broadbandValue
+      : typeof broadbandValue === "string"
+        ? ["yes", "true", "1"].includes(broadbandValue.trim().toLowerCase())
+        : false
 
   return {
     ...property,
+    uid: typeof property.uid === "string" && property.uid.trim() ? property.uid.trim() : property.id,
+    nickname: typeof property.nickname === "string" && property.nickname.trim() ? property.nickname.trim() : undefined,
     addressLine1,
     addressLine2,
     city,
@@ -318,9 +398,15 @@ function normalizePropertyRecord(property: PropertyRecord) {
     bathrooms: toNonNegativeNumber(property.bathrooms),
     monthlyRent: toNonNegativeNumber(property.monthlyRent),
     affordabilityMultiple: toNonNegativeNumber(property.affordabilityMultiple) || DEFAULT_AFFORDABILITY_MULTIPLE,
+    parking: typeof property.parking === "string" ? property.parking.trim() : "",
+    heating: typeof property.heating === "string" ? property.heating.trim() : "",
+    councilTaxBand: typeof property.councilTaxBand === "string" ? property.councilTaxBand.trim() : "",
+    broadbandAvailable,
     images: Array.isArray(property.images) ? property.images.map(normalizePropertyImageRecord) : [],
     insurance: normalizePropertyInsurance(property.insurance),
     financials: normalizePropertyFinancials(property.financials),
+    includedItems: normalizePropertyIncludedItems(property.includedItems),
+    lettingPreferences: normalizeLettingPreferences(property.lettingPreferences),
     compliance: normalizePropertyComplianceArray(property.compliance),
   }
 }
@@ -330,8 +416,20 @@ function normalizePropertyInput(input: PropertyInput) {
   const addressLine2 = input.addressLine2?.trim() || ""
   const city = input.city?.trim() || ""
   const postcode = input.postcode?.trim().toUpperCase() || ""
+  const parking = typeof input.parking === "string" ? input.parking.trim() : ""
+  const heating = typeof input.heating === "string" ? input.heating.trim() : ""
+  const councilTaxBand = typeof input.councilTaxBand === "string" ? input.councilTaxBand.trim() : ""
+  const broadbandValue = input.broadbandAvailable as unknown
+  const broadbandAvailable =
+    typeof broadbandValue === "boolean"
+      ? broadbandValue
+      : typeof broadbandValue === "string"
+        ? ["yes", "true", "1"].includes(broadbandValue.trim().toLowerCase())
+        : false
 
   return {
+    uid: typeof input.uid === "string" && input.uid.trim() ? input.uid.trim() : undefined,
+    nickname: typeof input.nickname === "string" && input.nickname.trim() ? input.nickname.trim() : undefined,
     addressLine1,
     addressLine2,
     city,
@@ -348,8 +446,16 @@ function normalizePropertyInput(input: PropertyInput) {
     affordabilityMultiple: Number.isFinite(input.affordabilityMultiple)
       ? Math.max(0, Number(input.affordabilityMultiple))
       : DEFAULT_AFFORDABILITY_MULTIPLE,
+    parking,
+    heating,
+    councilTaxBand,
+    broadbandAvailable,
+    includedItems: normalizePropertyIncludedItems(input.includedItems),
+    lettingPreferences: normalizeLettingPreferences(input.lettingPreferences),
   }
 }
+
+export { normalizePropertyInput }
 
 async function getPropertyById(id: string) {
   const container = await getPropertiesContainer()
@@ -712,10 +818,12 @@ export async function createProperty(user: AuthUser, input: PropertyInput) {
   const ownerId = await resolvePropertyOwnerIdForCreate(user, input.ownerId)
   const property: PropertyRecord = {
     id: randomUUID(),
+    uid: input.uid?.trim() || randomUUID(),
     ownerId,
     address: normalized.address,
     addressLine1: normalized.addressLine1,
     addressLine2: normalized.addressLine2,
+    nickname: normalized.nickname,
     city: normalized.city,
     postcode: normalized.postcode,
     type: normalized.type,
@@ -727,6 +835,12 @@ export async function createProperty(user: AuthUser, input: PropertyInput) {
     bathrooms: normalized.bathrooms,
     monthlyRent: normalized.monthlyRent,
     affordabilityMultiple: normalized.affordabilityMultiple,
+    parking: normalized.parking || undefined,
+    heating: normalized.heating || undefined,
+    councilTaxBand: normalized.councilTaxBand || undefined,
+    broadbandAvailable: normalized.broadbandAvailable,
+    includedItems: normalized.includedItems,
+    lettingPreferences: normalized.lettingPreferences,
     images: [],
     createdAt: now,
     updatedAt: now,
@@ -752,6 +866,8 @@ export async function updateProperty(user: AuthUser, propertyId: string, input: 
 
   const nextProperty: PropertyRecord = {
     ...property,
+    uid: typeof input.uid === "string" && input.uid.trim() ? input.uid.trim() : property.uid ?? property.id,
+    nickname: typeof input.nickname === "string" ? (input.nickname.trim() || undefined) : property.nickname,
     ownerId: nextOwnerId,
     ...(typeof input.addressLine1 === "string" ? { addressLine1: input.addressLine1.trim() } : null),
     ...(typeof input.addressLine2 === "string" ? { addressLine2: input.addressLine2.trim() } : null),
@@ -773,6 +889,16 @@ export async function updateProperty(user: AuthUser, propertyId: string, input: 
     ...(typeof input.affordabilityMultiple === "number"
       ? { affordabilityMultiple: Math.max(0, input.affordabilityMultiple) || DEFAULT_AFFORDABILITY_MULTIPLE }
       : null),
+    ...(typeof input.parking === "string" ? { parking: input.parking.trim() || undefined } : null),
+    ...(typeof input.heating === "string" ? { heating: input.heating.trim() || undefined } : null),
+    ...(typeof input.councilTaxBand === "string" ? { councilTaxBand: input.councilTaxBand.trim() || undefined } : null),
+    ...(typeof input.broadbandAvailable === "boolean"
+      ? { broadbandAvailable: input.broadbandAvailable }
+      : typeof input.broadbandAvailable === "string"
+        ? { broadbandAvailable: ["yes", "true", "1"].includes(input.broadbandAvailable.trim().toLowerCase()) }
+        : null),
+    ...(Array.isArray(input.includedItems) ? { includedItems: normalizePropertyIncludedItems(input.includedItems) } : null),
+    ...(input.lettingPreferences ? { lettingPreferences: normalizeLettingPreferences(input.lettingPreferences) } : null),
     updatedAt: new Date().toISOString(),
   }
 
@@ -907,10 +1033,34 @@ function normalizePropertyCompliance(compliance: PropertyCompliance | undefined)
   }
 
   const type = compliance.type as ComplianceType
+  const legacyDocumentUrl = typeof compliance.documentUrl === "string" && compliance.documentUrl.trim()
+    ? compliance.documentUrl.trim()
+    : undefined
+  const documents = Array.isArray(compliance.documents)
+    ? compliance.documents
+        .filter((document) => document && typeof document.url === "string" && document.url.trim())
+        .map((document) => ({
+          url: document.url.trim(),
+          blobName: typeof document.blobName === "string" && document.blobName.trim()
+            ? document.blobName.trim()
+            : undefined,
+          fileName: typeof document.fileName === "string" && document.fileName.trim()
+            ? document.fileName.trim()
+            : "Certificate",
+          uploadedAt: typeof document.uploadedAt === "string" && document.uploadedAt.trim()
+            ? document.uploadedAt.trim()
+            : new Date().toISOString(),
+        }))
+    : legacyDocumentUrl
+      ? [{ url: legacyDocumentUrl, fileName: "Certificate", uploadedAt: new Date().toISOString() }]
+      : []
 
   return {
     id: typeof compliance.id === "string" && compliance.id.trim() ? compliance.id : randomUUID(),
     type,
+    patItemId: type === "pat_testing" && typeof compliance.patItemId === "string" && compliance.patItemId.trim()
+      ? compliance.patItemId.trim()
+      : undefined,
     lastCheckedDate: typeof compliance.lastCheckedDate === "string" && compliance.lastCheckedDate.trim() 
       ? compliance.lastCheckedDate.trim() 
       : new Date().toISOString(),
@@ -920,12 +1070,15 @@ function normalizePropertyCompliance(compliance: PropertyCompliance | undefined)
     certificateNumber: typeof compliance.certificateNumber === "string" && compliance.certificateNumber.trim() 
       ? compliance.certificateNumber.trim() 
       : undefined,
+    epcRating: compliance.type === "epc" && typeof compliance.epcRating === "string" && /^[A-G]$/.test(compliance.epcRating)
+      ? compliance.epcRating
+      : undefined,
     provider: typeof compliance.provider === "string" && compliance.provider.trim() 
       ? compliance.provider.trim() 
       : undefined,
-    documentUrl: typeof compliance.documentUrl === "string" && compliance.documentUrl.trim() 
-      ? compliance.documentUrl.trim() 
-      : undefined,
+    documentUrl: legacyDocumentUrl ?? documents.at(-1)?.url,
+    documents: documents.length ? documents : undefined,
+    notApplicable: compliance.notApplicable === true,
     notes: typeof compliance.notes === "string" && compliance.notes.trim() 
       ? compliance.notes.trim() 
       : undefined,
@@ -1202,4 +1355,23 @@ export async function reviewPropertyImageForAdmin(
   await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
   await deletePropertyImageAssets(image)
   return normalizePropertyRecord(nextProperty)
+}
+
+export async function setPropertyCoverImage(user: AuthUser, propertyId: string, imageId: string) {
+  const property = await getPropertyById(propertyId)
+  if (!property) return null
+  if (!(await canAccessPropertyForUser(user, property)) || !canManageProperties(user)) throw new Error("Forbidden")
+
+  const image = property.images.find((candidate) => candidate.id === imageId)
+  if (!image || image.moderationStatus !== "approved") return null
+
+  const nextProperty: PropertyRecord = {
+    ...property,
+    images: property.images.map((candidate) => ({ ...candidate, isCoverImage: candidate.id === imageId })),
+    updatedAt: new Date().toISOString(),
+  }
+
+  const container = await getPropertiesContainer()
+  await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
+  return nextProperty
 }

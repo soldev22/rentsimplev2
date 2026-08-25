@@ -9,6 +9,7 @@ import {
   type AuthUser,
   type BuilderProfileDefaults,
   type NotificationProfileDefaults,
+  type LandlordProfile,
   type UserRole,
   getUserRole,
   normalizeEmail,
@@ -211,6 +212,23 @@ function normalizeNotificationProfile(input: Partial<NotificationProfileDefaults
     outboundEmail,
     copyLandlordOnTenantEmails,
   }
+}
+
+function normalizeLandlordProfile(input: Partial<LandlordProfile> | undefined): LandlordProfile | undefined {
+  if (!input) {
+    return undefined
+  }
+
+  const profile = {
+    tradingName: typeof input.tradingName === "string" ? input.tradingName.trim() : "",
+    registrationNumber: typeof input.registrationNumber === "string" ? input.registrationNumber.trim() : "",
+    addressLine1: typeof input.addressLine1 === "string" ? input.addressLine1.trim() : "",
+    addressLine2: typeof input.addressLine2 === "string" ? input.addressLine2.trim() : "",
+    city: typeof input.city === "string" ? input.city.trim() : "",
+    postcode: typeof input.postcode === "string" ? input.postcode.trim().toUpperCase() : "",
+  }
+
+  return Object.values(profile).some(Boolean) ? profile : undefined
 }
 
 function normalizeScreeningScoreConfig(
@@ -512,6 +530,9 @@ export async function updateUserForAdmin(
   adminUser: AuthUser,
   email: string,
   input: {
+    first_name?: string
+    last_name?: string
+    mobile?: string
     role?: UserRole
     approval_status?: ApprovalStatus
     managedByAgentId?: string | null
@@ -536,6 +557,9 @@ export async function updateUserForAdmin(
   const nextLandlordAccountId = managedInput.role === "landlord" ? getLandlordAccountId(storedUser) : undefined
   const updatedUser: StoredUser = {
     ...storedUser,
+    first_name: typeof input.first_name === "string" ? input.first_name.trim() : storedUser.first_name,
+    last_name: typeof input.last_name === "string" ? input.last_name.trim() : storedUser.last_name,
+    mobile: typeof input.mobile === "string" ? input.mobile.trim() : storedUser.mobile,
     role: managedInput.role,
     approval_status: normalizedEmail === adminUser.email ? "approved" : managedInput.approval_status,
     landlordAccountId: nextLandlordAccountId,
@@ -547,6 +571,27 @@ export async function updateUserForAdmin(
   await writeStoredUser(updatedUser)
 
   return sanitizeUser(updatedUser)
+}
+
+export async function deleteUserForAdmin(adminUser: AuthUser, email: string) {
+  assertAdmin(adminUser)
+
+  const normalizedEmail = normalizeEmail(email)
+
+  if (normalizedEmail === adminUser.email) {
+    throw new Error("CannotDeleteOwnAccount")
+  }
+
+  const storedUser = await readStoredUser(normalizedEmail)
+
+  if (!storedUser) {
+    return null
+  }
+
+  const container = await getUsersContainer()
+  await container.item(normalizedEmail, normalizedEmail).delete()
+
+  return sanitizeUser(storedUser)
 }
 
 async function listAllUsers() {
@@ -587,7 +632,7 @@ export async function listLandlordDirectoryForUser(user: AuthUser) {
     .map<LandlordDirectoryEntry>((candidate) => ({
       id: candidate.id,
       email: candidate.email,
-      fullName: getFullName(candidate),
+      fullName: candidate.landlordProfile?.tradingName?.trim() || getFullName(candidate),
     }))
     .sort((left, right) => left.fullName.localeCompare(right.fullName))
 }
@@ -673,6 +718,7 @@ export async function updateLandlordProfile(
     lastName: string
     mobile: string
     notificationProfile: Partial<NotificationProfileDefaults>
+    landlordProfile: Partial<LandlordProfile>
     screeningScoreConfig: Partial<ApplicantScreeningScoreConfig>
   }>,
 ) {
@@ -696,6 +742,10 @@ export async function updateLandlordProfile(
     ...(storedUser.screeningScoreConfig ?? {}),
     ...(input.screeningScoreConfig ?? {}),
   })
+  const nextLandlordProfile = normalizeLandlordProfile({
+    ...(storedUser.landlordProfile ?? {}),
+    ...(input.landlordProfile ?? {}),
+  })
 
   const updatedUser: StoredUser = {
     ...storedUser,
@@ -703,6 +753,7 @@ export async function updateLandlordProfile(
     last_name: lastName,
     mobile,
     notificationProfile: nextNotificationProfile,
+    landlordProfile: nextLandlordProfile,
     screeningScoreConfig: nextScreeningScoreConfig,
     updatedAt: new Date().toISOString(),
   }

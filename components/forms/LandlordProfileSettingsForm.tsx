@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 
-import type { ApplicantScreeningScoreConfig, AuthUser, NotificationProfileDefaults } from "@/lib/auth"
+import type { ApplicantScreeningScoreConfig, AuthUser, LandlordProfile, NotificationProfileDefaults } from "@/lib/auth"
 import {
   DEFAULT_APPLICANT_SCREENING_SCORE_CONFIG,
   getEmploymentStatuses,
@@ -15,6 +15,7 @@ type LandlordProfileSettingsFormProps = {
     lastName: string
     mobile: string
     email: string
+    landlordProfile?: LandlordProfile
     notificationProfile?: NotificationProfileDefaults
     screeningScoreConfig?: ApplicantScreeningScoreConfig
   }
@@ -25,6 +26,12 @@ type FormState = {
   firstName: string
   lastName: string
   mobile: string
+  tradingName: string
+  registrationNumber: string
+  addressLine1: string
+  addressLine2: string
+  city: string
+  postcode: string
   outboundEmail: string
   copyLandlordOnTenantEmails: boolean
   screeningScoreConfig: ApplicantScreeningScoreConfig
@@ -50,6 +57,12 @@ function createInitialFormState(profile: LandlordProfileSettingsFormProps["initi
     firstName: profile.firstName,
     lastName: profile.lastName,
     mobile: profile.mobile,
+    tradingName: profile.landlordProfile?.tradingName ?? "",
+    registrationNumber: profile.landlordProfile?.registrationNumber ?? "",
+    addressLine1: profile.landlordProfile?.addressLine1 ?? "",
+    addressLine2: profile.landlordProfile?.addressLine2 ?? "",
+    city: profile.landlordProfile?.city ?? "",
+    postcode: profile.landlordProfile?.postcode ?? "",
     outboundEmail: profile.notificationProfile?.outboundEmail ?? "",
     copyLandlordOnTenantEmails: profile.notificationProfile?.copyLandlordOnTenantEmails ?? false,
     screeningScoreConfig,
@@ -135,6 +148,14 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
             firstName: formState.firstName,
             lastName: formState.lastName,
             mobile: formState.mobile,
+            landlordProfile: {
+              tradingName: formState.tradingName,
+              registrationNumber: formState.registrationNumber,
+              addressLine1: formState.addressLine1,
+              addressLine2: formState.addressLine2,
+              city: formState.city,
+              postcode: formState.postcode,
+            },
             notificationProfile: {
               outboundEmail: formState.outboundEmail,
               copyLandlordOnTenantEmails: formState.copyLandlordOnTenantEmails,
@@ -148,6 +169,7 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
             firstName: string
             lastName: string
             mobile: string
+            landlordProfile?: LandlordProfile | null
             notificationProfile?: NotificationProfileDefaults | null
             screeningScoreConfig?: ApplicantScreeningScoreConfig | null
           }
@@ -162,6 +184,12 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
           firstName: payload.profile.firstName,
           lastName: payload.profile.lastName,
           mobile: payload.profile.mobile,
+          tradingName: payload.profile.landlordProfile?.tradingName ?? "",
+          registrationNumber: payload.profile.landlordProfile?.registrationNumber ?? "",
+          addressLine1: payload.profile.landlordProfile?.addressLine1 ?? "",
+          addressLine2: payload.profile.landlordProfile?.addressLine2 ?? "",
+          city: payload.profile.landlordProfile?.city ?? "",
+          postcode: payload.profile.landlordProfile?.postcode ?? "",
           outboundEmail: payload.profile.notificationProfile?.outboundEmail ?? "",
           copyLandlordOnTenantEmails: payload.profile.notificationProfile?.copyLandlordOnTenantEmails ?? false,
           screeningScoreConfig: normalizeApplicantScreeningScoreConfig(payload.profile.screeningScoreConfig ?? undefined),
@@ -283,6 +311,36 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
             onChange={(event) => updateField("mobile", event.target.value)}
             placeholder="07123 456789"
           />
+        </label>
+
+        <label className="block text-sm font-medium text-slate-700">
+          Trading name
+          <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500" value={formState.tradingName} onChange={(event) => updateField("tradingName", event.target.value)} placeholder="Individual landlord or company name" />
+        </label>
+
+        <label className="block text-sm font-medium text-slate-700">
+          Landlord registration number
+          <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500" value={formState.registrationNumber} onChange={(event) => updateField("registrationNumber", event.target.value)} placeholder="Registration number" />
+        </label>
+
+        <label className="block text-sm font-medium text-slate-700 lg:col-span-2">
+          Correspondence address
+          <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500" value={formState.addressLine1} onChange={(event) => updateField("addressLine1", event.target.value)} placeholder="Address line 1" />
+        </label>
+
+        <label className="block text-sm font-medium text-slate-700 lg:col-span-2">
+          Address line 2
+          <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500" value={formState.addressLine2} onChange={(event) => updateField("addressLine2", event.target.value)} />
+        </label>
+
+        <label className="block text-sm font-medium text-slate-700">
+          Town / city
+          <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500" value={formState.city} onChange={(event) => updateField("city", event.target.value)} />
+        </label>
+
+        <label className="block text-sm font-medium text-slate-700">
+          Postcode
+          <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500" value={formState.postcode} onChange={(event) => updateField("postcode", event.target.value.toUpperCase())} />
         </label>
 
         <label className="block text-sm font-medium text-slate-700">

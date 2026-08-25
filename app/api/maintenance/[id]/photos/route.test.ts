@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock("server-only", () => ({}), { virtual: true })
+vi.mock("server-only", () => ({}))
 
 vi.mock("@/lib/server/session", () => ({
   getSessionUser: mocks.getSessionUser,

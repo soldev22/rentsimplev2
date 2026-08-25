@@ -13,7 +13,7 @@ const storageConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING?.tri
 const storageAccountName = process.env.AZURE_STORAGE_ACCOUNT_NAME?.trim() ?? ""
 const propertyImagesContainerName = process.env.PROPERTY_IMAGES_CONTAINER?.trim() || "property-images"
 
-function getBlobServiceClient() {
+export function getBlobServiceClient() {
   if (storageConnectionString) {
     return BlobServiceClient.fromConnectionString(storageConnectionString)
   }

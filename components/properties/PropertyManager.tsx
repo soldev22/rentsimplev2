@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react"
 
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
@@ -8,6 +9,7 @@ import PropertyMarketingPackButton from "@/components/properties/PropertyMarketi
 import PropertyInsurancePanel from "@/components/properties/PropertyInsurancePanel"
 import PropertyFinancialsPanel from "@/components/properties/PropertyFinancialsPanel"
 import PropertyCompliancePanel from "@/components/properties/PropertyCompliancePanel"
+import PropertyIncludedItemsPanel from "@/components/properties/PropertyIncludedItemsPanel"
 import { MAX_PROPERTY_IMAGES, getPropertyImagePath, type PendingPropertyImageReview, type PropertyRecord } from "@/lib/auth"
 
 type PropertyManagerProps = {
@@ -21,10 +23,12 @@ type PropertyManagerProps = {
   }>
   canAssignOwner?: boolean
   defaultOwnerId?: string
+  defaultEditPropertyId?: string
 }
 
 type PropertyFormState = {
   ownerId: string
+  nickname: string
   addressLine1: string
   addressLine2: string
   city: string
@@ -37,10 +41,15 @@ type PropertyFormState = {
   bathrooms: string
   monthlyRent: string
   affordabilityMultiple: string
+  parking: string
+  heating: string
+  councilTaxBand: string
+  broadbandAvailable: string
 }
 
 const emptyForm: PropertyFormState = {
   ownerId: "",
+  nickname: "",
   addressLine1: "",
   addressLine2: "",
   city: "",
@@ -53,6 +62,10 @@ const emptyForm: PropertyFormState = {
   bathrooms: "0",
   monthlyRent: "0",
   affordabilityMultiple: "2.5",
+  parking: "",
+  heating: "",
+  councilTaxBand: "",
+  broadbandAvailable: "yes",
 }
 
 const propertyTypeOptions = [
@@ -84,6 +97,7 @@ const propertyStatusOptions = [
 function toFormState(property: PropertyRecord): PropertyFormState {
   return {
     ownerId: property.ownerId,
+    nickname: property.nickname ?? "",
     addressLine1: property.addressLine1,
     addressLine2: property.addressLine2,
     city: property.city,
@@ -96,12 +110,17 @@ function toFormState(property: PropertyRecord): PropertyFormState {
     bathrooms: String(property.bathrooms),
     monthlyRent: String(property.monthlyRent),
     affordabilityMultiple: String(property.affordabilityMultiple),
+    parking: property.parking ?? "",
+    heating: property.heating ?? "",
+    councilTaxBand: property.councilTaxBand ?? "",
+    broadbandAvailable: property.broadbandAvailable ? "yes" : "no",
   }
 }
 
 function toPayload(form: PropertyFormState) {
   return {
     ownerId: form.ownerId,
+    nickname: form.nickname || undefined,
     addressLine1: form.addressLine1,
     addressLine2: form.addressLine2,
     city: form.city,
@@ -114,6 +133,10 @@ function toPayload(form: PropertyFormState) {
     bathrooms: Number(form.bathrooms),
     monthlyRent: Number(form.monthlyRent),
     affordabilityMultiple: Number(form.affordabilityMultiple),
+    parking: form.parking || undefined,
+    heating: form.heating || undefined,
+    councilTaxBand: form.councilTaxBand || undefined,
+    broadbandAvailable: form.broadbandAvailable === "yes",
   }
 }
 
@@ -185,6 +208,7 @@ export default function PropertyManager({
   landlordOptions = [],
   canAssignOwner = false,
   defaultOwnerId,
+  defaultEditPropertyId,
 }: PropertyManagerProps) {
   const [properties, setProperties] = useState(initialProperties)
   const [selectedPropertyId, setSelectedPropertyId] = useState("")
@@ -201,13 +225,16 @@ export default function PropertyManager({
   const [isEditMode, setIsEditMode] = useState(false)
   const [isGeneratingCreateDescription, setIsGeneratingCreateDescription] = useState(false)
   const [isGeneratingEditDescription, setIsGeneratingEditDescription] = useState(false)
+  const [isCreatingProperty, setIsCreatingProperty] = useState(false)
+  const [createUploadProgress, setCreateUploadProgress] = useState({ completed: 0, total: 0 })
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pendingImageReviews, setPendingImageReviews] = useState<PendingPropertyImageReview[]>([])
   const [isPending, startTransition] = useTransition()
   const editFormRef = useRef<HTMLFormElement | null>(null)
-  const exitEditModeAfterSaveRef = useRef(false)
+  const handledDefaultEditPropertyIdRef = useRef<string | null>(null)
   const deferredPortfolioSearch = useDeferredValue(portfolioSearch)
+  const router = useRouter()
 
   const selectedProperty = useMemo(
     () => properties.find((property) => property.id === selectedPropertyId) ?? null,
@@ -291,6 +318,28 @@ export default function PropertyManager({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCreateForm((current) => (current.ownerId ? current : { ...current, ownerId: defaultOwnerId }))
   }, [canAssignOwner, defaultOwnerId])
+
+  useEffect(() => {
+    if (!defaultEditPropertyId) {
+      return
+    }
+
+    if (handledDefaultEditPropertyIdRef.current === defaultEditPropertyId) {
+      return
+    }
+
+    const targetProperty = properties.find((property) => property.id === defaultEditPropertyId)
+
+    if (!targetProperty) {
+      return
+    }
+
+    handledDefaultEditPropertyIdRef.current = defaultEditPropertyId
+    setSelectedPropertyId(targetProperty.id)
+    setEditForm(toFormState(targetProperty))
+    setIsEditMode(true)
+    setExpandedPortfolioId(targetProperty.id)
+  }, [defaultEditPropertyId, properties])
 
   function selectProperty(property: PropertyRecord | null, nextEditMode = false) {
     setSelectedPropertyId(property?.id ?? "")
@@ -413,6 +462,7 @@ export default function PropertyManager({
       }
 
       uploadedImages.push(payload.image)
+      setCreateUploadProgress((current) => ({ ...current, completed: current.completed + 1 }))
     }
 
     return uploadedImages
@@ -488,7 +538,11 @@ export default function PropertyManager({
       return
     }
 
+    setIsCreatingProperty(true)
+    setCreateUploadProgress({ completed: 0, total: createImageFiles.length })
+
     startTransition(async () => {
+      try {
       const response = await fetch("/api/properties", {
         method: "POST",
         headers: {
@@ -553,10 +607,13 @@ export default function PropertyManager({
           ? "Property created. Uploaded images are now pending admin approval."
           : "Property created.",
       )
+      } finally {
+        setIsCreatingProperty(false)
+      }
     })
   }
 
-  function saveSelectedProperty(exitEditModeOnSuccess = false) {
+  function saveSelectedProperty() {
     if (!selectedProperty) {
       return
     }
@@ -584,17 +641,13 @@ export default function PropertyManager({
         current.map((property) => (property.id === payload.property?.id ? (payload.property as PropertyRecord) : property)),
       )
       setMessage("Property updated.")
-      exitEditModeAfterSaveRef.current = false
-
-      if (exitEditModeOnSuccess) {
-        setIsEditMode(false)
-      }
+      selectProperty(null)
     })
   }
 
   function handleUpdate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    saveSelectedProperty(exitEditModeAfterSaveRef.current)
+    saveSelectedProperty()
   }
 
   function handleDelete() {
@@ -664,6 +717,20 @@ export default function PropertyManager({
       setMessage(
         `${uploadedImages.length} image${uploadedImages.length === 1 ? "" : "s"} uploaded and awaiting admin approval.`,
       )
+    })
+  }
+
+  function handleSetCoverImage(imageId: string) {
+    if (!selectedProperty) return
+    startTransition(async () => {
+      const response = await fetch("/api/properties/images", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ propertyId: selectedProperty.id, imageId }) })
+      const payload = (await response.json()) as { property?: PropertyRecord; error?: string }
+      if (!response.ok || !payload.property) {
+        setError(payload.error || "Unable to set listing cover image.")
+        return
+      }
+      setProperties((current) => current.map((property) => property.id === payload.property?.id ? payload.property : property))
+      selectProperty(payload.property, isEditMode)
     })
   }
 
@@ -738,6 +805,19 @@ export default function PropertyManager({
 
   return (
     <div className="flex flex-col gap-6">
+      {isCreatingProperty ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" role="status" aria-live="polite">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-cyan-700" />
+            <h2 className="mt-4 text-lg font-semibold text-slate-900">Creating property</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              {createUploadProgress.total > 0
+                ? `Uploading image ${Math.min(createUploadProgress.completed + 1, createUploadProgress.total)} of ${createUploadProgress.total}.`
+                : "Saving property details."}
+            </p>
+          </div>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Properties</h1>
@@ -991,6 +1071,55 @@ export default function PropertyManager({
             <span className="mt-1 block text-xs text-slate-500">Common UK affordability benchmarks are typically around 2.5x to 3.0x annual rent.</span>
           </label>
 
+          <label className="text-sm font-medium text-slate-700">
+            Parking
+            <select
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+              value={createForm.parking}
+              onChange={(event) => updateCreateField("parking", event.target.value)}
+            >
+              <option value="">Not specified</option>
+              <option value="On Street">On Street</option>
+              <option value="Private Parking">Private Parking</option>
+            </select>
+          </label>
+
+          <label className="text-sm font-medium text-slate-700">
+            Heating
+            <select
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+              value={createForm.heating}
+              onChange={(event) => updateCreateField("heating", event.target.value)}
+            >
+              <option value="">Not specified</option>
+              <option value="Gas">Gas</option>
+              <option value="Electric">Electric</option>
+              <option value="HeatPump">HeatPump</option>
+            </select>
+          </label>
+
+          <label className="text-sm font-medium text-slate-700">
+            Council Tax Band
+            <input
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 uppercase text-slate-900"
+              value={createForm.councilTaxBand}
+              onChange={(event) => updateCreateField("councilTaxBand", event.target.value.toUpperCase())}
+              placeholder="A, B, C..."
+            />
+          </label>
+
+          <label className="text-sm font-medium text-slate-700">
+            Broadband available
+            <select
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+              value={createForm.broadbandAvailable}
+              onChange={(event) => updateCreateField("broadbandAvailable", event.target.value)}
+            >
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+
           <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-sm font-semibold text-slate-900">Images</div>
             <p className="mt-1 text-sm text-slate-600">
@@ -1095,14 +1224,19 @@ export default function PropertyManager({
               <h2 className="text-lg font-semibold text-slate-900">Portfolio</h2>
               <p className="mt-1 text-sm text-slate-600">Browse the properties assigned to the logged-in user.</p>
             </div>
-            <button
-              type="button"
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
-              aria-label={isPortfolioOpen ? "Collapse panel" : "Expand panel"}
-              onClick={() => setIsPortfolioOpen((current) => !current)}
-            >
-              <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isPortfolioOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="inline-flex items-center rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-sky-800">
+                {properties.length} property{properties.length === 1 ? "" : "ies"}
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+                aria-label={isPortfolioOpen ? "Collapse panel" : "Expand panel"}
+                onClick={() => setIsPortfolioOpen((current) => !current)}
+              >
+                <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isPortfolioOpen ? "rotate-0" : "-rotate-90"}`}>▾</span>
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:flex-row lg:items-end lg:justify-between">
@@ -1177,7 +1311,24 @@ export default function PropertyManager({
                           </div>
                         ) : (
                           approvedThumbnails.map((image) => (
-                            <div key={image.id} className="relative h-12 w-12 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+                            <div
+                              key={image.id}
+                              className="relative h-12 w-12 cursor-pointer overflow-hidden rounded-md border border-slate-200 bg-slate-100 transition hover:opacity-80"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                router.push(`/dashboard/properties/${property.id}`)
+                              }}
+                              role="link"
+                              tabIndex={0}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault()
+                                  event.stopPropagation()
+                                  router.push(`/dashboard/properties/${property.id}`)
+                                }
+                              }}
+                              aria-label={`Open details for ${property.address}`}
+                            >
                               <Image
                                 src={getPropertyImagePath(property.id, image.id, "thumbnail")}
                                 alt={image.blobName}
@@ -1198,9 +1349,16 @@ export default function PropertyManager({
                       <button
                         type="button"
                         className="text-sm font-medium text-sky-700 hover:underline"
-                        onClick={() => selectProperty(property)}
+                        onClick={() => router.push(`/dashboard/properties/${property.id}`)}
                       >
                         Details
+                      </button>
+                      <button
+                        type="button"
+                        className="text-sm font-medium text-slate-700 hover:underline"
+                        onClick={() => router.push(`/dashboard/properties/${property.id}/compliance`)}
+                      >
+                        Compliance
                       </button>
                       {canManage ? (
                         <button
@@ -1244,15 +1402,28 @@ export default function PropertyManager({
                   {selectedProperty.type} · {selectedProperty.status} · £{selectedProperty.monthlyRent.toLocaleString()}/month
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <PropertyMarketingPackButton property={selectedProperty} />
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+                  onClick={() => router.push(`/dashboard/properties/${selectedProperty.id}`)}
+                >
+                  Open details page
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+                  onClick={() => router.push(`/dashboard/properties/${selectedProperty.id}/compliance`)}
+                >
+                  Open compliance page
+                </button>
                 {canManage ? (
                   <button
                     type="button"
                     className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
                     onClick={() => {
                       if (isEditMode) {
-                        exitEditModeAfterSaveRef.current = true
                         editFormRef.current?.requestSubmit()
                         return
                       }
@@ -1260,16 +1431,18 @@ export default function PropertyManager({
                       setIsEditMode(true)
                     }}
                   >
-                    {isEditMode ? "Save changes and done" : "Edit"}
+                    {isEditMode ? "Save and close" : "Edit"}
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-                  onClick={() => selectProperty(null)}
-                >
-                  Close
-                </button>
+                {!isEditMode ? (
+                  <button
+                    type="button"
+                    className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                    onClick={() => selectProperty(null)}
+                  >
+                    Close
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -1344,6 +1517,16 @@ export default function PropertyManager({
                           </select>
                         </label>
                       ) : null}
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Property nickname
+                        <input
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                          value={editForm.nickname}
+                          onChange={(event) => updateEditField("nickname", event.target.value)}
+                          placeholder="e.g. Ayr town flat"
+                        />
+                      </label>
 
                       <label className="block text-sm font-medium text-slate-700">
                         Address line 1
@@ -1467,6 +1650,59 @@ export default function PropertyManager({
                         </label>
                       </div>
 
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="text-sm font-medium text-slate-700">
+                          Parking
+                          <select
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                            value={editForm.parking}
+                            onChange={(event) => updateEditField("parking", event.target.value)}
+                          >
+                            <option value="">Not specified</option>
+                            <option value="On Street">On Street</option>
+                            <option value="Private Parking">Private Parking</option>
+                          </select>
+                        </label>
+
+                        <label className="text-sm font-medium text-slate-700">
+                          Heating
+                          <select
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                            value={editForm.heating}
+                            onChange={(event) => updateEditField("heating", event.target.value)}
+                          >
+                            <option value="">Not specified</option>
+                            <option value="Gas">Gas</option>
+                            <option value="Electric">Electric</option>
+                            <option value="HeatPump">HeatPump</option>
+                          </select>
+                        </label>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="text-sm font-medium text-slate-700">
+                          Council Tax Band
+                          <input
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 uppercase text-slate-900"
+                            value={editForm.councilTaxBand}
+                            onChange={(event) => updateEditField("councilTaxBand", event.target.value.toUpperCase())}
+                            placeholder="A, B, C..."
+                          />
+                        </label>
+
+                        <label className="text-sm font-medium text-slate-700">
+                          Broadband available
+                          <select
+                            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
+                            value={editForm.broadbandAvailable}
+                            onChange={(event) => updateEditField("broadbandAvailable", event.target.value)}
+                          >
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                          </select>
+                        </label>
+                      </div>
+
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <div className="flex items-center justify-between gap-4">
                           <div>
@@ -1510,7 +1746,7 @@ export default function PropertyManager({
                           className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
                           disabled={isPending}
                         >
-                          {isPending ? "Saving..." : "Save changes"}
+                          {isPending ? "Saving..." : "Save and close"}
                         </button>
                         <button
                           type="button"
@@ -1525,50 +1761,6 @@ export default function PropertyManager({
                   )}
                 </div>
 
-                {canManage && isEditMode ? (
-                  <form className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4" onSubmit={handleImageUpload}>
-                    <div className="text-sm font-semibold text-slate-900">Property images</div>
-                    <p className="text-xs text-slate-500">
-                      Images added here go through the same moderation checks as new-property uploads and remain pending until approved.
-                    </p>
-                    <label
-                      className={`block rounded-xl border-2 border-dashed p-5 text-sm font-medium transition ${
-                        isEditorDropActive ? "border-sky-500 bg-sky-50 text-sky-900" : "border-slate-300 bg-white text-slate-700"
-                      }`}
-                      onDragOver={(event) => {
-                        event.preventDefault()
-                        setIsEditorDropActive(true)
-                      }}
-                      onDragLeave={() => setIsEditorDropActive(false)}
-                      onDrop={handleEditorDrop}
-                    >
-                      <span className="block font-semibold">Select images</span>
-                      <span className="mt-1 block text-sm text-slate-500">Drag images here or click to browse.</span>
-                      <input
-                        className="sr-only"
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleEditorImageSelection}
-                      />
-                    </label>
-                    <div className="text-xs text-slate-500">
-                      {remainingSelectedPropertySlots} slot{remainingSelectedPropertySlots === 1 ? "" : "s"} remaining.
-                    </div>
-                    <PendingImagePanel
-                      files={editorImageFiles}
-                      previewUrls={editorPreviewUrls}
-                      emptyMessage="No pending editor uploads. Drop or select files to preview them here."
-                    />
-                    <button
-                      type="submit"
-                      className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-slate-900 ring-1 ring-slate-300"
-                      disabled={editorImageFiles.length === 0 || isPending || remainingSelectedPropertySlots <= 0}
-                    >
-                      Upload selected images
-                    </button>
-                  </form>
-                ) : null}
               </section>
 
               <section className="space-y-5">
@@ -1600,11 +1792,40 @@ export default function PropertyManager({
                       canManage={canManage}
                       isPending={isPending}
                       onRemove={handleImageDelete}
+                      onSetCover={handleSetCoverImage}
                     />
                   )}
                 </div>
 
-                <PropertyInsurancePanel
+                {canManage && isEditMode ? (
+                  <form className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4" onSubmit={handleImageUpload}>
+                    <label
+                      className={`block rounded-xl border-2 border-dashed p-4 text-sm font-medium transition ${
+                        isEditorDropActive ? "border-sky-500 bg-sky-50 text-sky-900" : "border-slate-300 bg-white text-slate-700"
+                      }`}
+                      onDragOver={(event) => {
+                        event.preventDefault()
+                        setIsEditorDropActive(true)
+                      }}
+                      onDragLeave={() => setIsEditorDropActive(false)}
+                      onDrop={handleEditorDrop}
+                    >
+                      <span className="block font-semibold">Add images</span>
+                      <span className="mt-1 block text-sm text-slate-500">Drop files here or click to browse. {remainingSelectedPropertySlots} slots remaining.</span>
+                      <input className="sr-only" type="file" accept="image/*" multiple onChange={handleEditorImageSelection} />
+                    </label>
+                    {editorImageFiles.length > 0 ? (
+                      <>
+                        <PendingImagePanel files={editorImageFiles} previewUrls={editorPreviewUrls} emptyMessage="" />
+                        <button type="submit" className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={isPending || remainingSelectedPropertySlots <= 0}>
+                          {isPending ? "Uploading..." : `Upload ${editorImageFiles.length} image${editorImageFiles.length === 1 ? "" : "s"}`}
+                        </button>
+                      </>
+                    ) : null}
+                  </form>
+                ) : null}
+
+                <PropertyIncludedItemsPanel
                   property={selectedProperty}
                   canManage={canManage}
                   onPropertyUpdate={(updated) => {
@@ -1615,27 +1836,6 @@ export default function PropertyManager({
                   }}
                 />
 
-                <PropertyFinancialsPanel
-                  property={selectedProperty}
-                  canManage={canManage}
-                  onPropertyUpdate={(updated) => {
-                    setProperties((current) =>
-                      current.map((p) => (p.id === updated.id ? updated : p)),
-                    )
-                    selectProperty(updated, isEditMode)
-                  }}
-                />
-
-                <PropertyCompliancePanel
-                  property={selectedProperty}
-                  canManage={canManage}
-                  onPropertyUpdate={(updated) => {
-                    setProperties((current) =>
-                      current.map((p) => (p.id === updated.id ? updated : p)),
-                    )
-                    selectProperty(updated, isEditMode)
-                  }}
-                />
               </section>
             </div>
           </div>

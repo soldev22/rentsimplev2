@@ -23,6 +23,15 @@ type FeedbackState = {
 
 type UserView = "all" | "pending" | "approved"
 
+export const SUPER_ADMIN_EMAIL = "mike@solutionsdeveloped.co.uk"
+
+export function canAdminEditUser(userEmail: string, currentUserEmail: string) {
+  const normalizedUserEmail = userEmail.trim().toLowerCase()
+  const normalizedCurrentUserEmail = currentUserEmail.trim().toLowerCase()
+
+  return normalizedUserEmail !== normalizedCurrentUserEmail || normalizedUserEmail === SUPER_ADMIN_EMAIL
+}
+
 const roleOptions: Array<{ value: UserRole; label: string }> = [
   { value: "unallocated", label: "Unallocated" },
   { value: "applicant", label: "Applicant" },
@@ -135,6 +144,12 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
     )
   }
 
+  function handleUserDetailChange(email: string, field: "first_name" | "last_name" | "mobile", value: string) {
+    setUsers((current) =>
+      current.map((user) => (user.email === email ? { ...user, [field]: value } : user)),
+    )
+  }
+
   function persistUserUpdate(user: AuthUser, successMessage: string) {
     setFeedback(null)
     setSavingEmail(user.email)
@@ -148,6 +163,9 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
           },
           body: JSON.stringify({
             email: user.email,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            mobile: user.mobile,
             role: user.role,
             approval_status: user.role === "unallocated" ? "pending_approval" : user.approval_status,
             managedByAgentId: user.role === "landlord" ? user.managedByAgentId ?? null : null,
@@ -288,6 +306,55 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
           message: error instanceof Error ? error.message : "Unable to switch user.",
         })
         setSwitchingEmail(null)
+      }
+    })
+  }
+
+  function deleteUser(user: AuthUser) {
+    if (user.email === currentUserEmail) {
+      return
+    }
+
+    const confirmed = window.confirm(`Delete ${getFullName(user)} (${user.email})? This cannot be undone.`)
+
+    if (!confirmed) {
+      return
+    }
+
+    setFeedback(null)
+    setSavingEmail(user.email)
+
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/admin/users", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email: user.email }),
+        })
+
+        const payload = (await response.json()) as {
+          deleted?: boolean
+          error?: string
+        }
+
+        if (!response.ok || !payload.deleted) {
+          throw new Error(payload.error || "Unable to delete user.")
+        }
+
+        setUsers((current) => sortUsers(current.filter((candidate) => candidate.email !== user.email)))
+        setFeedback({
+          type: "success",
+          message: `Deleted ${getFullName(user)} (${user.email}).`,
+        })
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to delete user.",
+        })
+      } finally {
+        setSavingEmail(null)
       }
     })
   }
@@ -503,17 +570,48 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
             <tbody className="divide-y divide-slate-100">
               {filteredUsers.map((user) => (
                 (() => {
-                  const isCurrentAdmin = user.email === currentUserEmail
+                  const isCurrentAdmin = user.email.toLowerCase() === currentUserEmail.toLowerCase()
+                  const canEditProfile = canAdminEditUser(user.email, currentUserEmail)
 
                   return (
                 <tr key={user.email} className="align-top">
                   <td className="px-4 py-4">
-                    <div className="font-semibold text-slate-900">{getFullName(user)}</div>
-                    <div className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">{user.id}</div>
+                    <div className="space-y-2">
+                      <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        First name
+                        <input
+                          aria-label={`First name for ${user.email}`}
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-sky-500"
+                          value={user.first_name}
+                          onChange={(event) => handleUserDetailChange(user.email, "first_name", event.target.value)}
+                          disabled={isCurrentAdmin && !canEditProfile}
+                        />
+                      </label>
+                      <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Last name
+                        <input
+                          aria-label={`Last name for ${user.email}`}
+                          className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-sky-500"
+                          value={user.last_name}
+                          onChange={(event) => handleUserDetailChange(user.email, "last_name", event.target.value)}
+                          disabled={isCurrentAdmin && !canEditProfile}
+                        />
+                      </label>
+                    </div>
+                    <div className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-500">{user.id}</div>
                   </td>
                   <td className="px-4 py-4 text-sm text-slate-600">
                     <div>{user.email}</div>
-                    <div className="mt-1">{user.mobile || "No mobile number"}</div>
+                    <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Mobile
+                      <input
+                        aria-label={`Mobile number for ${user.email}`}
+                        className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-sky-500"
+                        value={user.mobile}
+                        onChange={(event) => handleUserDetailChange(user.email, "mobile", event.target.value)}
+                        disabled={isCurrentAdmin && !canEditProfile}
+                      />
+                    </label>
                     {getNotificationSummary(user) ? (
                       <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs text-slate-700">
                         <div className="font-semibold uppercase tracking-[0.16em] text-violet-800">Notification routing</div>
@@ -652,10 +750,10 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                       <button
                         type="button"
                         onClick={() => saveUser(user)}
-                        disabled={isCurrentAdmin || (isPending && savingEmail === user.email)}
+                        disabled={isCurrentAdmin && !canEditProfile || (isPending && savingEmail === user.email)}
                         className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {isCurrentAdmin ? "Current admin" : isPending && savingEmail === user.email ? "Saving..." : "Save"}
+                        {isCurrentAdmin && !canEditProfile ? "Current admin" : isPending && savingEmail === user.email ? "Saving..." : "Save"}
                       </button>
                       <button
                         type="button"
@@ -664,6 +762,14 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                         className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {isCurrentAdmin ? "Current admin" : isPending && switchingEmail === user.email ? "Switching..." : "Act as"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteUser(user)}
+                        disabled={isCurrentAdmin || (isPending && savingEmail === user.email)}
+                        className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isCurrentAdmin ? "Protected" : isPending && savingEmail === user.email ? "Deleting..." : "Delete"}
                       </button>
                     </div>
                   </td>

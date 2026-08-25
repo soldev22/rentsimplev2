@@ -8,6 +8,18 @@ type FinancialsFormState = {
   propertyValue: string
   annualAppreciationRate: string
   estimatedAnnualCosts: string
+  purchaseCost: string
+  mortgageLender: string
+  mortgageBalance: string
+  mortgageInterestRate: string
+  mortgageMonthlyPayment: string
+  mortgageRenewalDate: string
+  depositAmount: string
+  depositProtectionScheme: string
+  depositReference: string
+  paymentFrequency: "weekly" | "monthly" | "quarterly"
+  paymentDueDay: string
+  latePaymentPolicy: string
 }
 
 function toFormState(financials: PropertyFinancials | undefined): FinancialsFormState {
@@ -15,7 +27,36 @@ function toFormState(financials: PropertyFinancials | undefined): FinancialsForm
     propertyValue: String(financials?.propertyValue ?? ""),
     annualAppreciationRate: String(financials?.annualAppreciationRate ?? "3"),
     estimatedAnnualCosts: String(financials?.estimatedAnnualCosts ?? ""),
+    purchaseCost: String(financials?.purchaseCost ?? ""),
+    mortgageLender: financials?.mortgageLender ?? "",
+    mortgageBalance: String(financials?.mortgageBalance ?? ""),
+    mortgageInterestRate: String(financials?.mortgageInterestRate ?? ""),
+    mortgageMonthlyPayment: String(financials?.mortgageMonthlyPayment ?? ""),
+    mortgageRenewalDate: financials?.mortgageRenewalDate ?? "",
+    depositAmount: String(financials?.depositAmount ?? ""),
+    depositProtectionScheme: financials?.depositProtectionScheme ?? "",
+    depositReference: financials?.depositReference ?? "",
+    paymentFrequency: financials?.paymentFrequency ?? "monthly",
+    paymentDueDay: String(financials?.paymentDueDay ?? "1"),
+    latePaymentPolicy: financials?.latePaymentPolicy ?? "",
   }
+}
+
+function toOptionalNumber(value: string) {
+  return value.trim() ? Number(value) : undefined
+}
+
+function getMortgageRenewalStatus(renewalDate: string | undefined) {
+  if (!renewalDate) return null
+  const renewal = new Date(`${renewalDate}T00:00:00`)
+  if (Number.isNaN(renewal.getTime())) return null
+
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const daysUntilRenewal = Math.floor((renewal.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  if (daysUntilRenewal < 0) return "overdue"
+  if (daysUntilRenewal <= 90) return "soon"
+  return "ok"
 }
 
 type FinancialMetric = {
@@ -98,6 +139,7 @@ export default function PropertyFinancialsPanel({
 
   const metrics = calculateROI(property, form)
   const isComplete = form.propertyValue && form.estimatedAnnualCosts !== undefined
+  const mortgageRenewalStatus = getMortgageRenewalStatus(property.financials?.mortgageRenewalDate)
 
   function updateField(name: keyof FinancialsFormState, value: string) {
     setForm((current) => ({ ...current, [name]: value }))
@@ -125,6 +167,12 @@ export default function PropertyFinancialsPanel({
     const propertyValue = Number(form.propertyValue)
     const appreciationRate = Number(form.annualAppreciationRate)
     const costs = Number(form.estimatedAnnualCosts)
+    const purchaseCost = toOptionalNumber(form.purchaseCost)
+    const mortgageBalance = toOptionalNumber(form.mortgageBalance)
+    const mortgageInterestRate = toOptionalNumber(form.mortgageInterestRate)
+    const mortgageMonthlyPayment = toOptionalNumber(form.mortgageMonthlyPayment)
+    const depositAmount = toOptionalNumber(form.depositAmount)
+    const paymentDueDay = toOptionalNumber(form.paymentDueDay)
 
     if (!Number.isFinite(propertyValue) || propertyValue < 0) {
       setError("Property value must be a valid positive number.")
@@ -141,6 +189,16 @@ export default function PropertyFinancialsPanel({
       return
     }
 
+    if ([purchaseCost, mortgageBalance, mortgageInterestRate, mortgageMonthlyPayment, depositAmount].some((value) => value !== undefined && (!Number.isFinite(value) || value < 0))) {
+      setError("Purchase and mortgage amounts must be valid non-negative numbers.")
+      return
+    }
+
+    if (paymentDueDay !== undefined && (!Number.isInteger(paymentDueDay) || paymentDueDay < 1 || paymentDueDay > 31)) {
+      setError("Payment due date must be a day between 1 and 31.")
+      return
+    }
+
     startTransition(async () => {
       const response = await fetch(`/api/properties/${property.id}/financials`, {
         method: "PUT",
@@ -149,6 +207,18 @@ export default function PropertyFinancialsPanel({
           propertyValue,
           annualAppreciationRate: appreciationRate,
           estimatedAnnualCosts: costs,
+          purchaseCost,
+          mortgageLender: form.mortgageLender.trim() || undefined,
+          mortgageBalance,
+          mortgageInterestRate,
+          mortgageMonthlyPayment,
+          mortgageRenewalDate: form.mortgageRenewalDate || undefined,
+          depositAmount,
+          depositProtectionScheme: form.depositProtectionScheme.trim() || undefined,
+          depositReference: form.depositReference.trim() || undefined,
+          paymentFrequency: form.paymentFrequency,
+          paymentDueDay,
+          latePaymentPolicy: form.latePaymentPolicy.trim() || undefined,
         }),
       })
 
@@ -169,9 +239,9 @@ export default function PropertyFinancialsPanel({
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-base font-semibold text-slate-900">Return on Investment</h3>
+          <h3 className="text-base font-semibold text-slate-900">Financials</h3>
           <p className="mt-1 text-sm text-slate-500">
-            Track property value and calculate rental yield plus appreciation returns.
+            Track purchase, value growth, mortgage details, and rental return.
           </p>
         </div>
 
@@ -214,7 +284,7 @@ export default function PropertyFinancialsPanel({
             </label>
 
             <label className="text-sm font-medium text-slate-700">
-              Annual appreciation rate (%)
+              Annual value increment (%)
               <input
                 type="number"
                 className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
@@ -245,6 +315,71 @@ export default function PropertyFinancialsPanel({
             </label>
           </div>
 
+          <div className="border-t border-slate-200 pt-4">
+            <h4 className="text-sm font-semibold text-slate-900">Purchase and mortgage</h4>
+            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+              <label className="text-sm font-medium text-slate-700">
+                Purchase cost (£)
+                <input type="number" className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.purchaseCost} onChange={(e) => updateField("purchaseCost", e.target.value)} min="0" step="1000" placeholder="200000" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">
+                Mortgage lender
+                <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.mortgageLender} onChange={(e) => updateField("mortgageLender", e.target.value)} placeholder="e.g. Nationwide" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">
+                Mortgage balance (£)
+                <input type="number" className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.mortgageBalance} onChange={(e) => updateField("mortgageBalance", e.target.value)} min="0" step="1000" placeholder="150000" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">
+                Interest rate (%)
+                <input type="number" className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.mortgageInterestRate} onChange={(e) => updateField("mortgageInterestRate", e.target.value)} min="0" step="0.01" placeholder="4.25" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">
+                Monthly payment (£)
+                <input type="number" className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.mortgageMonthlyPayment} onChange={(e) => updateField("mortgageMonthlyPayment", e.target.value)} min="0" step="1" placeholder="850" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">
+                Mortgage renewal date
+                <input type="date" className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.mortgageRenewalDate} onChange={(e) => updateField("mortgageRenewalDate", e.target.value)} />
+              </label>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 pt-4">
+            <h4 className="text-sm font-semibold text-slate-900">Financial Information</h4>
+            <p className="mt-1 text-xs text-slate-500">Monthly rent is managed in the property details. Record the tenancy payment and deposit terms here.</p>
+            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+              <label className="text-sm font-medium text-slate-700">
+                Deposit amount (£)
+                <input type="number" className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.depositAmount} onChange={(e) => updateField("depositAmount", e.target.value)} min="0" step="1" placeholder="545" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">
+                Deposit protection scheme
+                <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.depositProtectionScheme} onChange={(e) => updateField("depositProtectionScheme", e.target.value)} placeholder="e.g. Safe Deposits Scotland" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">
+                Deposit reference
+                <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.depositReference} onChange={(e) => updateField("depositReference", e.target.value)} placeholder="e.g. DAN1064599" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">
+                Payment frequency
+                <select className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.paymentFrequency} onChange={(e) => updateField("paymentFrequency", e.target.value)}>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                </select>
+              </label>
+              <label className="text-sm font-medium text-slate-700">
+                Payment due date
+                <input type="number" className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.paymentDueDay} onChange={(e) => updateField("paymentDueDay", e.target.value)} min="1" max="31" step="1" />
+              </label>
+              <label className="text-sm font-medium text-slate-700">
+                Late payment policy
+                <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900" value={form.latePaymentPolicy} onChange={(e) => updateField("latePaymentPolicy", e.target.value)} placeholder="e.g. N/A" />
+              </label>
+            </div>
+          </div>
+
           <div className="flex gap-3">
             <button
               type="submit"
@@ -265,6 +400,18 @@ export default function PropertyFinancialsPanel({
         </form>
       ) : (
         <div className="mt-4">
+          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <h4 className="text-sm font-semibold text-slate-900">Financial Information</h4>
+            <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              <div><dt className="text-xs font-medium text-slate-500">Monthly rent</dt><dd className="mt-1 font-semibold text-slate-900">£{property.monthlyRent.toLocaleString("en-GB")}</dd></div>
+              <div><dt className="text-xs font-medium text-slate-500">Deposit amount</dt><dd className="mt-1 font-semibold text-slate-900">{property.financials?.depositAmount !== undefined ? `£${property.financials.depositAmount.toLocaleString("en-GB")}` : "Not recorded"}</dd></div>
+              <div><dt className="text-xs font-medium text-slate-500">Deposit protection scheme</dt><dd className="mt-1 font-semibold text-slate-900">{property.financials?.depositProtectionScheme ?? "Not recorded"}</dd></div>
+              <div><dt className="text-xs font-medium text-slate-500">Deposit reference</dt><dd className="mt-1 font-semibold text-slate-900">{property.financials?.depositReference ?? "Not recorded"}</dd></div>
+              <div><dt className="text-xs font-medium text-slate-500">Payment frequency</dt><dd className="mt-1 font-semibold capitalize text-slate-900">{property.financials?.paymentFrequency ?? "Not recorded"}</dd></div>
+              <div><dt className="text-xs font-medium text-slate-500">Payment due date</dt><dd className="mt-1 font-semibold text-slate-900">{property.financials?.paymentDueDay ? `${property.financials.paymentDueDay}${property.financials.paymentDueDay === 1 ? "st" : property.financials.paymentDueDay === 2 ? "nd" : property.financials.paymentDueDay === 3 ? "rd" : "th"}` : "Not recorded"}</dd></div>
+              <div><dt className="text-xs font-medium text-slate-500">Late payment policy</dt><dd className="mt-1 font-semibold text-slate-900">{property.financials?.latePaymentPolicy ?? "Not recorded"}</dd></div>
+            </dl>
+          </div>
           {!isComplete ? (
             <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <span className="text-base">ℹ</span>
@@ -272,6 +419,13 @@ export default function PropertyFinancialsPanel({
             </div>
           ) : metrics.length > 0 ? (
             <div className="space-y-3">
+              {property.financials?.purchaseCost || property.financials?.mortgageBalance || property.financials?.mortgageRenewalDate ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {property.financials.purchaseCost ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm"><div className="text-xs font-medium uppercase tracking-wide text-slate-500">Purchase cost</div><div className="mt-2 text-lg font-bold text-slate-900">£{property.financials.purchaseCost.toLocaleString("en-GB")}</div></div> : null}
+                  {property.financials.mortgageBalance !== undefined ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm"><div className="text-xs font-medium uppercase tracking-wide text-slate-500">Mortgage balance</div><div className="mt-2 text-lg font-bold text-slate-900">£{property.financials.mortgageBalance.toLocaleString("en-GB")}</div></div> : null}
+                  {property.financials.mortgageRenewalDate ? <div className={`rounded-xl border p-4 text-sm ${mortgageRenewalStatus === "overdue" ? "border-red-300 bg-red-100" : mortgageRenewalStatus === "soon" ? "border-amber-300 bg-amber-100" : "border-green-300 bg-green-100"}`}><div className="text-xs font-medium uppercase tracking-wide text-slate-500">Mortgage renewal</div><div className="mt-2 font-bold text-slate-900">{new Date(`${property.financials.mortgageRenewalDate}T00:00:00`).toLocaleDateString("en-GB")}</div><div className="mt-1 text-xs font-semibold text-slate-700">{mortgageRenewalStatus === "overdue" ? "Overdue" : mortgageRenewalStatus === "soon" ? "Due within 90 days" : "More than 90 days"}</div></div> : null}
+                </div>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 {metrics.map((metric, idx) => (
                   <div

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getSessionUser } from "@/lib/server/session"
-import { listAgentsForAdmin, listUsersForAdmin, updateUserForAdmin } from "@/lib/server/users"
+import { deleteUserForAdmin, listAgentsForAdmin, listUsersForAdmin, updateUserForAdmin } from "@/lib/server/users"
 
 export async function GET() {
   const user = await getSessionUser()
@@ -32,6 +32,9 @@ export async function PATCH(request: Request) {
   try {
     const body = (await request.json()) as {
       email?: string
+      first_name?: string
+      last_name?: string
+      mobile?: string
       role?: "unallocated" | "admin" | "agent" | "landlord" | "tenant" | "applicant" | "builder"
       approval_status?: "pending_verification" | "pending_approval" | "approved"
       managedByAgentId?: string | null
@@ -46,6 +49,9 @@ export async function PATCH(request: Request) {
     }
 
     const updatedUser = await updateUserForAdmin(user, body.email, {
+      first_name: body.first_name,
+      last_name: body.last_name,
+      mobile: body.mobile,
       role: body.role,
       approval_status: body.approval_status,
       managedByAgentId: body.managedByAgentId,
@@ -67,5 +73,39 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({ error: "Unable to update user." }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: Request) {
+  const user = await getSessionUser()
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  try {
+    const body = (await request.json()) as { email?: string }
+
+    if (!body.email?.trim()) {
+      return NextResponse.json({ error: "email is required." }, { status: 400 })
+    }
+
+    const deletedUser = await deleteUserForAdmin(user, body.email)
+
+    if (!deletedUser) {
+      return NextResponse.json({ error: "User not found." }, { status: 404 })
+    }
+
+    return NextResponse.json({ user: deletedUser, deleted: true })
+  } catch (error) {
+    if (error instanceof Error && error.message === "Forbidden") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    if (error instanceof Error && error.message === "CannotDeleteOwnAccount") {
+      return NextResponse.json({ error: "You cannot delete your own admin account." }, { status: 400 })
+    }
+
+    return NextResponse.json({ error: "Unable to delete user." }, { status: 500 })
   }
 }
