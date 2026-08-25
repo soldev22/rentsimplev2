@@ -44,7 +44,8 @@
 - ✅ Property images and gallery management
 - ✅ Image moderation (AI-based content safety)
 - ✅ Multiple images per property with sorting
-- ✅ Property scope picker for multi-property landlords
+- ✅ Property scope picker for multi-property 
+Export marketing pack landlords
 
 ### Case Management
 
