@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
+import PropertyMarketingPackButton from "@/components/properties/PropertyMarketingPackButton"
 import { MAX_PROPERTY_IMAGES, isPendingApproval } from "@/lib/auth"
 import { getPropertyForUser } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
@@ -45,9 +46,12 @@ export default async function PropertyDetail({ params }: PageContext) {
             {property.type} · {property.status} · £{property.monthlyRent.toLocaleString()}/month
           </p>
         </div>
-        <Link href="/dashboard/properties" className="text-sm font-medium text-sky-700 hover:underline">
-          Back to properties
-        </Link>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <PropertyMarketingPackButton property={property} />
+          <Link href="/dashboard/properties" className="text-sm font-medium text-sky-700 hover:underline">
+            Back to properties
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">

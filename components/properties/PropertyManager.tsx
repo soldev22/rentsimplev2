@@ -4,6 +4,7 @@ import Image from "next/image"
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react"
 
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
+import PropertyMarketingPackButton from "@/components/properties/PropertyMarketingPackButton"
 import PropertyInsurancePanel from "@/components/properties/PropertyInsurancePanel"
 import PropertyFinancialsPanel from "@/components/properties/PropertyFinancialsPanel"
 import PropertyCompliancePanel from "@/components/properties/PropertyCompliancePanel"
@@ -1088,7 +1089,7 @@ export default function PropertyManager({
         </section>
       ) : null}
 
-      <section className="order-1 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section id="marketing-packs" className="order-1 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Portfolio</h2>
@@ -1193,6 +1194,7 @@ export default function PropertyManager({
                       </div>
                     </button>
                     <div className="flex flex-col items-end gap-2">
+                      <PropertyMarketingPackButton property={property} />
                       <button
                         type="button"
                         className="text-sm font-medium text-sky-700 hover:underline"
@@ -1243,6 +1245,7 @@ export default function PropertyManager({
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                <PropertyMarketingPackButton property={selectedProperty} />
                 {canManage ? (
                   <button
                     type="button"
