@@ -30,7 +30,7 @@ export default function PropertyMarketingPackButton({ property }: { property: Pr
         disabled={isExporting}
         onClick={handleExport}
       >
-        {isExporting ? "Preparing pack..." : "Export marketing pack"}
+        {isExporting ? "Preparing pack..." : "Export marketing pack (PDF + PNGs)"}
       </button>
       {error ? <span className="max-w-64 text-right text-xs text-rose-700">{error}</span> : null}
     </div>

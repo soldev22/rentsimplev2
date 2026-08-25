@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf"
+import JSZip from "jszip"
 
 import type { PropertyRecord } from "@/lib/auth"
 
@@ -11,7 +12,7 @@ function createFileStem(property: PropertyRecord) {
   return safeName || property.id
 }
 
-function loadImageAsJpeg(url: string) {
+function loadImageAsPng(url: string) {
   return new Promise<string>((resolve, reject) => {
     const image = new Image()
     image.onload = () => {
@@ -29,7 +30,7 @@ function loadImageAsJpeg(url: string) {
       context.fillStyle = "#ffffff"
       context.fillRect(0, 0, canvas.width, canvas.height)
       context.drawImage(image, 0, 0, canvas.width, canvas.height)
-      resolve(canvas.toDataURL("image/jpeg", 0.88))
+      resolve(canvas.toDataURL("image/png"))
     }
     image.onerror = () => reject(new Error("Unable to load a property image."))
     image.src = url
@@ -45,7 +46,7 @@ function addWrappedText(doc: jsPDF, text: string, x: number, y: number, width: n
 export async function downloadPropertyMarketingPack(property: PropertyRecord) {
   const approvedImages = property.images.filter((image) => image.moderationStatus === "approved")
   const imageData = await Promise.all(
-    approvedImages.map((image) => loadImageAsJpeg(`/api/properties/${property.id}/images/${image.id}`)),
+    approvedImages.map((image) => loadImageAsPng(`/api/properties/${property.id}/images/${image.id}`)),
   )
   const doc = new jsPDF({ unit: "pt", format: "a4" })
   const margin = 42
@@ -121,8 +122,23 @@ export async function downloadPropertyMarketingPack(property: PropertyRecord) {
     const scale = Math.min(maxWidth / imageProperties.width, maxHeight / imageProperties.height)
     const width = imageProperties.width * scale
     const height = imageProperties.height * scale
-    doc.addImage(dataUrl, "JPEG", (pageWidth - width) / 2, margin + 24 + (maxHeight - height) / 2, width, height)
+    doc.addImage(dataUrl, "PNG", (pageWidth - width) / 2, margin + 24 + (maxHeight - height) / 2, width, height)
   })
 
-  doc.save(`${createFileStem(property)}-marketing-pack.pdf`)
+  const fileStem = createFileStem(property)
+  const zip = new JSZip()
+  zip.file(`${fileStem}-marketing-pack.pdf`, doc.output("blob"))
+  imageData.forEach((dataUrl, index) => {
+    zip.file(`images/${fileStem}-${index + 1}.png`, dataUrl.split(",")[1], { base64: true })
+  })
+
+  const zipBlob = await zip.generateAsync({ type: "blob" })
+  const downloadUrl = URL.createObjectURL(zipBlob)
+  const link = document.createElement("a")
+  link.href = downloadUrl
+  link.download = `${fileStem}-marketing-pack.zip`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(downloadUrl)
 }
