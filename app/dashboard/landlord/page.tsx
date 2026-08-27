@@ -233,7 +233,9 @@ export default async function LandlordDashboardPage() {
       <section className="grid gap-4 lg:grid-cols-3">
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-slate-900">Risk exposure</h2>
+            <Link href="/dashboard/landlord/risk" className="text-lg font-semibold text-slate-900 hover:text-sky-700">
+              Risk exposure
+            </Link>
             <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${riskBand.badge}`}>{riskBand.label} risk</span>
           </div>
 

@@ -9,9 +9,10 @@ import type { PropertyRecord } from "@/lib/auth"
 type PropertyCompliancePageClientProps = {
   initialProperty: PropertyRecord
   canManage: boolean
+  canViewTenant: boolean
 }
 
-export default function PropertyCompliancePageClient({ initialProperty, canManage }: PropertyCompliancePageClientProps) {
+export default function PropertyCompliancePageClient({ initialProperty, canManage, canViewTenant }: PropertyCompliancePageClientProps) {
   const [property, setProperty] = useState(initialProperty)
 
   return (
@@ -27,7 +28,7 @@ export default function PropertyCompliancePageClient({ initialProperty, canManag
 
       </div>
 
-      <PropertyTabs propertyId={property.id} />
+      <PropertyTabs propertyId={property.id} showTenantTab={canViewTenant} />
 
       <PropertyCompliancePanel property={property} canManage={canManage} onPropertyUpdate={setProperty} />
     </div>

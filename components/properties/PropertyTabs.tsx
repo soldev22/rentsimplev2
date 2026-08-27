@@ -5,15 +5,17 @@ import { usePathname } from "next/navigation"
 
 type PropertyTabsProps = {
   propertyId: string
+  showTenantTab?: boolean
 }
 
-export default function PropertyTabs({ propertyId }: PropertyTabsProps) {
+export default function PropertyTabs({ propertyId, showTenantTab = false }: PropertyTabsProps) {
   const pathname = usePathname()
   const tabs = [
     { label: "Property details", href: `/dashboard/properties/${propertyId}` },
     { label: "Compliance", href: `/dashboard/properties/${propertyId}/compliance` },
     { label: "Financials", href: `/dashboard/properties/${propertyId}/financials` },
     { label: "Letting preferences", href: `/dashboard/properties/${propertyId}/letting-preferences` },
+    ...(showTenantTab ? [{ label: "Tenant", href: `/dashboard/properties/${propertyId}/tenant` }] : []),
   ]
 
   return (

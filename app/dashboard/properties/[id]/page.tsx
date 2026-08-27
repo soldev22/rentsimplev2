@@ -5,7 +5,7 @@ import PropertyHeaderEditor from "@/components/properties/PropertyHeaderEditor"
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
 import PropertyMarketingPackButton from "@/components/properties/PropertyMarketingPackButton"
 import PropertyTabs from "@/components/properties/PropertyTabs"
-import { MAX_PROPERTY_IMAGES, canManageProperties, isPendingApproval } from "@/lib/auth"
+import { MAX_PROPERTY_IMAGES, canManageProperties, canReviewTenancyApplications, isPendingApproval } from "@/lib/auth"
 import { getPropertyForUser } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
 import { getUserById } from "@/lib/server/users"
@@ -58,7 +58,7 @@ export default async function PropertyDetail({ params }: PageContext) {
         </div>
       </div>
 
-      <PropertyTabs propertyId={property.id} />
+      <PropertyTabs propertyId={property.id} showTenantTab={canReviewTenancyApplications(user)} />
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

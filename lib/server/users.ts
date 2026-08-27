@@ -479,6 +479,21 @@ export async function getUserById(id: string) {
   return resources[0] ? sanitizeUser(resources[0]) : null
 }
 
+export async function listApprovedGlobalAdmins() {
+  const container = await getUsersContainer()
+  const { resources } = await container.items
+    .query<StoredUser>({
+      query: "SELECT * FROM c WHERE c.role = @role AND c.approval_status = @approvalStatus",
+      parameters: [
+        { name: "@role", value: "admin" },
+        { name: "@approvalStatus", value: "approved" },
+      ],
+    })
+    .fetchAll()
+
+  return resources.map(sanitizeUser)
+}
+
 export async function listUsersForAdmin(user: AuthUser) {
   const paged = await listUsersForAdminPage(user, { page: 1, pageSize: 1000 })
   return paged.items

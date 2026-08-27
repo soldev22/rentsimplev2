@@ -1125,7 +1125,7 @@ export default function ApplicationReviewManager({
                   href={`/dashboard/documents?applicationId=${encodeURIComponent(application.id)}`}
                   className="rounded-md border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-100"
                 >
-                  View client docs
+                  View application documents
                 </a>
                 {isAdmin ? (
                   <button
@@ -1999,7 +1999,7 @@ export default function ApplicationReviewManager({
                         href={`/dashboard/documents?applicationId=${encodeURIComponent(application.id)}`}
                         className="rounded-md border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-100"
                       >
-                        Open client docs
+                        Open application documents
                       </a>
                     </div>
 
@@ -2263,7 +2263,7 @@ export default function ApplicationReviewManager({
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-700">Deposit documents</h4>
-                          <p className="mt-1 text-xs text-slate-500">Keep receipts and protection certificates here and in the client documents vault.</p>
+                          <p className="mt-1 text-xs text-slate-500">Keep receipts and protection certificates here and in the application document vault.</p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <input
