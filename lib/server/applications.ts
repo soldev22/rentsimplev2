@@ -2349,7 +2349,7 @@ export async function acknowledgeDepositForApplication(
     return null
   }
 
-  if (!canAccessApplicationForClient(user, existingApplication)) {
+  if (!canAccessApplicationForApplicantOrTenant(user, existingApplication)) {
     throw new Error("Forbidden")
   }
 
@@ -2412,7 +2412,7 @@ export async function confirmDepositPaymentByTenant(
     return null
   }
 
-  if (!canAccessApplicationForClient(user, existingApplication)) {
+  if (!canAccessApplicationForApplicantOrTenant(user, existingApplication)) {
     throw new Error("Forbidden")
   }
 
@@ -2878,7 +2878,7 @@ export async function getDepositDocumentForApplication(user: AuthUser, applicati
     if (!canAccess) {
       throw new Error("Forbidden")
     }
-  } else if (!canAccessApplicationForClient(user, application)) {
+  } else if (!canAccessApplicationForApplicantOrTenant(user, application)) {
     throw new Error("Forbidden")
   }
 
