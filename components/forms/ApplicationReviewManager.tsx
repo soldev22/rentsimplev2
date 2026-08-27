@@ -25,6 +25,7 @@ type ApplicationReviewManagerProps = {
   initialAuditEventsByApplicationId: Record<string, AuditEventRecord[]>
   currentUserDisplayName: string
   isAdmin?: boolean
+  canEraseApplicationData?: boolean
   screeningScoreConfig?: ApplicantScreeningScoreConfig
   canRequestCreditReport?: boolean
 }
@@ -199,6 +200,7 @@ export default function ApplicationReviewManager({
   initialAuditEventsByApplicationId,
   currentUserDisplayName,
   isAdmin = false,
+  canEraseApplicationData = false,
   screeningScoreConfig,
   canRequestCreditReport = false,
 }: ApplicationReviewManagerProps) {
@@ -903,12 +905,14 @@ export default function ApplicationReviewManager({
   }
 
   function deleteApplicationPermanently(applicationId: string) {
-    if (!isAdmin) {
+    if (!isAdmin && !canEraseApplicationData) {
       return
     }
 
     const shouldDelete = window.confirm(
-      "Delete this application permanently? This cannot be undone and is intended for dev/testing use only.",
+      canEraseApplicationData
+        ? "Erase this applicant's application data? This permanently removes the application, its uploaded documents, communication records, and associated audit history. Only continue where no legal retention requirement applies."
+        : "Delete this application permanently? This cannot be undone and is intended for dev/testing use only.",
     )
 
     if (!shouldDelete) {
@@ -1127,14 +1131,14 @@ export default function ApplicationReviewManager({
                 >
                   View application documents
                 </a>
-                {isAdmin ? (
+                {isAdmin || canEraseApplicationData ? (
                   <button
                     type="button"
                     className="rounded-md border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
                     onClick={() => deleteApplicationPermanently(application.id)}
                     disabled={isPending}
                   >
-                    Delete permanently
+                    {canEraseApplicationData ? "Erase application data" : "Delete permanently"}
                   </button>
                 ) : null}
                 <button

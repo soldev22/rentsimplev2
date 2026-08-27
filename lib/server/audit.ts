@@ -67,6 +67,15 @@ export async function listAuditEventsForEntity(entityType: string, entityId: str
   return resources
 }
 
+export async function deleteAuditEventsForEntity(entityType: string, entityId: string) {
+  const events = await listAuditEventsForEntity(entityType, entityId)
+  const container = await getAuditEventsContainer()
+
+  await Promise.all(
+    events.map((event) => container.item(event.id, event.entityKey).delete()),
+  )
+}
+
 export async function listAuditEventsForEntities(entityType: string, entityIds: string[]) {
   if (entityIds.length === 0) {
     return new Map<string, AuditEventRecord[]>()

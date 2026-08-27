@@ -4,6 +4,7 @@ import { getUserRole, isPendingApproval } from "@/lib/auth"
 import { listAuditEventsForEntity } from "@/lib/server/audit"
 import {
   deleteApplicationForAdmin,
+  eraseApplicationForLandlordGdpr,
   getApplicationForApplicant,
   updateApplicationForApplicant,
   updateApplicationForReviewer,
@@ -155,6 +156,19 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
       return NextResponse.json({
         message: "Application deleted.",
+        deletedApplicationId: deletedApplication.id,
+      })
+    }
+
+    if (getUserRole(user) === "landlord") {
+      const deletedApplication = await eraseApplicationForLandlordGdpr(user, id)
+
+      if (!deletedApplication) {
+        return NextResponse.json({ error: "Application not found." }, { status: 404 })
+      }
+
+      return NextResponse.json({
+        message: "Application data erased.",
         deletedApplicationId: deletedApplication.id,
       })
     }
