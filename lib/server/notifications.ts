@@ -52,6 +52,20 @@ function formatPlatformFromName(routedName: string) {
   return routedName && routedName !== "RentSimple" ? `${routedName} via RentSimple` : "RentSimple"
 }
 
+function getPublicAppOrigin() {
+  const configuredOrigin = process.env.NEXT_PUBLIC_BASE_URL?.trim()
+  if (configuredOrigin) {
+    return configuredOrigin.replace(/\/+$/, "")
+  }
+
+  const deploymentHost = process.env.VERCEL_URL?.trim()
+  if (deploymentHost) {
+    return `https://${deploymentHost}`
+  }
+
+  return "http://localhost:3000"
+}
+
 async function resolveEmailRouting(application: TenancyApplicationRecord, platformFromAddress: string) {
   const property = await getPropertyByIdForSystem(application.propertyId)
   const landlord = property ? await getUserById(property.ownerId) : null
@@ -149,7 +163,7 @@ export async function sendNewApplicationNotifications(application: TenancyApplic
     return false
   }
 
-  const reviewUrl = `${process.env.NEXT_PUBLIC_BASE_URL?.trim() || "http://localhost:3000"}/dashboard/applications?applicationId=${encodeURIComponent(application.id)}`
+    const reviewUrl = `${getPublicAppOrigin()}/dashboard/applications?applicationId=${encodeURIComponent(application.id)}`
   const subject = `New tenancy application for ${application.propertyAddress}`
   const text = [
     "A new tenancy application is ready for review.",
