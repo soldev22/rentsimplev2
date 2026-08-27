@@ -39,7 +39,7 @@ import {
   type TenantCommunicationNotification,
   type TenantCommunicationEntry,
 } from "@/lib/auth"
-import { deleteAuditEventsForEntity, writeAuditEvents } from "@/lib/server/audit"
+import { writeAuditEvents } from "@/lib/server/audit"
 import { getApplicationCommunicationsContainer, getApplicationsContainer } from "@/lib/server/cosmos"
 import {
   buildPaginatedResult,
@@ -2108,52 +2108,6 @@ export async function deleteApplicationForAdmin(user: AuthUser, applicationId: s
       timestamp: new Date().toISOString(),
     },
   ])
-
-  return existingApplication
-}
-
-export async function eraseApplicationForLandlordGdpr(user: AuthUser, applicationId: string) {
-  if (getUserRole(user) !== "landlord") {
-    throw new Error("Forbidden")
-  }
-
-  const existingApplication = await getApplicationById(applicationId)
-
-  if (!existingApplication) {
-    return null
-  }
-
-  const accessibleProperties = await listPropertiesForUser(user)
-  if (!accessibleProperties.some((property) => property.id === existingApplication.propertyId)) {
-    throw new Error("Forbidden")
-  }
-
-  const verificationDocuments = existingApplication.referencingInstruction.verificationDocuments ?? []
-  const depositDocuments = existingApplication.depositRecord.documents ?? []
-  await Promise.all([
-    ...verificationDocuments.map((document) => deleteTenancyVerificationDocument(document.blobName)),
-    ...depositDocuments.map((document) => deleteDepositDocument(document.blobName)),
-  ])
-
-  const applicationsContainer = await getApplicationsContainer()
-  const communicationsContainer = await getApplicationCommunicationsContainer()
-  const communicationRecords = await listStoredCommunicationRecordsByApplicationIds([existingApplication.id])
-
-  await Promise.all(
-    communicationRecords.map((record) =>
-      communicationsContainer.item(record.id, record.applicationId).delete().catch((error: unknown) => {
-        if (!isNotFoundError(error)) {
-          throw error
-        }
-      }),
-    ),
-  )
-  await deleteAuditEventsForEntity("application", existingApplication.id)
-  await applicationsContainer.item(existingApplication.id, existingApplication.applicantId).delete()
-
-  if (await getApplicationById(existingApplication.id)) {
-    throw new Error("ApplicationDeleteFailed")
-  }
 
   return existingApplication
 }

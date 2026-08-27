@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getSessionUser } from "@/lib/server/session"
-import { deleteUserForAdmin, listAgentsForAdmin, listUsersForAdmin, updateUserForAdmin } from "@/lib/server/users"
+import { deleteUserForAdmin, eraseApplicantAccountForAdmin, listAgentsForAdmin, listUsersForAdmin, updateUserForAdmin } from "@/lib/server/users"
 
 export async function GET() {
   const user = await getSessionUser()
@@ -84,13 +84,15 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    const body = (await request.json()) as { email?: string }
+    const body = (await request.json()) as { email?: string; accountErasure?: boolean }
 
     if (!body.email?.trim()) {
       return NextResponse.json({ error: "email is required." }, { status: 400 })
     }
 
-    const deletedUser = await deleteUserForAdmin(user, body.email)
+    const deletedUser = body.accountErasure
+      ? await eraseApplicantAccountForAdmin(user, body.email)
+      : await deleteUserForAdmin(user, body.email)
 
     if (!deletedUser) {
       return NextResponse.json({ error: "User not found." }, { status: 404 })
@@ -104,6 +106,18 @@ export async function DELETE(request: Request) {
 
     if (error instanceof Error && error.message === "CannotDeleteOwnAccount") {
       return NextResponse.json({ error: "You cannot delete your own admin account." }, { status: 400 })
+    }
+
+    if (error instanceof Error && error.message === "ApplicantAccountErasureWorkflowRequired") {
+      return NextResponse.json({ error: "Applicants must submit an account-erasure request before a Global admin can remove their account." }, { status: 400 })
+    }
+
+    if (error instanceof Error && error.message === "AccountErasureNotRequested") {
+      return NextResponse.json({ error: "Only an Applicant who has requested account erasure can be removed through this workflow." }, { status: 400 })
+    }
+
+    if (error instanceof Error && error.message === "ActiveTenancyHistoryExists") {
+      return NextResponse.json({ error: "This Applicant has an active tenancy history and cannot be erased through this workflow." }, { status: 400 })
     }
 
     return NextResponse.json({ error: "Unable to delete user." }, { status: 500 })

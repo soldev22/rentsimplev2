@@ -78,6 +78,7 @@ export default function ApplicantProfileSettingsForm({ initialApplicantProfile }
   const [formState, setFormState] = useState<FormState>(() => createInitialFormState(initialApplicantProfile))
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [isPending, startTransition] = useTransition()
+  const [isErasureRequested, setIsErasureRequested] = useState(false)
 
   function updateField<Key extends keyof FormState>(field: Key, value: FormState[Key]) {
     setFormState((current) => ({
@@ -137,6 +138,25 @@ export default function ApplicantProfileSettingsForm({ initialApplicantProfile }
   function handleReset() {
     setFeedback(null)
     setFormState(createInitialFormState(initialApplicantProfile))
+  }
+
+  function requestAccountErasure() {
+    if (!window.confirm("Request permanent deletion of your account and application data? A Global admin will review whether you have ever held an active tenancy before completing the request.")) {
+      return
+    }
+
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/applicant/account-erasure-request", { method: "POST" })
+        const payload = (await response.json()) as { error?: string }
+
+        if (!response.ok) throw new Error(payload.error || "Unable to request account erasure.")
+
+        setIsErasureRequested(true)
+      } catch (error) {
+        setFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to request account erasure." })
+      }
+    })
   }
 
   return (
@@ -291,6 +311,18 @@ export default function ApplicantProfileSettingsForm({ initialApplicantProfile }
           </button>
         </div>
       </form>
+
+      <section className="mt-8 border-t border-rose-200 pt-6">
+        <h2 className="text-lg font-semibold text-slate-900">Account erasure</h2>
+        <p className="mt-2 text-sm text-slate-600">Request permanent removal of your account and application data. A Global admin must review and complete this request.</p>
+        {isErasureRequested ? (
+          <p className="mt-4 text-sm font-medium text-amber-800">Your account-erasure request has been sent to the Global admin.</p>
+        ) : (
+          <button type="button" onClick={requestAccountErasure} disabled={isPending} className="mt-4 rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60">
+            Request account erasure
+          </button>
+        )}
+      </section>
     </section>
   )
 }

@@ -179,7 +179,6 @@ export default async function Page({ searchParams }: BookingsPageProps) {
         initialAuditEventsByApplicationId={Object.fromEntries(auditEventsByApplicationId)}
         currentUserDisplayName={`${user.first_name} ${user.last_name}`.trim() || user.email}
         isAdmin={role === "admin"}
-        canEraseApplicationData={role === "landlord"}
         screeningScoreConfig={user.screeningScoreConfig}
         canRequestCreditReport={role === "landlord"}
       />
