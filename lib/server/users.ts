@@ -610,7 +610,7 @@ export async function deleteUserForAdmin(adminUser: AuthUser, email: string) {
     return null
   }
 
-  if (storedUser.role === "applicant") {
+  if (storedUser.role === "applicant" && storedUser.approval_status === "approved") {
     throw new Error("ApplicantAccountErasureWorkflowRequired")
   }
 

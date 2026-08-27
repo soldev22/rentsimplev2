@@ -519,6 +519,14 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                   >
                     Review in table
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteUser(user)}
+                    disabled={isPending && savingEmail === user.email}
+                    className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isPending && savingEmail === user.email ? "Deleting..." : "Delete registration"}
+                  </button>
                 </div>
               </div>
             ))}
@@ -791,14 +799,20 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                       >
                         {isCurrentAdmin ? "Current admin" : isPending && switchingEmail === user.email ? "Switching..." : "Act as"}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteUser(user)}
-                        disabled={isCurrentAdmin || user.role === "applicant" || (isPending && savingEmail === user.email)}
-                        className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isCurrentAdmin ? "Protected" : user.role === "applicant" ? "Use erasure workflow" : isPending && savingEmail === user.email ? "Deleting..." : "Delete"}
-                      </button>
+                      {user.role === "applicant" ? (
+                        <span className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">
+                          {user.accountErasureRequestedAt ? "Erasure requested" : "Awaiting applicant request"}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => deleteUser(user)}
+                          disabled={isCurrentAdmin || (isPending && savingEmail === user.email)}
+                          className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isCurrentAdmin ? "Protected" : isPending && savingEmail === user.email ? "Deleting..." : "Delete"}
+                        </button>
+                      )}
                       {user.role === "applicant" && user.accountErasureRequestedAt ? (
                         <button
                           type="button"
