@@ -16,7 +16,14 @@ import {
 } from "@/lib/auth"
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/server/auth-email"
 import { consumeAuthChallenge, createAuthChallenge } from "@/lib/server/auth-security"
-import { getUsersContainer } from "@/lib/server/cosmos"
+import {
+  getApplicationCommunicationsContainer,
+  getApplicationsContainer,
+  getAuditEventsContainer,
+  getAuthSecurityContainer,
+  getUsersContainer,
+} from "@/lib/server/cosmos"
+import { deleteDepositDocument, deleteTenancyVerificationDocument } from "@/lib/server/blob"
 import {
   buildPaginatedResult,
   fetchAllQueryInBatches,
@@ -479,6 +486,21 @@ export async function getUserById(id: string) {
   return resources[0] ? sanitizeUser(resources[0]) : null
 }
 
+export async function listApprovedGlobalAdmins() {
+  const container = await getUsersContainer()
+  const { resources } = await container.items
+    .query<StoredUser>({
+      query: "SELECT * FROM c WHERE c.role = @role AND c.approval_status = @approvalStatus",
+      parameters: [
+        { name: "@role", value: "admin" },
+        { name: "@approvalStatus", value: "approved" },
+      ],
+    })
+    .fetchAll()
+
+  return resources.map(sanitizeUser)
+}
+
 export async function listUsersForAdmin(user: AuthUser) {
   const paged = await listUsersForAdminPage(user, { page: 1, pageSize: 1000 })
   return paged.items
@@ -588,6 +610,10 @@ export async function deleteUserForAdmin(adminUser: AuthUser, email: string) {
     return null
   }
 
+  if (storedUser.role === "applicant" && storedUser.approval_status === "approved") {
+    throw new Error("ApplicantAccountErasureWorkflowRequired")
+  }
+
   const container = await getUsersContainer()
   await container.item(normalizedEmail, normalizedEmail).delete()
 
@@ -690,6 +716,90 @@ export async function updateApplicantProfile(user: AuthUser, input: Partial<Appl
 
   await writeStoredUser(updatedUser)
   return sanitizeUser(updatedUser)
+}
+
+export async function requestApplicantAccountErasure(user: AuthUser) {
+  assertApplicant(user)
+
+  const storedUser = await readStoredUser(user.email)
+  if (!storedUser) {
+    return null
+  }
+
+  if (!storedUser.accountErasureRequestedAt) {
+    storedUser.accountErasureRequestedAt = new Date().toISOString()
+    storedUser.updatedAt = storedUser.accountErasureRequestedAt
+    await writeStoredUser(storedUser)
+  }
+
+  return sanitizeUser(storedUser)
+}
+
+export async function eraseApplicantAccountForAdmin(adminUser: AuthUser, email: string) {
+  assertAdmin(adminUser)
+
+  const normalizedEmail = normalizeEmail(email)
+  const storedUser = await readStoredUser(normalizedEmail)
+
+  if (!storedUser) {
+    return null
+  }
+
+  if (storedUser.role !== "applicant" || !storedUser.accountErasureRequestedAt) {
+    throw new Error("AccountErasureNotRequested")
+  }
+
+  const applicationsContainer = await getApplicationsContainer()
+  const { resources: applications } = await applicationsContainer.items
+    .query<{ id: string; applicantId: string; status: string; referencingInstruction?: { verificationDocuments?: Array<{ blobName: string }> }; depositRecord?: { documents?: Array<{ blobName: string }> } }>({
+      query: "SELECT * FROM c WHERE c.applicantId = @applicantId",
+      parameters: [{ name: "@applicantId", value: storedUser.id }],
+    })
+    .fetchAll()
+
+  if (applications.some((application) => application.status === "active_tenant")) {
+    throw new Error("ActiveTenancyHistoryExists")
+  }
+
+  const applicationIds = applications.map((application) => application.id)
+  const [communicationsContainer, auditEventsContainer, authSecurityContainer, usersContainer] = await Promise.all([
+    getApplicationCommunicationsContainer(),
+    getAuditEventsContainer(),
+    getAuthSecurityContainer(),
+    getUsersContainer(),
+  ])
+  const [communicationRecords, auditRecords, authSecurityRecords] = await Promise.all([
+    applicationIds.length > 0
+      ? communicationsContainer.items.query<{ id: string; applicationId: string }>({
+          query: "SELECT c.id, c.applicationId FROM c WHERE c.applicantId = @applicantId",
+          parameters: [{ name: "@applicantId", value: storedUser.id }],
+        }).fetchAll()
+      : Promise.resolve({ resources: [] as Array<{ id: string; applicationId: string }> }),
+    applicationIds.length > 0
+      ? auditEventsContainer.items.query<{ id: string; entityKey: string }>({
+          query: "SELECT c.id, c.entityKey FROM c WHERE ARRAY_CONTAINS(@entityKeys, c.entityKey)",
+          parameters: [{ name: "@entityKeys", value: applicationIds.map((id) => `application:${id}`) }],
+        }).fetchAll()
+      : Promise.resolve({ resources: [] as Array<{ id: string; entityKey: string }> }),
+    authSecurityContainer.items.query<{ id: string }>({
+      query: "SELECT c.id FROM c WHERE c.email = @email",
+      parameters: [{ name: "@email", value: normalizedEmail }],
+    }).fetchAll(),
+  ])
+
+  await Promise.all([
+    ...applications.flatMap((application) => [
+      ...(application.referencingInstruction?.verificationDocuments ?? []).map((document) => deleteTenancyVerificationDocument(document.blobName)),
+      ...(application.depositRecord?.documents ?? []).map((document) => deleteDepositDocument(document.blobName)),
+    ]),
+    ...communicationRecords.resources.map((record) => communicationsContainer.item(record.id, record.applicationId).delete()),
+    ...auditRecords.resources.map((record) => auditEventsContainer.item(record.id, record.entityKey).delete()),
+    ...authSecurityRecords.resources.map((record) => authSecurityContainer.item(record.id, record.id).delete()),
+    ...applications.map((application) => applicationsContainer.item(application.id, application.applicantId).delete()),
+  ])
+
+  await usersContainer.item(storedUser.id, storedUser.id).delete()
+  return sanitizeUser(storedUser)
 }
 
 export async function updateBuilderProfile(user: AuthUser, input: Partial<BuilderProfileDefaults>) {

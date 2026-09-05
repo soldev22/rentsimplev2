@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 
 import PropertyFinancialsPageClient from "@/components/properties/PropertyFinancialsPageClient"
-import { canManageProperties, isPendingApproval } from "@/lib/auth"
+import { canManageProperties, canReviewTenancyApplications, isPendingApproval } from "@/lib/auth"
 import { getPropertyForUser } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
 
@@ -20,5 +20,11 @@ export default async function PropertyFinancialsPage({ params }: PageContext) {
   const property = await getPropertyForUser(user, id)
   if (!property) notFound()
 
-  return <PropertyFinancialsPageClient initialProperty={property} canManage={canManageProperties(user)} />
+  return (
+    <PropertyFinancialsPageClient
+      initialProperty={property}
+      canManage={canManageProperties(user)}
+      canViewTenant={canReviewTenancyApplications(user)}
+    />
+  )
 }

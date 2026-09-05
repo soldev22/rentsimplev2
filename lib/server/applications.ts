@@ -55,6 +55,7 @@ import {
   sendDepositReminderNotification,
   sendDepositRequestedNotification,
   sendGuarantorReferenceRequestNotification,
+  sendNewApplicationNotifications,
   sendSiteVisitMeetingInviteNotification,
 } from "@/lib/server/notifications"
 import { DEFAULT_AFFORDABILITY_MULTIPLE, getPublicAvailableProperty, listPropertiesForUser } from "@/lib/server/properties"
@@ -1283,7 +1284,7 @@ function mergeDepositRecord(application: TenancyApplicationRecord, record: Depos
   }
 }
 
-function canAccessApplicationForClient(user: AuthUser, application: TenancyApplicationRecord) {
+function canAccessApplicationForApplicantOrTenant(user: AuthUser, application: TenancyApplicationRecord) {
   const role = getUserRole(user)
 
   if (role === "applicant") {
@@ -1630,6 +1631,11 @@ export async function createTenancyApplication(user: AuthUser, input: CreateTena
       timestamp: application.createdAt,
     },
   ])
+  try {
+    await sendNewApplicationNotifications(application)
+  } catch (error) {
+    console.error("Error sending new application notifications:", error)
+  }
   return application
 }
 
@@ -2343,7 +2349,7 @@ export async function acknowledgeDepositForApplication(
     return null
   }
 
-  if (!canAccessApplicationForClient(user, existingApplication)) {
+  if (!canAccessApplicationForApplicantOrTenant(user, existingApplication)) {
     throw new Error("Forbidden")
   }
 
@@ -2406,7 +2412,7 @@ export async function confirmDepositPaymentByTenant(
     return null
   }
 
-  if (!canAccessApplicationForClient(user, existingApplication)) {
+  if (!canAccessApplicationForApplicantOrTenant(user, existingApplication)) {
     throw new Error("Forbidden")
   }
 
@@ -2775,7 +2781,7 @@ export async function uploadDepositDocumentForApplication(
 
   const role = getUserRole(user)
   const isReviewer = canReviewTenancyApplications(user)
-  const isClient = role === "applicant" || role === "tenant"
+  const isApplicantOrTenant = role === "applicant" || role === "tenant"
 
   if (isReviewer) {
     const canAccess = await canAccessApplicationForReviewer(user, existingApplication)
@@ -2783,8 +2789,8 @@ export async function uploadDepositDocumentForApplication(
     if (!canAccess) {
       throw new Error("Forbidden")
     }
-  } else if (isClient) {
-    if (!canAccessApplicationForClient(user, existingApplication)) {
+  } else if (isApplicantOrTenant) {
+    if (!canAccessApplicationForApplicantOrTenant(user, existingApplication)) {
       throw new Error("Forbidden")
     }
 
@@ -2872,7 +2878,7 @@ export async function getDepositDocumentForApplication(user: AuthUser, applicati
     if (!canAccess) {
       throw new Error("Forbidden")
     }
-  } else if (!canAccessApplicationForClient(user, application)) {
+  } else if (!canAccessApplicationForApplicantOrTenant(user, application)) {
     throw new Error("Forbidden")
   }
 

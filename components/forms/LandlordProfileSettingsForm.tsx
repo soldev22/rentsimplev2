@@ -20,6 +20,7 @@ type LandlordProfileSettingsFormProps = {
     screeningScoreConfig?: ApplicantScreeningScoreConfig
   }
   initialTeamUsers: AuthUser[]
+  mode?: "profile" | "screening" | "team"
 }
 
 type FormState = {
@@ -79,7 +80,11 @@ function createInitialTeamMemberFormState(): TeamMemberCreateState {
   }
 }
 
-export default function LandlordProfileSettingsForm({ initialProfile, initialTeamUsers }: LandlordProfileSettingsFormProps) {
+export default function LandlordProfileSettingsForm({
+  initialProfile,
+  initialTeamUsers,
+  mode = "profile",
+}: LandlordProfileSettingsFormProps) {
   const [formState, setFormState] = useState<FormState>(() => createInitialFormState(initialProfile))
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [teamFeedback, setTeamFeedback] = useState<FeedbackState>(null)
@@ -262,15 +267,27 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Landlord profile</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">Contact and communication settings</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">
+            {mode === "screening" ? "Applicant screening" : mode === "team" ? "Team access" : "Landlord profile"}
+          </p>
+          <h1 className="mt-2 text-3xl font-bold text-slate-900">
+            {mode === "screening"
+              ? "Applicant screening score settings"
+              : mode === "team"
+                ? "Landlord team logins"
+                : "Contact and communication settings"}
+          </h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Manage your profile details and tenant communication defaults used by the dashboard workflows.
+            {mode === "screening"
+              ? "Configure how applicant profile data is scored in the application review panel. Scores persist on your landlord account."
+              : mode === "team"
+                ? "Add and manage additional landlord users for this account. All team members have full landlord access."
+                : "Manage your profile details and tenant communication defaults used by the dashboard workflows."}
           </p>
         </div>
       </div>
 
-      {feedback ? (
+      {mode !== "team" && feedback ? (
         <div
           className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
             feedback.type === "success"
@@ -282,7 +299,10 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
         </div>
       ) : null}
 
+      {mode !== "team" ? (
       <form className="mt-6 grid gap-4 lg:grid-cols-2" onSubmit={handleSubmit}>
+        {mode === "profile" ? (
+          <>
         <label className="block text-sm font-medium text-slate-700">
           First name
           <input
@@ -374,12 +394,14 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
           Copy me on tenant communication emails by default
         </label>
 
+          </>
+        ) : null}
+
+        {mode === "screening" ? (
         <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex flex-col gap-2">
-            <h2 className="text-lg font-semibold text-slate-900">Applicant screening score settings</h2>
-            <p className="text-sm text-slate-600">
-              Configure how applicant profile data is scored in the application review panel. Scores persist on your landlord account.
-            </p>
+            <h2 className="text-lg font-semibold text-slate-900">Scoring criteria</h2>
+            <p className="text-sm text-slate-600">Set the score applied to each applicant criterion.</p>
           </div>
 
           <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -673,6 +695,7 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
             </button>
           </div>
         </section>
+        ) : null}
 
         <div className="lg:col-span-2 flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
           <button
@@ -680,7 +703,7 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
             className="rounded-md bg-slate-900 px-4 py-2 font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
             disabled={isPending}
           >
-            {isPending ? "Saving..." : "Save landlord profile"}
+            {isPending ? "Saving..." : mode === "screening" ? "Save screening settings" : "Save landlord profile"}
           </button>
           <button
             type="button"
@@ -692,7 +715,9 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
           </button>
         </div>
       </form>
+      ) : null}
 
+      {mode === "team" ? (
       <section className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
         <h2 className="text-lg font-semibold text-slate-900">Landlord team logins</h2>
         <p className="mt-2 text-sm text-slate-600">
@@ -794,6 +819,7 @@ export default function LandlordProfileSettingsForm({ initialProfile, initialTea
           </div>
         </form>
       </section>
+      ) : null}
     </section>
   )
 }

@@ -19,6 +19,14 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+Set `NEXT_PUBLIC_BASE_URL` to the public HTTPS address of the deployed application so links in email notifications point to the live site rather than `localhost`.
+
+Example:
+
+```text
+NEXT_PUBLIC_BASE_URL=https://your-public-domain.example
+```
+
 ## Backlog
 
 Use [BACKLOG.md](BACKLOG.md) to track deferred work, legal/compliance follow-ups, and items to revisit.

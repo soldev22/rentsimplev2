@@ -2,7 +2,7 @@ import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 
 import PropertyCompliancePageClient from "@/components/properties/PropertyCompliancePageClient"
-import { canManageProperties, isPendingApproval } from "@/lib/auth"
+import { canManageProperties, canReviewTenancyApplications, isPendingApproval } from "@/lib/auth"
 import { getPropertyForUser } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
 
@@ -44,7 +44,11 @@ export default async function PropertyCompliancePage({ params }: PageContext) {
         </Link>
       </div>
 
-      <PropertyCompliancePageClient initialProperty={property} canManage={canManageProperties(user)} />
+      <PropertyCompliancePageClient
+        initialProperty={property}
+        canManage={canManageProperties(user)}
+        canViewTenant={canReviewTenancyApplications(user)}
+      />
     </div>
   )
 }

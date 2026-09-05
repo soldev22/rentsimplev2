@@ -8,6 +8,7 @@ import type { PropertyLettingPreferences, PropertyRecord } from "@/lib/auth"
 type PropertyLettingPreferencesPageClientProps = {
   initialProperty: PropertyRecord
   canManage: boolean
+  canViewTenant: boolean
 }
 
 function toPreferences(preferences: PropertyLettingPreferences | undefined): PropertyLettingPreferences {
@@ -22,7 +23,7 @@ function toPreferences(preferences: PropertyLettingPreferences | undefined): Pro
   }
 }
 
-export default function PropertyLettingPreferencesPageClient({ initialProperty, canManage }: PropertyLettingPreferencesPageClientProps) {
+export default function PropertyLettingPreferencesPageClient({ initialProperty, canManage, canViewTenant }: PropertyLettingPreferencesPageClientProps) {
   const [property, setProperty] = useState(initialProperty)
   const [preferences, setPreferences] = useState(() => toPreferences(initialProperty.lettingPreferences))
   const [isEditMode, setIsEditMode] = useState(false)
@@ -66,7 +67,7 @@ export default function PropertyLettingPreferencesPageClient({ initialProperty, 
         </div>
       </div>
 
-      <PropertyTabs propertyId={property.id} />
+      <PropertyTabs propertyId={property.id} showTenantTab={canViewTenant} />
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">

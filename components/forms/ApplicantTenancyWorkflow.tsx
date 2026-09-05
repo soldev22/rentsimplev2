@@ -779,6 +779,7 @@ export default function ApplicantTenancyWorkflow({
                           : "Credit check consent has not been recorded on this application yet."}
                       </div>
 
+                      {application.depositRecord.requestedDate ? (
                       <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
@@ -880,6 +881,7 @@ export default function ApplicantTenancyWorkflow({
                           </div>
                         ) : null}
                       </div>
+                      ) : null}
 
                       {editingApplicationId === application.id ? (
                         <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

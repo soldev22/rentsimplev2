@@ -119,7 +119,7 @@ export default async function Page({ searchParams }: BookingsPageProps) {
               href={effectiveLandlordId ? `/dashboard/documents?landlordId=${encodeURIComponent(effectiveLandlordId)}` : "/dashboard/documents"}
               className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
             >
-              Client documents
+              Application documents
             </Link>
             <Link
               href={buildWithdrawnBookingsPageHref({ page: 1, pageSize, landlordId: effectiveLandlordId })}

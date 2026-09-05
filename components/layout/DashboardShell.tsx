@@ -43,27 +43,23 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
     displayRole === "applicant"
       ? [
           { name: "My Applications", href: "/dashboard/applicant" },
-          { name: "Client Documents", href: "/dashboard/documents" },
+          { name: "Applicant Documents", href: "/dashboard/documents" },
           { name: "Settings", href: "/dashboard/settings" },
         ]
       : displayRole === "tenant" || displayRole === "builder"
         ? [
-            { name: "Onboarding", href: "/dashboard/onboarding" },
             { name: "Maintenance", href: "/dashboard/maintenance" },
-            ...(displayRole === "tenant" ? [{ name: "Client Documents", href: "/dashboard/documents" }] : []),
+            ...(displayRole === "tenant" ? [{ name: "Tenant Documents", href: "/dashboard/documents" }] : []),
             { name: "Settings", href: "/dashboard/settings" },
           ]
       : [
           { name: "Properties", href: "/dashboard/properties" },
-          { name: "Marketing packs", href: "/dashboard/properties#marketing-packs" },
-          ...(displayRole === "landlord" ? [{ name: "Landlord profile", href: "/dashboard/landlord/profile" }] : []),
-          { name: "Onboarding", href: "/dashboard/onboarding" },
           { name: "Cases", href: "/dashboard/cases" },
           ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
             ? [{ name: "Applications", href: "/dashboard/applications" }]
             : []),
           ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
-            ? [{ name: "Client Documents", href: "/dashboard/documents" }]
+            ? [{ name: "Application Documents", href: "/dashboard/documents" }]
             : []),
           { name: "Tenants", href: "/dashboard/tenants" },
           { name: "Maintenance", href: "/dashboard/maintenance" },
@@ -245,8 +241,8 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
                 Overview
               </Link>
               {displayRole !== "applicant" ? (
-                <Link href="/dashboard/onboarding" className="hover:text-white">
-                  Onboarding
+                <Link href="/dashboard/settings" className="hover:text-white">
+                  Settings
                 </Link>
               ) : null}
               <Link href="/dashboard/properties" className="hover:text-white">
@@ -276,7 +272,7 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
                     Applications
                   </Link>
                   <Link href="/dashboard/documents" className="hover:text-white">
-                    Client Documents
+                    Applicant Documents
                   </Link>
                 </>
               ) : (
@@ -286,12 +282,12 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
                   </Link>
                   {(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord") ? (
                     <Link href="/dashboard/documents" className="hover:text-white">
-                      Client Documents
+                      Application Documents
                     </Link>
                   ) : null}
                   {displayRole === "tenant" ? (
                     <Link href="/dashboard/documents" className="hover:text-white">
-                      Client Documents
+                      Tenant Documents
                     </Link>
                   ) : null}
                 </>

@@ -6,7 +6,7 @@ import type { TenantCommunicationEntry, TenantCommunicationNotification, Tenancy
 import { getPropertyByIdForSystem } from "@/lib/server/properties"
 import { prepareTenantCommunicationNotification } from "@/lib/utils/tenant-communication-notifications"
 import { resolveTenantCommunicationEmailRouting } from "@/lib/utils/tenant-communication-routing"
-import { getUserByEmail, getUserById } from "@/lib/server/users"
+import { getUserByEmail, getUserById, listApprovedGlobalAdmins } from "@/lib/server/users"
 
 type DeliveryResult = {
   status: TenantCommunicationNotification["status"]
@@ -50,6 +50,20 @@ function formatMailbox(address: string, name: string) {
 
 function formatPlatformFromName(routedName: string) {
   return routedName && routedName !== "RentSimple" ? `${routedName} via RentSimple` : "RentSimple"
+}
+
+function getPublicAppOrigin() {
+  const configuredOrigin = process.env.NEXT_PUBLIC_BASE_URL?.trim()
+  if (configuredOrigin) {
+    return configuredOrigin.replace(/\/+$/, "")
+  }
+
+  const deploymentHost = process.env.VERCEL_URL?.trim()
+  if (deploymentHost) {
+    return `https://${deploymentHost}`
+  }
+
+  return "http://localhost:3000"
 }
 
 async function resolveEmailRouting(application: TenancyApplicationRecord, platformFromAddress: string) {
@@ -124,6 +138,65 @@ async function sendRoutedEmailNotification(
           ? `${routing.detail} Delivery via the platform SMTP sender ${config.from} failed. ${error.message}`.trim()
           : `${routing.detail} Delivery via the platform SMTP sender ${config.from} failed.`,
     }
+  }
+}
+
+export async function sendNewApplicationNotifications(application: TenancyApplicationRecord): Promise<boolean> {
+  const smtpConfig = getSmtpConfig()
+
+  if (!smtpConfig) {
+    console.warn("SMTP not configured - cannot send new application notifications")
+    return false
+  }
+
+  const [property, globalAdmins] = await Promise.all([
+    getPropertyByIdForSystem(application.propertyId),
+    listApprovedGlobalAdmins(),
+  ])
+  const landlord = property ? await getUserById(property.ownerId) : null
+  const recipients = [...new Set([landlord?.email, ...globalAdmins.map((globalAdmin) => globalAdmin.email)]
+    .map((email) => email?.trim().toLowerCase())
+    .filter((email): email is string => Boolean(email)))]
+
+  if (recipients.length === 0) {
+    console.warn(`No landlord or global admin recipients found for application ${application.id}`)
+    return false
+  }
+
+    const reviewUrl = `${getPublicAppOrigin()}/dashboard/applications?applicationId=${encodeURIComponent(application.id)}`
+  const subject = `New tenancy application for ${application.propertyAddress}`
+  const text = [
+    "A new tenancy application is ready for review.",
+    "",
+    `Applicant: ${application.applicantName} (${application.applicantEmail})`,
+    `Property: ${application.propertyAddress}`,
+    `Submitted: ${new Date(application.submittedAt).toLocaleString("en-GB")}`,
+    "",
+    `Review application: ${reviewUrl}`,
+  ].join("\n")
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    })
+
+    await Promise.all(recipients.map((to) => transporter.sendMail({
+      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+      to,
+      subject,
+      text,
+    })))
+
+    return true
+  } catch (error) {
+    console.error("Error sending new application notifications:", error)
+    return false
   }
 }
 

@@ -63,9 +63,9 @@ export default async function Page({ searchParams }: DocumentsPageProps) {
 
   const role = getUserRole(user)
   const isReviewer = canReviewTenancyApplications(user)
-  const isClientSelfService = role === "applicant" || role === "tenant"
+  const isApplicantOrTenantSelfService = role === "applicant" || role === "tenant"
 
-  if (!isReviewer && !isClientSelfService) {
+  if (!isReviewer && !isApplicantOrTenantSelfService) {
     redirect("/dashboard")
   }
 
@@ -145,8 +145,8 @@ export default async function Page({ searchParams }: DocumentsPageProps) {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">Client documents</p>
-            <h1 className="mt-2 text-2xl font-bold text-slate-900">Client document vault</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">Application documents</p>
+            <h1 className="mt-2 text-2xl font-bold text-slate-900">Application document vault</h1>
             <p className="mt-2 text-sm text-slate-600">
               A single area for uploaded verification files, tenancy paperwork, and guarantor declaration copies.
             </p>
@@ -231,7 +231,7 @@ export default async function Page({ searchParams }: DocumentsPageProps) {
 
       {pagedApplications.items.length === 0 ? (
         <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          No client documents were found for the selected scope.
+          No application documents were found for the selected scope.
         </section>
       ) : (
         pagedApplications.items.map((application) => {

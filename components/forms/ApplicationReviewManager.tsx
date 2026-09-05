@@ -13,7 +13,6 @@ import type {
   TenancyApplicationRecord,
   TenancyRefereeContact,
   TenancyReferenceRequest,
-  TenancyApplicationStage,
   TenancyApplicationStatus,
   TenantDecisionOutcome,
 } from "@/lib/auth"
@@ -31,6 +30,18 @@ type ApplicationReviewManagerProps = {
 }
 
 type FeedbackState = Record<string, { type: "success" | "error"; message: string } | null>
+
+type ApplicationTab = "applicant" | "application" | "siteVisit" | "deposit" | "offer" | "lease" | "correspondence"
+
+const applicationTabs: Array<{ id: ApplicationTab; label: string }> = [
+  { id: "applicant", label: "Applicant details" },
+  { id: "application", label: "Application information" },
+  { id: "siteVisit", label: "Site visit" },
+  { id: "deposit", label: "Deposit and financials" },
+  { id: "offer", label: "Offer" },
+  { id: "lease", label: "Lease" },
+  { id: "correspondence", label: "Correspondence" },
+]
 
 type CommunicationDraft = {
   occurredAt: string
@@ -57,16 +68,6 @@ const verificationChecklistOptions: Array<{ key: VerificationChecklistKey; label
   { key: "incomeEvidenceReceived", label: "Employment verification" },
 ]
 
-const stageOptions: Array<{ value: TenancyApplicationStage; label: string }> = [
-  { value: "referencing_instruction", label: "Validation" },
-  { value: "decision", label: "Decision" },
-  { value: "agreement", label: "Agreement" },
-  { value: "pre_move_in", label: "Pre-move-in" },
-  { value: "move_in", label: "Move-in" },
-  { value: "deposit_protection", label: "Deposit protection" },
-  { value: "post_move_in", label: "Post move-in" },
-]
-
 const statusOptions: Array<{ value: TenancyApplicationStatus; label: string }> = [
   { value: "submitted", label: "Submitted" },
   { value: "referencing_in_progress", label: "Referencing in progress" },
@@ -81,6 +82,20 @@ const statusOptions: Array<{ value: TenancyApplicationStatus; label: string }> =
   { value: "deposit_protected", label: "Deposit protected" },
   { value: "active_tenant", label: "Active tenant" },
 ]
+
+const pipelineSteps: Array<{ id: string; label: string; statuses: TenancyApplicationStatus[] }> = [
+  { id: "submitted", label: "Submitted", statuses: ["submitted"] },
+  { id: "referencing", label: "Referencing", statuses: ["referencing_in_progress", "referencing_complete"] },
+  { id: "decision", label: "Decision", statuses: ["approved", "approved_with_guarantor", "declined"] },
+  { id: "agreement", label: "Agreement", statuses: ["agreement_in_progress"] },
+  { id: "move_in", label: "Move-in", statuses: ["pre_move_in_ready", "move_in_ready"] },
+  { id: "active", label: "Active tenant", statuses: ["deposit_protected", "active_tenant"] },
+]
+
+function getPipelineStepIndex(status: TenancyApplicationStatus) {
+  const stepIndex = pipelineSteps.findIndex((step) => step.statuses.includes(status))
+  return stepIndex >= 0 ? stepIndex : 0
+}
 
 const decisionOptions: Array<{ value: TenantDecisionOutcome; label: string }> = [
   { value: "pending", label: "Pending" },
@@ -194,6 +209,7 @@ export default function ApplicationReviewManager({
   const [communicationDrafts, setCommunicationDrafts] = useState<Record<string, CommunicationDraft>>({})
   const [siteVisitInviteLinksByApplicationId, setSiteVisitInviteLinksByApplicationId] = useState<Record<string, string>>({})
   const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(null)
+  const [activeTabByApplicationId, setActiveTabByApplicationId] = useState<Record<string, ApplicationTab>>({})
   const [fullAuditApplicationId, setFullAuditApplicationId] = useState<string | null>(null)
   const [verificationUploadStateBySlot, setVerificationUploadStateBySlot] = useState<Record<string, boolean>>({})
   const [depositUploadStateBySlot, setDepositUploadStateBySlot] = useState<Record<string, boolean>>({})
@@ -486,7 +502,6 @@ export default function ApplicationReviewManager({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            currentStage: application.currentStage,
             status: application.status,
             referencingInstruction: application.referencingInstruction,
             referencingReport: application.referencingReport,
@@ -584,6 +599,10 @@ export default function ApplicationReviewManager({
 
   function toggleApplication(applicationId: string) {
     setExpandedApplicationId((current) => (current === applicationId ? null : applicationId))
+  }
+
+  function setApplicationTab(applicationId: string, tab: ApplicationTab) {
+    setActiveTabByApplicationId((current) => ({ ...current, [applicationId]: tab }))
   }
 
   function requestCreditReport(applicationId: string) {
@@ -699,7 +718,6 @@ export default function ApplicationReviewManager({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            currentStage: application.currentStage,
             status: application.status,
             referencingInstruction: application.referencingInstruction,
             referencingReport: application.referencingReport,
@@ -798,7 +816,6 @@ export default function ApplicationReviewManager({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            currentStage: application.currentStage,
             status: application.status,
             referencingInstruction: application.referencingInstruction,
             referencingReport: application.referencingReport,
@@ -1041,6 +1058,8 @@ export default function ApplicationReviewManager({
       ) : (
         applications.map((application) => {
           const isExpanded = expandedApplicationId === application.id
+          const activeTab = activeTabByApplicationId[application.id] ?? "applicant"
+          const pipelineStepIndex = getPipelineStepIndex(application.status)
           const auditEvents = auditEventsByApplicationId[application.id] ?? []
           const communicationDraft = getCommunicationDraft(application.id)
           const screeningScore = calculateApplicantScreeningScore(application, effectiveScreeningScoreConfig)
@@ -1106,7 +1125,7 @@ export default function ApplicationReviewManager({
                   href={`/dashboard/documents?applicationId=${encodeURIComponent(application.id)}`}
                   className="rounded-md border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-100"
                 >
-                  View client docs
+                  View application documents
                 </a>
                 {isAdmin ? (
                   <button
@@ -1144,42 +1163,86 @@ export default function ApplicationReviewManager({
             {isExpanded ? (
               <>
 
+            <nav className="mt-6 overflow-x-auto border-b border-slate-200" aria-label={`Application sections for ${application.applicantName}`}>
+              <div className="flex min-w-max gap-1" role="tablist">
+                {applicationTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    className={`border-b-2 px-3 py-2 text-sm font-semibold transition-colors ${
+                      activeTab === tab.id
+                        ? "border-cyan-700 text-cyan-800"
+                        : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                    }`}
+                    aria-selected={activeTab === tab.id}
+                    onClick={() => setApplicationTab(application.id, tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </nav>
+
             <div className="mt-6 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-              <label className="block text-sm font-medium text-slate-700">
-                Current stage
-                <select
-                  className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
-                  value={application.currentStage}
-                  onChange={(event) =>
-                    updateApplication(application.id, (current) => ({ ...current, currentStage: event.target.value as TenancyApplicationStage }))
-                  }
-                >
-                  {stageOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:col-span-2 xl:col-span-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pipeline progress</div>
+                          <div className="mt-1 text-sm font-semibold capitalize text-slate-900">{application.status.replaceAll("_", " ")}</div>
+                        </div>
+                        <details className="relative">
+                          <summary className="cursor-pointer list-none rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                            Change status
+                          </summary>
+                          <div className="absolute right-0 z-10 mt-2 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+                            <label className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                              Pipeline status
+                              <select
+                                className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-sky-500"
+                                value={application.status}
+                                onChange={(event) =>
+                                  updateApplication(application.id, (current) => ({ ...current, status: event.target.value as TenancyApplicationStatus }))
+                                }
+                              >
+                                {statusOptions.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                        </details>
+                      </div>
+                      <ol className="mt-5 grid gap-3 sm:grid-cols-6" aria-label="Application pipeline progress">
+                        {pipelineSteps.map((step, index) => {
+                          const isCurrent = index === pipelineStepIndex
+                          const isComplete = index < pipelineStepIndex
 
-              <label className="block text-sm font-medium text-slate-700">
-                Pipeline status
-                <select
-                  className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
-                  value={application.status}
-                  onChange={(event) =>
-                    updateApplication(application.id, (current) => ({ ...current, status: event.target.value as TenancyApplicationStatus }))
-                  }
-                >
-                  {statusOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                          return (
+                            <li key={step.id} className="flex items-center gap-2 sm:block">
+                              <div
+                                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                                  isCurrent
+                                    ? "bg-cyan-700 text-white"
+                                    : isComplete
+                                      ? "bg-emerald-600 text-white"
+                                      : "bg-slate-200 text-slate-500"
+                                }`}
+                              >
+                                {isComplete ? "OK" : index + 1}
+                              </div>
+                              <div className={`mt-2 text-xs font-semibold ${isCurrent ? "text-cyan-800" : isComplete ? "text-emerald-800" : "text-slate-500"}`}>
+                                {step.label}
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ol>
+                          </section>
 
-              <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 lg:col-span-2 xl:col-span-3">
+              <section className={`rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 lg:col-span-2 xl:col-span-3 ${activeTab === "applicant" || activeTab === "application" ? "" : "hidden"}`}>
                 <div>
                   <div>
                     <div className="text-xs uppercase tracking-[0.16em] text-slate-500 whitespace-nowrap">Applicant profile screening table</div>
@@ -1276,8 +1339,8 @@ export default function ApplicationReviewManager({
               </section>
             </div>
 
-            <div className="mt-6">
-              <section className="rounded-xl border border-slate-200 p-4">
+            <div className={`mt-6 ${activeTab === "applicant" ? "" : "hidden"}`}>
+              <section className={`rounded-xl border border-slate-200 p-4 ${activeTab === "siteVisit" ? "" : "hidden"}`}>
                 <h3 className="text-lg font-semibold text-slate-900">Applicant verification</h3>
                 <div className="mt-4 space-y-3">
                   {verificationChecklistOptions.map((option) => {
@@ -1415,7 +1478,7 @@ export default function ApplicationReviewManager({
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-2">
-              <section className="rounded-xl border border-slate-200 p-4">
+              <section className={`rounded-xl border border-slate-200 p-4 ${activeTab === "application" || activeTab === "deposit" ? "" : "hidden"}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-lg font-semibold text-slate-900">Schedule site visit</h3>
                   <div className="flex flex-wrap items-center gap-2">
@@ -1644,7 +1707,7 @@ export default function ApplicationReviewManager({
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-200 p-4">
+              <section className={`rounded-xl border border-slate-200 p-4 ${activeTab === "lease" || activeTab === "correspondence" ? "" : "hidden"}`}>
                 <h3 className="text-lg font-semibold text-slate-900">Decision and approval</h3>
                 <div className="mt-4 grid gap-4">
                   <label className="block text-sm font-medium text-slate-700">
@@ -1936,7 +1999,7 @@ export default function ApplicationReviewManager({
                         href={`/dashboard/documents?applicationId=${encodeURIComponent(application.id)}`}
                         className="rounded-md border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-100"
                       >
-                        Open client docs
+                        Open application documents
                       </a>
                     </div>
 
@@ -2200,7 +2263,7 @@ export default function ApplicationReviewManager({
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-700">Deposit documents</h4>
-                          <p className="mt-1 text-xs text-slate-500">Keep receipts and protection certificates here and in the client documents vault.</p>
+                          <p className="mt-1 text-xs text-slate-500">Keep receipts and protection certificates here and in the application document vault.</p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <input
@@ -2297,7 +2360,7 @@ export default function ApplicationReviewManager({
                 </div>
               </section>
 
-              <section className="rounded-xl border border-slate-200 p-4">
+              <section className={`rounded-xl border border-slate-200 p-4 ${activeTab === "offer" ? "" : "hidden"}`}>
                 <h3 className="text-lg font-semibold text-slate-900">Agreement and move-in readiness</h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <label className="block text-sm font-medium text-slate-700">

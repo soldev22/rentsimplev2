@@ -94,6 +94,7 @@ export type AuthUser = {
   landlordProfile?: LandlordProfile
   screeningScoreConfig?: ApplicantScreeningScoreConfig
   managedByAgentId?: string
+  accountErasureRequestedAt?: string
   role: UserRole
   approval_status: ApprovalStatus
   createdAt: string
