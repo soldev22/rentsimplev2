@@ -64,26 +64,18 @@ export default function AppChrome({
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       {isHomeRoute ? (
-        <header className="brand-surface overflow-hidden rounded-4xl shadow-lg">
-          <div className="brand-accent-orb right-10 top-10 h-24 w-24" />
-          <div className="relative z-10 mx-auto max-w-6xl px-6 pb-14 pt-4">
+        <header className="landing-nav">
+          <div className="landing-container landing-nav-inner">
             <div className="flex items-center justify-between gap-4">
               <Link href="/" className="min-w-0">
-                <p className="text-2xl font-semibold tracking-[0.06em] text-sky-200">
-                  rentsimple
-                </p>
-                <h1 className="mt-2 text-3xl font-semibold text-white md:text-4xl">
-                  Welcome home.
-                </h1>
-                <p className="mt-3 max-w-3xl text-sm text-slate-200 md:text-base">
-                  Find your next home, manage your tenancy with confidence, and keep everything securely organised in one place. RentSimple supports every step of your renting journey-from your first enquiry to moving day and beyond.
-                </p>
+                <p className="landing-wordmark">rentsimple<span>.</span></p>
               </Link>
 
-              <div className="flex items-center gap-3">
+              <div className="landing-nav-actions">
+                <Link href="/properties" className="landing-nav-link">Explore homes</Link>
                 {!isAuthenticated ? (
-                  <Link href="/login" className="brand-nav-button brand-nav-button-solid px-4 py-2 text-sm font-semibold">
-                    Login
+                  <Link href="/login" className="landing-nav-login">
+                    Access portal <span aria-hidden="true">↗</span>
                   </Link>
                 ) : (
                   <>
@@ -92,8 +84,8 @@ export default function AppChrome({
                         {initialUser.displayName} <span className="text-slate-300/60">·</span> {getDesignationLabel(initialUser.displayRole)}
                       </div>
                     ) : null}
-                    <Link href="/dashboard" className="rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20">
-                      Dashboard
+                    <Link href="/dashboard" className="landing-nav-login">
+                      Dashboard <span aria-hidden="true">↗</span>
                     </Link>
                     <button
                       type="button"

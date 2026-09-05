@@ -31,3 +31,32 @@ Published: 14 August 2026 15:30
    - Published date/time
 
 10. If any database records are to be created, they will need to have full CRUD capability, including: API endpoints, data access layer, and any required UI components.
+
+CRITICAL REQUIREMENT
+
+No record may be created in the Users container
+until all authenticity checks pass.
+
+Use a separate RegistrationAttempt container.
+
+Flow:
+
+Registration Submission
+→ RegistrationAttempt
+→ Risk Assessment
+→ Verification
+→ Approval
+
+Only after approval:
+
+→ Create User document
+→ Create Authentication Identity
+
+Rejected registrations must never create
+a User record.
+
+Suspicious registrations must remain in
+RegistrationAttempt for review.
+
+The Users container should contain only
+verified and approved users.

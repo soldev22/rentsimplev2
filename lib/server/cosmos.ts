@@ -19,6 +19,8 @@ const applicationCommunicationsContainerId =
   process.env.COSMOSDB_APPLICATION_COMMUNICATIONS_CONTAINER?.trim() || "applicationscommunications"
 const auditEventsContainerId = process.env.COSMOSDB_AUDIT_EVENTS_CONTAINER?.trim() || "audit-events"
 const authSecurityContainerId = process.env.COSMOSDB_AUTH_SECURITY_CONTAINER?.trim() || "auth-security"
+const registrationAttemptsContainerId = process.env.COSMOSDB_REGISTRATION_ATTEMPTS_CONTAINER?.trim() || "registration-attempts"
+const registrationReviewsContainerId = process.env.COSMOSDB_REGISTRATION_REVIEWS_CONTAINER?.trim() || "registration-reviews"
 const maintenanceContainerId = process.env.COSMOSDB_MAINTENANCE_CONTAINER?.trim() || "maintenance"
 const casesContainerId = process.env.COSMOSDB_CASES_CONTAINER?.trim() || "cases"
 const caseMessagesContainerId = process.env.COSMOSDB_CASE_MESSAGES_CONTAINER?.trim() || "case-messages"
@@ -173,4 +175,12 @@ export async function getCaseMessagesContainer(): Promise<Container> {
     id: caseMessagesContainerId,
     partitionKeyPath: "/caseId",
   })
+}
+
+export async function getRegistrationAttemptsContainer(): Promise<Container> {
+  return createContainerIfNeeded({ id: registrationAttemptsContainerId, partitionKeyPath: "/id" })
+}
+
+export async function getRegistrationReviewsContainer(): Promise<Container> {
+  return createContainerIfNeeded({ id: registrationReviewsContainerId, partitionKeyPath: "/attemptId" })
 }

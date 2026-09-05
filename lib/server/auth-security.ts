@@ -7,7 +7,7 @@ import { getAuthSecurityContainer } from "@/lib/server/cosmos"
 
 type AuthChallengeKind = "verification" | "password_reset" | "guarantor_reference" | "site_visit_confirmation"
 type AuthRateLimitAction = "login" | "register" | "forgot_password" | "verify_request"
-type AuthRateLimitScope = "ip" | "email"
+type AuthRateLimitScope = "ip" | "email" | "device"
 
 type AuthChallengeRecord = {
   id: string

@@ -14,6 +14,7 @@ export default function PropertyTabs({ propertyId }: PropertyTabsProps) {
     { label: "Compliance", href: `/dashboard/properties/${propertyId}/compliance` },
     { label: "Financials", href: `/dashboard/properties/${propertyId}/financials` },
     { label: "Letting preferences", href: `/dashboard/properties/${propertyId}/letting-preferences` },
+    { label: "Tenant allocation", href: `/dashboard/properties/${propertyId}/tenant-allocation` },
   ]
 
   return (
