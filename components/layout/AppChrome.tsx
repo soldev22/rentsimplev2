@@ -1,7 +1,7 @@
 "use client"
 
-import Link from "next/link"
 import Image from "next/image"
+import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
 
@@ -69,7 +69,10 @@ export default function AppChrome({
           <div className="landing-container landing-nav-inner">
             <div className="flex items-center justify-between gap-4">
               <Link href="/" className="min-w-0">
-                <Image src="/logo/Designer.png" alt="RentSimple" width={78} height={78} className="landing-logo" priority />
+                <span className="brand-lockup">
+                  <Image src="/logo/Designer.png" alt="" width={52} height={52} className="brand-lockup-logo" priority />
+                  <p className="landing-wordmark">rentsimple<span>.</span></p>
+                </span>
               </Link>
 
               <div className="landing-nav-actions">
@@ -106,7 +109,12 @@ export default function AppChrome({
         <header className="brand-shell-surface border-b border-white/10 shadow-sm">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
             <Link href="/" className="min-w-0">
-              <Image src="/logo/Designer.png" alt="RentSimple" width={110} height={64} className="shared-logo" />
+              <span className="brand-lockup">
+                <Image src="/logo/Designer.png" alt="" width={58} height={58} className="brand-lockup-logo" />
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-200">
+                  RentSimple
+                </p>
+              </span>
               <h1 className="text-lg font-semibold text-white">
                 Property management, refined.
               </h1>

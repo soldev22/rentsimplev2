@@ -13,12 +13,12 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "/logo/Designer.png",
+        url: "/icons/icon-192.png",
         sizes: "192x192",
         type: "image/png",
       },
       {
-        url: "/logo/Designer.png",
+        url: "/icons/icon-512.png",
         sizes: "512x512",
         type: "image/png",
       },
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 
     apple: [
       {
-        url: "/logo/Designer.png",
+        url: "/icons/apple-touch-icon.png",
         sizes: "180x180",
       },
     ],
@@ -42,7 +42,6 @@ export const metadata: Metadata = {
     url: "https://rentsimple.app",
     title: "RentSimple",
     description: "Property management made simple",
-    images: [{ url: "/logo/Designer.png", width: 1220, height: 1220, alt: "RentSimple" }],
   },
 };
 
