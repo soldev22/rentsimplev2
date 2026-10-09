@@ -41,7 +41,7 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
       ? "/dashboard/applicant"
       : sessionUser && getUserRole(sessionUser) === "applicant"
       ? applicantPropertyPath
-      : `/login?mode=register&accountType=applicant&redirectTo=${encodedApplicantPropertyPath}`
+      : `/login?mode=register&redirectTo=${encodedApplicantPropertyPath}`
   const signInApplyHref = `/login?redirectTo=${encodedApplicantPropertyPath}`
   const applicationCtaLabel =
     existingApplication

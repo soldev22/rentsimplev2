@@ -193,8 +193,8 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
               const quickApplyStatus = !sessionUser
                 ? {
                     tone: "border-cyan-200 bg-cyan-50 text-cyan-900",
-                    message: "Register as an applicant to apply for this flat with Quick Apply.",
-                    ctaHref: "/login?mode=register&accountType=applicant",
+                    message: "Register to apply for this flat. Your account will need admin approval.",
+                    ctaHref: "/login?mode=register",
                     ctaLabel: "Register to apply or sign in",
                   }
                 : isApplicant
@@ -213,8 +213,8 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                       }
                   : {
                       tone: "border-cyan-200 bg-cyan-50 text-cyan-900",
-                      message: "Register as an applicant to apply for this flat.",
-                      ctaHref: "/login?mode=register&accountType=applicant",
+                      message: "Register to apply for this flat. Your account will need admin approval.",
+                      ctaHref: "/login?mode=register",
                       ctaLabel: "Register to apply or sign in",
                     }
 
