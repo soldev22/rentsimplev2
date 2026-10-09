@@ -587,7 +587,7 @@ export default function ApplicantTenancyChecklist({ initialApplication, initialA
                 href={application.tenancyAgreement.agreementSigningUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-3 inline-flex rounded-md bg-slate-900 px-4 py-2 font-semibold text-white"
+                className="brand-button mt-3 inline-flex rounded-md px-4 py-2 font-semibold"
               >
                 Open agreement signing
               </a>
@@ -800,7 +800,7 @@ export default function ApplicantTenancyChecklist({ initialApplication, initialA
           <div className="flex justify-end">
             <button
               type="submit"
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              className="brand-button rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60"
               disabled={!canSubmitSignOff || !signOffReady || isPending}
             >
               {isPending ? "Submitting..." : application.applicantChecklist.signedAt ? "Update sign-off" : "Submit sign-off"}

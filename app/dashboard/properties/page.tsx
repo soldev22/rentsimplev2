@@ -141,7 +141,7 @@ export default async function PropertiesPage({ searchParams }: PropertiesPagePro
             <span>Need to import multiple properties in one go?</span>
             <Link
               href={bulkUploadHref}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              className="brand-button rounded-md px-4 py-2 text-sm font-semibold"
             >
               + Bulk Upload
             </Link>

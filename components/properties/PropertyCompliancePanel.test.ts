@@ -1,10 +1,20 @@
 import React from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import PropertyCompliancePanel, { buildComplianceSummaryRows } from "./PropertyCompliancePanel"
 
 describe("buildComplianceSummaryRows", () => {
+  // Compliance status is relative to today, so pin the clock to keep the fixture dates meaningful.
+  beforeAll(() => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date("2026-07-15T12:00:00"))
+  })
+
+  afterAll(() => {
+    vi.useRealTimers()
+  })
+
   it("includes the standard renewal rules and keeps matching compliance dates", () => {
     const rows = buildComplianceSummaryRows({
       id: "property-1",

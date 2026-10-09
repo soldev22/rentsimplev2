@@ -4,6 +4,8 @@ vi.mock("server-only", () => ({}))
 
 const { normalizePropertyInput } = await import("./properties")
 
+type PropertyInput = Parameters<typeof normalizePropertyInput>[0]
+
 describe("normalizePropertyInput", () => {
   it("normalizes property metadata fields for parking, heating, council tax, and broadband", () => {
     const normalized = normalizePropertyInput({
@@ -16,7 +18,7 @@ describe("normalizePropertyInput", () => {
       heating: "HeatPump",
       councilTaxBand: "C",
       broadbandAvailable: "yes",
-    } as any)
+    } as unknown as PropertyInput)
 
     expect(normalized.parking).toBe("On Street")
     expect(normalized.heating).toBe("HeatPump")
@@ -32,7 +34,7 @@ describe("normalizePropertyInput", () => {
       type: "Detached house",
       status: "Available",
       nickname: "  Riverside Flat  ",
-    } as any)
+    } as unknown as PropertyInput)
 
     expect(normalized.nickname).toBe("Riverside Flat")
   })

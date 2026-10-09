@@ -267,7 +267,7 @@ export default function BuilderProfileSettingsForm({ initialBuilderProfile }: Bu
         </label>
 
         <div className="lg:col-span-2 flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          <button type="submit" className="rounded-md bg-slate-900 px-4 py-2 font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60" disabled={isPending}>
+          <button type="submit" className="brand-button rounded-md px-4 py-2 font-semibold disabled:opacity-60" disabled={isPending}>
             {isPending ? "Saving..." : "Save builder profile"}
           </button>
           <button type="button" className="rounded-md border border-slate-300 px-4 py-2 font-semibold text-slate-700 transition-colors hover:bg-white" onClick={handleReset} disabled={isPending}>

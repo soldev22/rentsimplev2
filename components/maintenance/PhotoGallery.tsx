@@ -39,6 +39,7 @@ export function PhotoGallery({ photos, onDeletePhoto, isLoading }: PhotoGalleryP
       <div className="mt-4">
         {/* Main Photo Display */}
         <div className="relative overflow-hidden rounded-lg bg-slate-100">
+          {/* eslint-disable-next-line @next/next/no-img-element -- onError swaps the DOM src for a fallback, which next/image doesn't support */}
           <img
             src={currentPhoto.url}
             alt={`Photo ${selectedPhotoIndex + 1}`}
@@ -112,6 +113,7 @@ export function PhotoGallery({ photos, onDeletePhoto, isLoading }: PhotoGalleryP
                   index === selectedPhotoIndex ? "border-blue-600" : "border-slate-200 opacity-60 hover:opacity-100"
                 }`}
               >
+                {/* eslint-disable-next-line @next/next/no-img-element -- onError restyles the DOM element, which next/image doesn't support */}
                 <img
                   src={photo.url}
                   alt={`Thumbnail ${index + 1}`}

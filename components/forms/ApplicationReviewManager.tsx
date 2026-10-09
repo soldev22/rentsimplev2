@@ -2164,7 +2164,7 @@ export default function ApplicationReviewManager({
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                        className="brand-button rounded-md px-3 py-2 text-sm font-semibold disabled:opacity-60"
                         disabled={isPending}
                         onClick={() => {
                           void runDepositAction(
@@ -2897,7 +2897,7 @@ export default function ApplicationReviewManager({
                 </button>
                 <button
                   type="button"
-                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+                  className="brand-button rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60"
                   onClick={() => saveApplication(application)}
                   disabled={isPending}
                 >

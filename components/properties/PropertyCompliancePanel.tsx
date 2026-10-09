@@ -357,32 +357,6 @@ export default function PropertyCompliancePanel({
     })
   }
 
-  const handleDelete = (id: string) => {
-    if (!confirm("Are you sure you want to remove this compliance record?")) {
-      return
-    }
-
-    startTransition(async () => {
-      try {
-        const response = await fetch(`/api/properties/${property.id}/compliance`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ complianceId: id }),
-        })
-
-        if (!response.ok) {
-          throw new Error("Failed to delete compliance")
-        }
-
-        const updated = await response.json()
-        onPropertyUpdate(updated)
-      } catch (error) {
-        console.error("Error deleting compliance:", error)
-        alert("Failed to delete compliance. Please try again.")
-      }
-    })
-  }
-
   const handleDocumentDelete = (complianceId: string, document: ComplianceDocument) => {
     const blobName = getComplianceDocumentBlobName(property.id, document)
     if (!blobName) {
@@ -543,13 +517,13 @@ export default function PropertyCompliancePanel({
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className="bg-white rounded-lg border border-slate-200 p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">Compliance & Certifications</h3>
+        <h3 className="text-lg font-semibold text-slate-900">Compliance & Certifications</h3>
         {canManage && !isEditMode && (
           <button
             onClick={handleAdd}
-            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="brand-button flex items-center gap-2 px-3 py-2 rounded-md"
           >
             <span className="text-lg leading-none">+</span>
             Add
@@ -566,18 +540,18 @@ export default function PropertyCompliancePanel({
       />
 
       {isEditMode ? (
-        <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 mb-6">
-          <h4 className="font-medium text-gray-900 mb-4">
+        <div className="bg-slate-50 rounded-lg p-6 border border-slate-200 mb-6">
+          <h4 className="font-medium text-slate-900 mb-4">
             {editingId ? "Edit Compliance" : "Add New Compliance"}
           </h4>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Type *</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Type *</label>
               <select
                 value={formState.type}
                 onChange={(e) => setFormState({ ...formState, type: e.target.value as ComplianceType })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 aria-label="Select compliance type"
                 title="Select the type of compliance to track"
               >
@@ -591,18 +565,18 @@ export default function PropertyCompliancePanel({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Last Checked</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Last Checked</label>
                 <input
                   type="date"
                   value={formState.lastCheckedDate}
                   onChange={(e) => setFormState({ ...formState, lastCheckedDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   aria-label="Date of last compliance check"
                   title="When was this compliance requirement last checked"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
                   Expiration Date {formState.notApplicable ? "" : "*"}
                 </label>
                 <input
@@ -610,7 +584,7 @@ export default function PropertyCompliancePanel({
                   value={formState.expirationDate}
                   onChange={(e) => setFormState({ ...formState, expirationDate: e.target.value })}
                   disabled={formState.notApplicable}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
                   aria-label="Compliance expiration date"
                   title="When does this compliance requirement expire"
                 />
@@ -619,11 +593,11 @@ export default function PropertyCompliancePanel({
 
             {formState.type === "epc" && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">EPC Rating</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">EPC Rating</label>
                 <select
                   value={formState.epcRating}
                   onChange={(event) => setFormState({ ...formState, epcRating: event.target.value as ComplianceFormState["epcRating"] })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select rating</option>
                   {(["A", "B", "C", "D", "E", "F", "G"] as const).map((rating) => (
@@ -645,36 +619,36 @@ export default function PropertyCompliancePanel({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Certificate Number</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Certificate Number</label>
                 <input
                   type="text"
                   value={formState.certificateNumber}
                   onChange={(e) => setFormState({ ...formState, certificateNumber: e.target.value })}
                   placeholder="e.g., EICR123456"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Provider</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Provider</label>
                 <input
                   type="text"
                   value={formState.provider}
                   onChange={(e) => setFormState({ ...formState, provider: e.target.value })}
                   placeholder="e.g., SafeElectrical Ltd"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Document URL</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Document URL</label>
               <div className="flex gap-2">
                 <input
                   type="url"
                   value={formState.documentUrl}
                   onChange={(e) => setFormState({ ...formState, documentUrl: e.target.value })}
                   placeholder="https://..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   type="button"
@@ -698,13 +672,13 @@ export default function PropertyCompliancePanel({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Notes</label>
               <textarea
                 value={formState.notes}
                 onChange={(e) => setFormState({ ...formState, notes: e.target.value })}
                 placeholder="Additional notes..."
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -712,14 +686,14 @@ export default function PropertyCompliancePanel({
               <button
                 onClick={handleSubmit}
                 disabled={isPending}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="brand-button flex-1 px-4 py-2 rounded-md disabled:opacity-50"
               >
                 {isPending ? "Saving..." : "Save"}
               </button>
               <button
                 onClick={() => setIsEditMode(false)}
                 disabled={isPending}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 disabled:opacity-50 transition-colors"
               >
                 Cancel
               </button>

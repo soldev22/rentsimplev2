@@ -155,18 +155,18 @@ export default function CaseAttachmentManager({ caseId, propertyId, readOnly = f
   }
 
   if (loading) {
-    return <div className="text-center py-6 text-gray-600">Loading attachments...</div>
+    return <div className="text-center py-6 text-slate-600">Loading attachments...</div>
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-6">Case Documents & Files</h3>
+    <div className="bg-white rounded-lg border border-slate-200 p-6">
+      <h3 className="text-lg font-semibold text-slate-900 mb-6">Case Documents & Files</h3>
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 text-sm">{error}</div>}
 
       {/* Upload section */}
       {!readOnly && (
-        <div className="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+        <div className="mb-6 p-4 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50">
           <div className="flex items-center justify-center">
             <input
               ref={fileInputRef}
@@ -181,14 +181,14 @@ export default function CaseAttachmentManager({ caseId, propertyId, readOnly = f
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors"
+              className="brand-button px-6 py-3 font-medium rounded-lg"
               aria-label="Click to upload a file"
               title="Upload attachment for this case"
             >
               {uploading ? "Uploading..." : "Upload File"}
             </button>
           </div>
-          <p className="text-xs text-gray-600 text-center mt-3">
+          <p className="text-xs text-slate-600 text-center mt-3">
             Max 10MB. Allowed: PDF, Word, Excel, Images, Text, CSV
           </p>
         </div>
@@ -196,11 +196,11 @@ export default function CaseAttachmentManager({ caseId, propertyId, readOnly = f
 
       {/* Attachments list */}
       {attachments.length === 0 ? (
-        <p className="text-gray-600 text-center py-8">No files attached yet.</p>
+        <p className="text-slate-600 text-center py-8">No files attached yet.</p>
       ) : (
         <div className="space-y-3">
           {attachments.map((attachment) => (
-            <div key={attachment.id} className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+            <div key={attachment.id} className="flex items-start justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors">
               <div className="flex-1 flex items-start gap-4">
                 <div className="text-2xl mt-1">{getFileIcon(attachment.fileName)}</div>
                 <div className="flex-1 min-w-0">
@@ -213,7 +213,7 @@ export default function CaseAttachmentManager({ caseId, propertyId, readOnly = f
                   >
                     {attachment.fileName}
                   </a>
-                  <div className="flex items-center gap-4 mt-1 text-xs text-gray-600">
+                  <div className="flex items-center gap-4 mt-1 text-xs text-slate-600">
                     <span>{formatFileSize(attachment.size)}</span>
                     <span>•</span>
                     <span>{formatDate(attachment.uploadedAt)}</span>
@@ -227,7 +227,7 @@ export default function CaseAttachmentManager({ caseId, propertyId, readOnly = f
                 <button
                   onClick={() => handleDeleteAttachment(attachment.id)}
                   disabled={deleting === attachment.id}
-                  className="ml-4 px-3 py-1 text-red-600 hover:text-red-700 disabled:text-gray-400 font-medium text-sm transition-colors flex-shrink-0"
+                  className="ml-4 px-3 py-1 text-red-600 hover:text-red-700 disabled:text-slate-400 font-medium text-sm transition-colors flex-shrink-0"
                   title="Delete attachment"
                 >
                   {deleting === attachment.id ? "..." : "✕"}

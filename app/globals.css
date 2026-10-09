@@ -36,7 +36,8 @@ body {
 .landing-wordmark { color: white; font-size: 1.25rem; font-weight: 700; letter-spacing: .08em; }
 .landing-wordmark span { color: var(--coral); }
 .brand-lockup { display: inline-flex; align-items: center; gap: 10px; }
-.brand-lockup-logo { width: 52px; height: 52px; color: white; }
+.brand-lockup-mark { display: flex; width: 52px; height: 52px; flex: 0 0 52px; align-items: center; justify-content: center; }
+.brand-lockup-logo { width: 72px; height: 72px; max-width: none; }
 .brand-lockup .text-xs { margin: 0; }
 .landing-nav-actions { display: flex; align-items: center; gap: 24px; }
 .landing-nav-link { color: #d9e3dc; font-size: .8rem; }

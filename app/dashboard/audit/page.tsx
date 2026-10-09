@@ -230,7 +230,7 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
           <div className="flex items-end gap-2">
             <button
               type="submit"
-              className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+              className="brand-button w-full rounded-md px-4 py-2 text-sm font-semibold"
             >
               Apply filters
             </button>

@@ -29,7 +29,7 @@ function getSeverityColor(severity: string): string {
     case "none":
       return "bg-green-100 text-green-800"
     default:
-      return "bg-gray-100 text-gray-800"
+      return "bg-slate-100 text-slate-800"
   }
 }
 
@@ -44,7 +44,7 @@ function getUrgencyColor(urgency: string): string {
     case "low":
       return "bg-green-50 text-green-700"
     default:
-      return "bg-gray-50 text-gray-700"
+      return "bg-slate-50 text-slate-700"
   }
 }
 
@@ -59,16 +59,16 @@ export default function DampInspectionReportDisplay({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">📋 Damp Inspection Reports</h3>
+      <h3 className="text-lg font-semibold text-slate-900">📋 Damp Inspection Reports</h3>
       {reports.map((report) => (
-        <div key={report.id} className="border border-gray-200 rounded-lg p-4 space-y-4">
+        <div key={report.id} className="border border-slate-200 rounded-lg p-4 space-y-4">
           {/* Header */}
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm font-semibold text-gray-900">
+              <p className="text-sm font-semibold text-slate-900">
                 Inspection by {report.inspectorName}
               </p>
-              <p className="text-xs text-gray-600">
+              <p className="text-xs text-slate-600">
                 {formatDate(report.inspectionDate)}
               </p>
             </div>
@@ -85,35 +85,35 @@ export default function DampInspectionReportDisplay({
           {/* Qualifications */}
           {report.inspectorQualifications && (
             <div>
-              <p className="text-xs font-semibold text-gray-600">Qualifications:</p>
-              <p className="text-sm text-gray-900">{report.inspectorQualifications}</p>
+              <p className="text-xs font-semibold text-slate-600">Qualifications:</p>
+              <p className="text-sm text-slate-900">{report.inspectorQualifications}</p>
             </div>
           )}
 
           {/* Scope */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-xs font-semibold text-gray-600">Rooms Affected:</p>
+              <p className="text-xs font-semibold text-slate-600">Rooms Affected:</p>
               <div className="flex flex-wrap gap-2 mt-1">
                 {report.roomsAffected.map((room) => (
-                  <span key={room} className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-xs text-gray-700">
+                  <span key={room} className="inline-flex items-center px-2 py-1 rounded bg-slate-100 text-xs text-slate-700">
                     {room}
                   </span>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-600">Affected Area:</p>
-              <p className="text-sm text-gray-900">{report.affectedArea || "Not specified"}</p>
+              <p className="text-xs font-semibold text-slate-600">Affected Area:</p>
+              <p className="text-sm text-slate-900">{report.affectedArea || "Not specified"}</p>
             </div>
           </div>
 
           {/* Root Cause */}
           <div>
-            <p className="text-xs font-semibold text-gray-600">Root Cause:</p>
-            <p className="text-sm text-gray-900 capitalize">{report.rootCause.replace("_", " ")}</p>
+            <p className="text-xs font-semibold text-slate-600">Root Cause:</p>
+            <p className="text-sm text-slate-900 capitalize">{report.rootCause.replace("_", " ")}</p>
             {report.rootCauseDescription && (
-              <p className="text-sm text-gray-700 mt-1">{report.rootCauseDescription}</p>
+              <p className="text-sm text-slate-700 mt-1">{report.rootCauseDescription}</p>
             )}
           </div>
 
@@ -126,8 +126,8 @@ export default function DampInspectionReportDisplay({
 
           {/* Findings */}
           <div>
-            <p className="text-xs font-semibold text-gray-600">Findings:</p>
-            <p className="text-sm text-gray-900 whitespace-pre-wrap">{report.findings}</p>
+            <p className="text-xs font-semibold text-slate-600">Findings:</p>
+            <p className="text-sm text-slate-900 whitespace-pre-wrap">{report.findings}</p>
           </div>
 
           {/* Recommended Action */}
@@ -139,37 +139,37 @@ export default function DampInspectionReportDisplay({
           {/* Remediation */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <p className="text-xs font-semibold text-gray-600">Timeline:</p>
-              <p className="text-sm text-gray-900 capitalize">{report.remediationTimeline.replace("_", " ")}</p>
+              <p className="text-xs font-semibold text-slate-600">Timeline:</p>
+              <p className="text-sm text-slate-900 capitalize">{report.remediationTimeline.replace("_", " ")}</p>
             </div>
             {report.estimatedCost && (
               <div>
-                <p className="text-xs font-semibold text-gray-600">Estimated Cost:</p>
-                <p className="text-sm text-gray-900">£{report.estimatedCost.toFixed(2)}</p>
+                <p className="text-xs font-semibold text-slate-600">Estimated Cost:</p>
+                <p className="text-sm text-slate-900">£{report.estimatedCost.toFixed(2)}</p>
               </div>
             )}
             <div>
-              <p className="text-xs font-semibold text-gray-600">Submitted:</p>
-              <p className="text-sm text-gray-900">{formatDate(report.reportSubmittedAt)}</p>
+              <p className="text-xs font-semibold text-slate-600">Submitted:</p>
+              <p className="text-sm text-slate-900">{formatDate(report.reportSubmittedAt)}</p>
             </div>
           </div>
 
           {report.remediationNotes && (
             <div>
-              <p className="text-xs font-semibold text-gray-600">Notes:</p>
-              <p className="text-sm text-gray-900">{report.remediationNotes}</p>
+              <p className="text-xs font-semibold text-slate-600">Notes:</p>
+              <p className="text-sm text-slate-900">{report.remediationNotes}</p>
             </div>
           )}
 
           {/* Send to Tenant Buttons */}
           {onSendReport && (
-            <div className="border-t border-gray-200 pt-4 mt-4">
-              <p className="text-xs font-semibold text-gray-600 mb-3">Send Report to Tenant:</p>
+            <div className="border-t border-slate-200 pt-4 mt-4">
+              <p className="text-xs font-semibold text-slate-600 mb-3">Send Report to Tenant:</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <button
                   onClick={() => onSendReport(report.id, "email")}
                   disabled={sendingReportId === report.id}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors text-sm"
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-medium rounded-lg transition-colors text-sm"
                   title="Send report as email attachment"
                 >
                   {sendingReportId === report.id ? "Sending..." : "📧 Send via Email"}
@@ -177,7 +177,7 @@ export default function DampInspectionReportDisplay({
                 <button
                   onClick={() => onSendReport(report.id, "dashboard")}
                   disabled={sendingReportId === report.id}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors text-sm"
+                  className="brand-button px-4 py-2 font-medium rounded-lg text-sm"
                   title="Send dashboard link"
                 >
                   {sendingReportId === report.id ? "Sending..." : "🔗 Send Dashboard Link"}

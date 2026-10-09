@@ -221,7 +221,7 @@ export default function TenantCommunicationThread({
               <div className="text-xs text-slate-500">Outbound email and SMS entries will attempt delivery when the tenancy record is saved.</div>
               <button
                 type="button"
-                className="rounded-md border border-slate-300 bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                className="brand-button rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold"
                 onClick={handleAddEntry}
               >
                 Add to conversation

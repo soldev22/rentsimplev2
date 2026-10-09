@@ -37,7 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               className={`block px-3 py-2 rounded-md text-sm font-medium ${
                 pathname.startsWith(item.href)
                   ? "brand-button text-white"
-                  : "text-gray-700 hover:bg-slate-100"
+                  : "text-slate-700 hover:bg-slate-100"
               }`}
             >
               {item.name}

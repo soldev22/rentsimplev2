@@ -14,13 +14,13 @@ function getStatusColor(status: string): string {
     case "open":
       return "bg-blue-50 text-blue-700 border-blue-200"
     case "investigating":
-      return "bg-purple-50 text-purple-700 border-purple-200"
+      return "bg-cyan-50 text-cyan-700 border-cyan-200"
     case "in_repair":
       return "bg-yellow-50 text-yellow-700 border-yellow-200"
     case "resolved":
       return "bg-green-50 text-green-700 border-green-200"
     default:
-      return "bg-gray-50 text-gray-700 border-gray-200"
+      return "bg-slate-50 text-slate-700 border-slate-200"
   }
 }
 
@@ -28,7 +28,7 @@ function getStageStatusColor(status: string): string {
   if (status === "completed") return "text-green-600"
   if (status === "overdue") return "text-red-600 font-semibold"
   if (status === "in_progress") return "text-blue-600"
-  return "text-gray-600"
+  return "text-slate-600"
 }
 
 function formatDate(dateString: string): string {
@@ -75,40 +75,40 @@ export default async function CasesPage() {
     >
       {/* Cases List */}
       {allCases.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-          <p className="text-gray-600">No cases found. Create a new case to get started.</p>
+        <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
+          <p className="text-slate-600">No cases found. Create a new case to get started.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Case</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Property</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Type</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Current Stage</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Created</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Action</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Case</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Property</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Type</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Status</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Current Stage</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Created</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-200">
               {allCases.map((case_) => {
                 const currentStage = case_.stages.find((s) => !s.completedAt)
                 const isOverdue = currentStage?.status === "overdue"
                 const overdueDays = currentStage && isOverdue ? calculateOverdueDays(currentStage.dueAt) : 0
 
                 return (
-                  <tr key={case_.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={case_.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-semibold text-gray-900">{case_.title}</p>
-                        <p className="text-sm text-gray-600">{case_.id.slice(0, 8)}</p>
+                        <p className="font-semibold text-slate-900">{case_.title}</p>
+                        <p className="text-sm text-slate-600">{case_.id.slice(0, 8)}</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{case_.propertyAddress}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{case_.propertyAddress}</td>
                     <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
                         {case_.caseType.replace("_", " ")}
                       </span>
                     </td>
@@ -128,14 +128,14 @@ export default async function CasesPage() {
                             <p className="text-xs text-red-600 mt-1">{overdueDays} days overdue</p>
                           )}
                           {!currentStage.completedAt && currentStage.status !== "overdue" && (
-                            <p className="text-xs text-gray-600 mt-1">Due: {formatDate(currentStage.dueAt)}</p>
+                            <p className="text-xs text-slate-600 mt-1">Due: {formatDate(currentStage.dueAt)}</p>
                           )}
                         </div>
                       ) : (
                         <p className="text-sm text-green-600 font-semibold">✅ All complete</p>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{formatDate(case_.createdAt)}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{formatDate(case_.createdAt)}</td>
                     <td className="px-6 py-4">
                       <a
                         href={`/dashboard/cases/${case_.id}?propertyId=${case_.propertyId}`}

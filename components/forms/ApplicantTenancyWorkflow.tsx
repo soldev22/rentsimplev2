@@ -630,7 +630,7 @@ export default function ApplicantTenancyWorkflow({
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="submit"
-                className="rounded-md bg-slate-900 px-4 py-2 font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+                className="brand-button rounded-md px-4 py-2 font-semibold disabled:opacity-60"
                 disabled={isPending || !formState.creditCheckConsentGiven || duplicateSelectedProperty}
               >
                 {isPending ? "Saving..." : editingApplicationId ? "Save changes" : "Submit application"}
@@ -828,7 +828,7 @@ export default function ApplicantTenancyWorkflow({
                         <div className="mt-4 flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+                            className="brand-button rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60"
                             disabled={isPending || Boolean(application.depositRecord.acknowledgedAt) || !application.depositRecord.requestedDate}
                             onClick={() => handleDepositAction(application, "acknowledge", "Deposit acknowledgement recorded.")}
                           >

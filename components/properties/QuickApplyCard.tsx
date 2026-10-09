@@ -95,7 +95,7 @@ export default function QuickApplyCard({ propertyId, propertyAddress, monthlyRen
 
       <button
         type="button"
-        className="w-full rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+        className="brand-button w-full rounded-xl px-4 py-3 text-center text-sm font-semibold"
         onClick={() => setIsOpen((current) => !current)}
       >
         {isOpen ? "Hide quick apply" : "Quick apply"}
@@ -150,7 +150,7 @@ export default function QuickApplyCard({ propertyId, propertyAddress, monthlyRen
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+              className="brand-button rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-60"
               onClick={handleQuickApply}
               disabled={isPending || !consentGiven}
             >

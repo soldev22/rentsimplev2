@@ -101,11 +101,11 @@ export default function CaseCreationForm({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto shadow-lg">
         {/* Header */}
-        <div className="sticky top-0 border-b border-gray-200 bg-white px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Create New Case</h2>
+        <div className="sticky top-0 border-b border-slate-200 bg-white px-6 py-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Create New Case</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-slate-400 hover:text-slate-600"
             aria-label="Close dialog"
             title="Close"
           >
@@ -123,7 +123,7 @@ export default function CaseCreationForm({
 
           {/* Property Select */}
           <div>
-            <label htmlFor="property" className="block text-sm font-medium text-gray-900 mb-1">
+            <label htmlFor="property" className="block text-sm font-medium text-slate-900 mb-1">
               Property
             </label>
             <select
@@ -133,7 +133,7 @@ export default function CaseCreationForm({
                 setSelectedProperty(e.target.value)
                 setSelectedTenancy("")
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Select the property for this case"
               title="Choose a property"
               disabled={isLoading}
@@ -149,14 +149,14 @@ export default function CaseCreationForm({
 
           {/* Case Type Select */}
           <div>
-            <label htmlFor="caseType" className="block text-sm font-medium text-gray-900 mb-1">
+            <label htmlFor="caseType" className="block text-sm font-medium text-slate-900 mb-1">
               Case Type
             </label>
             <select
               id="caseType"
               value={caseType}
               onChange={(e) => setCaseType(e.target.value as CaseType)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Select the type of case"
               title="Choose a case type"
               disabled={isLoading}
@@ -172,14 +172,14 @@ export default function CaseCreationForm({
           {/* Tenancy Select (optional) */}
           {selectedPropertyTenancies.length > 0 && (
             <div>
-              <label htmlFor="tenancy" className="block text-sm font-medium text-gray-900 mb-1">
+              <label htmlFor="tenancy" className="block text-sm font-medium text-slate-900 mb-1">
                 Tenancy (optional)
               </label>
               <select
                 id="tenancy"
                 value={selectedTenancy}
                 onChange={(e) => setSelectedTenancy(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 aria-label="Select a tenancy for this case"
                 title="Choose a tenancy"
                 disabled={isLoading}
@@ -196,7 +196,7 @@ export default function CaseCreationForm({
 
           {/* Title Input */}
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-900 mb-1">
+            <label htmlFor="title" className="block text-sm font-medium text-slate-900 mb-1">
               Case Title
             </label>
             <input
@@ -205,7 +205,7 @@ export default function CaseCreationForm({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., Damp in master bedroom"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Enter the case title"
               title="Brief description of the case"
               disabled={isLoading}
@@ -214,7 +214,7 @@ export default function CaseCreationForm({
 
           {/* Description Textarea */}
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-900 mb-1">
+            <label htmlFor="description" className="block text-sm font-medium text-slate-900 mb-1">
               Description (optional)
             </label>
             <textarea
@@ -223,7 +223,7 @@ export default function CaseCreationForm({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Provide additional details..."
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Enter additional case details"
               title="Provide more context about the case"
               disabled={isLoading}
@@ -231,11 +231,11 @@ export default function CaseCreationForm({
           </div>
 
           {/* Buttons */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
+          <div className="flex gap-3 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="flex-1 px-4 py-2 border border-slate-300 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               disabled={isLoading}
               aria-label="Cancel and close"
             >
@@ -243,7 +243,7 @@ export default function CaseCreationForm({
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+              className="brand-button flex-1 px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
               disabled={isLoading || !selectedProperty || !title.trim()}
               aria-label={isLoading ? "Creating case..." : "Create the case"}
             >

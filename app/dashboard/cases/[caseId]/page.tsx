@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
 import type { PropertyCase } from "@/lib/auth"
 import type { DampInspectionReport } from "@/lib/types/case"
 import CaseMessageThread from "@/components/cases/CaseMessageThread"
@@ -27,7 +26,7 @@ function getStatusBadgeColor(status: string): string {
     case "in_progress":
       return "bg-blue-100 text-blue-800"
     default:
-      return "bg-gray-100 text-gray-800"
+      return "bg-slate-100 text-slate-800"
   }
 }
 
@@ -72,7 +71,7 @@ function getTimeRemaining(dueAt: string): { text: string; color: string } {
 
   return {
     text: `${Math.ceil(diffDays)} days remaining`,
-    color: "text-gray-600",
+    color: "text-slate-600",
   }
 }
 
@@ -85,7 +84,6 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
   const [showReportForm, setShowReportForm] = useState(false)
   const [pendingStageId, setPendingStageId] = useState<string | null>(null)
   const [sendingReportId, setSendingReportId] = useState<string | null>(null)
-  const router = useRouter()
 
   useEffect(() => {
     let isMounted = true
@@ -277,17 +275,17 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
   }
 
   if (!case_) {
-    return <div className="text-gray-600 text-center py-12">Case not found</div>
+    return <div className="text-slate-600 text-center py-12">Case not found</div>
   }
 
   return (
     <div className="max-w-4xl space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{case_.title}</h1>
-            <p className="text-gray-600 mt-1">{case_.description}</p>
+            <h1 className="text-3xl font-bold text-slate-900">{case_.title}</h1>
+            <p className="text-slate-600 mt-1">{case_.description}</p>
           </div>
           <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold border ${getStatusBadgeColor(case_.status)}`}>
             {case_.status}
@@ -296,27 +294,27 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <p className="text-sm text-gray-600">Case Type</p>
-            <p className="font-semibold text-gray-900 mt-1">{case_.caseType.replace("_", " ")}</p>
+            <p className="text-sm text-slate-600">Case Type</p>
+            <p className="font-semibold text-slate-900 mt-1">{case_.caseType.replace("_", " ")}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Created</p>
-            <p className="font-semibold text-gray-900 mt-1">{formatDate(case_.createdAt)}</p>
+            <p className="text-sm text-slate-600">Created</p>
+            <p className="font-semibold text-slate-900 mt-1">{formatDate(case_.createdAt)}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Messages</p>
-            <p className="font-semibold text-gray-900 mt-1">{case_.messageCount}</p>
+            <p className="text-sm text-slate-600">Messages</p>
+            <p className="font-semibold text-slate-900 mt-1">{case_.messageCount}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-600">Attachments</p>
-            <p className="font-semibold text-gray-900 mt-1">{case_.attachmentCount}</p>
+            <p className="text-sm text-slate-600">Attachments</p>
+            <p className="font-semibold text-slate-900 mt-1">{case_.attachmentCount}</p>
           </div>
         </div>
       </div>
 
       {/* Timeline */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Case Timeline</h2>
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h2 className="text-xl font-bold text-slate-900 mb-6">Case Timeline</h2>
 
         <div className="space-y-6">
           {case_.stages.map((stage, index) => {
@@ -341,7 +339,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
               <div key={stage.id} className="relative pb-6 pl-10">
                 {/* Timeline connector */}
                 {index < case_.stages.length - 1 && (
-                  <div className="absolute left-3 top-12 bottom-0 w-0.5 bg-gray-200" />
+                  <div className="absolute left-3 top-12 bottom-0 w-0.5 bg-slate-200" />
                 )}
 
                 {/* Timeline dot */}
@@ -353,7 +351,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
                         ? "bg-orange-500 border-orange-600"
                         : isOverdue
                           ? "bg-red-500 border-red-600"
-                          : "bg-gray-300 border-gray-400"
+                          : "bg-slate-300 border-slate-400"
                   }`}
                 >
                   {shouldBeGreen && <span className="text-white text-xs">✓</span>}
@@ -375,10 +373,10 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <p className="font-semibold text-gray-900">
+                      <p className="font-semibold text-slate-900">
                         Stage {index + 1}: {stage.requirement}
                       </p>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="text-sm text-slate-600 mt-1">
                         {stage.workingDaysOnly ? stage.daysAllowed + " working days" : stage.daysAllowed + " calendar days"}
                       </p>
                     </div>
@@ -388,9 +386,9 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
                   </div>
 
                   {/* Due date and time remaining */}
-                  <div className="bg-white rounded p-3 mb-4 border border-gray-200">
-                    <p className="text-sm text-gray-600">
-                      Due: <span className="font-semibold text-gray-900">{formatDate(stage.dueAt)}</span>
+                  <div className="bg-white rounded p-3 mb-4 border border-slate-200">
+                    <p className="text-sm text-slate-600">
+                      Due: <span className="font-semibold text-slate-900">{formatDate(stage.dueAt)}</span>
                     </p>
                     <p className={`text-sm font-semibold mt-1 ${timeRemaining.color}`}>{timeRemaining.text}</p>
                   </div>
@@ -426,7 +424,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
                         <button
                           onClick={() => handleAddReport(stage.id)}
                           disabled={completingStageId === stage.id}
-                          className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors"
+                          className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-400 text-white font-medium rounded-lg transition-colors"
                         >
                           📋 Add Inspection Report
                         </button>
@@ -438,7 +436,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
                           <button
                             onClick={() => handleCompleteStage(stage.id)}
                             disabled={completingStageId === stage.id}
-                            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors"
+                            className="brand-button w-full px-4 py-2 font-medium rounded-lg"
                           >
                             {completingStageId === stage.id ? "Marking Complete..." : "Mark Complete"}
                           </button>
@@ -452,7 +450,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
                     <button
                       onClick={() => handleCompleteStage(stage.id)}
                       disabled={completingStageId === stage.id}
-                      className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors"
+                      className="brand-button w-full px-4 py-2 font-medium rounded-lg"
                     >
                       {completingStageId === stage.id ? "Marking Complete..." : "Mark Complete"}
                     </button>
@@ -466,7 +464,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
 
       {/* Damp Inspection Reports */}
       {case_ && case_.dampInspectionReports && case_.dampInspectionReports.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
+        <div className="bg-white rounded-lg border border-slate-200 p-6 mt-6">
           <DampInspectionReportDisplay 
             reports={case_.dampInspectionReports}
             onSendReport={handleSendReportToTenant}

@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getSessionUser } from "@/lib/server/session"
 import { canManageProperties } from "@/lib/auth"
-import { getEscalationNotificationCandidates, markEscalationAsNotified, getCaseById } from "@/lib/server/cases"
+import { getEscalationNotificationCandidates, markEscalationAsNotified } from "@/lib/server/cases"
 import { writeAuditEvent } from "@/lib/server/audit"
 import { AUDIT_ACTION_TYPES } from "@/lib/types/audit"
 import { sendEscalationNotification } from "@/lib/server/notifications"
@@ -11,7 +11,7 @@ import { sendEscalationNotification } from "@/lib/server/notifications"
  * Trigger: Check for overdue case stages and send notifications
  * Requires admin or system access
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     // Verify auth token or admin user
     const user = await getSessionUser()
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
  * GET /api/admin/escalation-notifications
  * Check status without sending
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const user = await getSessionUser()
     if (!user || !canManageProperties(user)) {

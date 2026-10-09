@@ -15,9 +15,8 @@ type CaseListWrapperProps = {
   children: React.ReactNode
 }
 
-export default function CaseListWrapper({ properties, initialCases, children }: CaseListWrapperProps) {
+export default function CaseListWrapper({ properties, children }: CaseListWrapperProps) {
   const [isFormOpen, setIsFormOpen] = useState(false)
-  const [cases, setCases] = useState(initialCases)
 
   const handleCaseCreated = useCallback(() => {
     // Close form and refresh
@@ -33,12 +32,12 @@ export default function CaseListWrapper({ properties, initialCases, children }: 
         {/* Header with Create Button */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Property Cases</h1>
-            <p className="text-gray-600 mt-2">Track and manage all property cases across your portfolio</p>
+            <h1 className="text-3xl font-bold text-slate-900">Property Cases</h1>
+            <p className="text-slate-600 mt-2">Track and manage all property cases across your portfolio</p>
           </div>
           <button
             onClick={() => setIsFormOpen(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors"
+            className="brand-button px-4 py-2 rounded-md font-medium"
             aria-label="Create a new case"
             title="Create a new case"
           >

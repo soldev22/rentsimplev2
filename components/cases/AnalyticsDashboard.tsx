@@ -19,7 +19,7 @@ function getStatusColor(status: string): string {
     case "overdue":
       return "text-red-600"
     default:
-      return "text-gray-600"
+      return "text-slate-600"
   }
 }
 
@@ -39,21 +39,21 @@ function MetricCard({
       className={`rounded-lg border p-4 ${
         highlight
           ? "bg-blue-50 border-blue-200"
-          : "bg-white border-gray-200"
+          : "bg-white border-slate-200"
       }`}
       role="region"
       aria-label={`${label}: ${value}`}
     >
-      <p className="text-sm font-medium text-gray-600">{label}</p>
+      <p className="text-sm font-medium text-slate-600">{label}</p>
       <p
         className={`text-2xl font-bold mt-2 ${
-          highlight ? "text-blue-700" : "text-gray-900"
+          highlight ? "text-blue-700" : "text-slate-900"
         }`}
       >
         {value}
       </p>
       {subtext && (
-        <p className="text-xs text-gray-500 mt-1">{subtext}</p>
+        <p className="text-xs text-slate-500 mt-1">{subtext}</p>
       )}
     </div>
   )
@@ -98,7 +98,7 @@ export default function AnalyticsDashboard({ propertyId }: AnalyticsDashboardPro
   }, [propertyId])
 
   if (loading) {
-    return <div className="text-center py-12 text-gray-600">Loading analytics...</div>
+    return <div className="text-center py-12 text-slate-600">Loading analytics...</div>
   }
 
   if (error) {
@@ -110,7 +110,7 @@ export default function AnalyticsDashboard({ propertyId }: AnalyticsDashboardPro
   }
 
   if (!metrics) {
-    return <div className="text-center py-12 text-gray-600">No data available</div>
+    return <div className="text-center py-12 text-slate-600">No data available</div>
   }
 
   return (
@@ -158,8 +158,8 @@ export default function AnalyticsDashboard({ propertyId }: AnalyticsDashboardPro
       </div>
 
       {/* Cases by Status */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Cases by Status</h3>
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">Cases by Status</h3>
         <div className="space-y-3">
           {Object.entries(metrics.casesByStatus).map(([status, count]) => (
             <div key={status} className="flex items-center justify-between">
@@ -168,7 +168,7 @@ export default function AnalyticsDashboard({ propertyId }: AnalyticsDashboardPro
               </span>
               <div className="flex items-center gap-3">
                 <ProgressBar percentage={(count / metrics.totalCases) * 100} />
-                <span className="text-sm font-semibold text-gray-900 w-8 text-right">
+                <span className="text-sm font-semibold text-slate-900 w-8 text-right">
                   {count}
                 </span>
               </div>
@@ -178,18 +178,18 @@ export default function AnalyticsDashboard({ propertyId }: AnalyticsDashboardPro
       </div>
 
       {/* Cases by Type */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Cases by Type</h3>
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h3 className="text-lg font-semibold text-slate-900 mb-4">Cases by Type</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {Object.entries(metrics.casesByType).map(([caseType, count]) => (
             <div
               key={caseType}
-              className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200"
+              className="text-center p-4 bg-slate-50 rounded-lg border border-slate-200"
             >
-              <p className="text-sm font-medium text-gray-600 capitalize">
+              <p className="text-sm font-medium text-slate-600 capitalize">
                 {caseType.replace("_", " ")}
               </p>
-              <p className="text-2xl font-bold text-gray-900 mt-2">{count}</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{count}</p>
             </div>
           ))}
         </div>

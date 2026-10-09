@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSessionUser } from "@/lib/server/session"
 import { canManageProperties } from "@/lib/auth"
 import { getPropertyForUser } from "@/lib/server/properties"
-import { getCaseById, updateCaseInDb, archiveCaseInDb, completeCaseStage } from "@/lib/server/cases"
+import { getCaseById, updateCaseInDb, archiveCaseInDb } from "@/lib/server/cases"
 
 export async function GET(
   request: NextRequest,
@@ -107,8 +107,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Case not found" }, { status: 404 })
     }
 
-    const body = await request.json()
-    const reason = body.reason || "Archived by user"
+    await request.json()
 
     await archiveCaseInDb(caseId, propertyId)
     return NextResponse.json({ success: true })

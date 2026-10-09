@@ -1,6 +1,6 @@
 "use client"
 
-import type { PropertyCase, CaseStage } from "@/lib/auth"
+import type { PropertyCase } from "@/lib/auth"
 import { getEscalationStatus } from "@/lib/server/cases"
 
 type PropertyCaseViewProps = {
@@ -18,9 +18,9 @@ function getStageStatusColor(status: string) {
     case "overdue":
       return "bg-red-50 border-red-200"
     case "pending":
-      return "bg-gray-50 border-gray-200"
+      return "bg-slate-50 border-slate-200"
     default:
-      return "bg-gray-50 border-gray-200"
+      return "bg-slate-50 border-slate-200"
   }
 }
 
@@ -33,9 +33,9 @@ function getStageStatusBadge(status: string) {
     case "overdue":
       return "bg-red-100 text-red-800"
     case "pending":
-      return "bg-gray-100 text-gray-800"
+      return "bg-slate-100 text-slate-800"
     default:
-      return "bg-gray-100 text-gray-800"
+      return "bg-slate-100 text-slate-800"
   }
 }
 
@@ -84,7 +84,7 @@ function getTimeRemainingColor(dueAt: string): string {
   if (hoursRemaining < 0) return "text-red-700 font-semibold"
   if (hoursRemaining < 24) return "text-red-600 font-semibold"
   if (hoursRemaining < 72) return "text-amber-600 font-semibold"
-  return "text-gray-600"
+  return "text-slate-600"
 }
 
 export default function PropertyCaseView({ case_: case_, onStageComplete, canManage }: PropertyCaseViewProps) {
@@ -100,25 +100,25 @@ export default function PropertyCaseView({ case_: case_, onStageComplete, canMan
   return (
     <div className="space-y-6">
       {/* Case Header */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">{case_.title}</h2>
-            <p className="text-gray-600 mt-1">{case_.description}</p>
+            <h2 className="text-2xl font-bold text-slate-900">{case_.title}</h2>
+            <p className="text-slate-600 mt-1">{case_.description}</p>
           </div>
           <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStageStatusBadge(case_.status)}`}>
             {getStatusLabel(case_.status)}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-200">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-slate-200">
           <div>
-            <p className="text-xs font-medium text-gray-600">Created</p>
-            <p className="text-sm text-gray-900 mt-1">{new Date(case_.createdAt).toLocaleDateString()}</p>
+            <p className="text-xs font-medium text-slate-600">Created</p>
+            <p className="text-sm text-slate-900 mt-1">{new Date(case_.createdAt).toLocaleDateString()}</p>
           </div>
           <div>
-            <p className="text-xs font-medium text-gray-600">Case Type</p>
-            <p className="text-sm text-gray-900 mt-1">
+            <p className="text-xs font-medium text-slate-600">Case Type</p>
+            <p className="text-sm text-slate-900 mt-1">
               {case_.caseType
                 .split("_")
                 .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -126,19 +126,19 @@ export default function PropertyCaseView({ case_: case_, onStageComplete, canMan
             </p>
           </div>
           <div>
-            <p className="text-xs font-medium text-gray-600">Messages</p>
-            <p className="text-sm text-gray-900 mt-1">{case_.messageCount}</p>
+            <p className="text-xs font-medium text-slate-600">Messages</p>
+            <p className="text-sm text-slate-900 mt-1">{case_.messageCount}</p>
           </div>
           <div>
-            <p className="text-xs font-medium text-gray-600">Attachments</p>
-            <p className="text-sm text-gray-900 mt-1">{case_.attachmentCount}</p>
+            <p className="text-xs font-medium text-slate-600">Attachments</p>
+            <p className="text-sm text-slate-900 mt-1">{case_.attachmentCount}</p>
           </div>
         </div>
       </div>
 
       {/* Timeline */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Legal Timeline</h3>
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h3 className="text-lg font-semibold text-slate-900 mb-6">Legal Timeline</h3>
 
         <div className="space-y-4">
           {case_.stages.map((stage, idx) => (
@@ -153,11 +153,11 @@ export default function PropertyCaseView({ case_: case_, onStageComplete, canMan
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h4 className="font-medium text-gray-900">{stage.requirement}</h4>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <h4 className="font-medium text-slate-900">{stage.requirement}</h4>
+                      <p className="text-sm text-slate-600 mt-1">
                         Due: <span className={getTimeRemainingColor(stage.dueAt)}>{formatTimeRemaining(stage.dueAt)}</span>
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-slate-500 mt-1">
                         {new Date(stage.dueAt).toLocaleDateString()} at{" "}
                         {new Date(stage.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </p>

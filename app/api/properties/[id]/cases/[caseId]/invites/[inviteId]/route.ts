@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSessionUser } from "@/lib/server/session"
 import { canManageProperties } from "@/lib/auth"
 import { getPropertyForUser } from "@/lib/server/properties"
-import { getCaseById, getContractorInviteById, acceptContractorInvite, declineContractorInvite } from "@/lib/server/cases"
+import { getContractorInviteById, acceptContractorInvite, declineContractorInvite } from "@/lib/server/cases"
 import { writeAuditEvent } from "@/lib/server/audit"
 import { AUDIT_ACTION_TYPES } from "@/lib/types/audit"
 
@@ -112,7 +112,7 @@ export async function DELETE(
     }
 
     // Mark as declined (soft delete)
-    const updated = await declineContractorInvite(invite)
+    await declineContractorInvite(invite)
 
     // Write audit event
     await writeAuditEvent({

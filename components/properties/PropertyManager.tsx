@@ -6,9 +6,6 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition }
 
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
 import PropertyMarketingPackButton from "@/components/properties/PropertyMarketingPackButton"
-import PropertyInsurancePanel from "@/components/properties/PropertyInsurancePanel"
-import PropertyFinancialsPanel from "@/components/properties/PropertyFinancialsPanel"
-import PropertyCompliancePanel from "@/components/properties/PropertyCompliancePanel"
 import PropertyIncludedItemsPanel from "@/components/properties/PropertyIncludedItemsPanel"
 import { MAX_PROPERTY_IMAGES, getPropertyImagePath, type PendingPropertyImageReview, type PropertyRecord } from "@/lib/auth"
 
@@ -232,7 +229,7 @@ export default function PropertyManager({
   const [pendingImageReviews, setPendingImageReviews] = useState<PendingPropertyImageReview[]>([])
   const [isPending, startTransition] = useTransition()
   const editFormRef = useRef<HTMLFormElement | null>(null)
-  const handledDefaultEditPropertyIdRef = useRef<string | null>(null)
+  const [handledDefaultEditPropertyId, setHandledDefaultEditPropertyId] = useState<string | null>(null)
   const deferredPortfolioSearch = useDeferredValue(portfolioSearch)
   const router = useRouter()
 
@@ -319,27 +316,17 @@ export default function PropertyManager({
     setCreateForm((current) => (current.ownerId ? current : { ...current, ownerId: defaultOwnerId }))
   }, [canAssignOwner, defaultOwnerId])
 
-  useEffect(() => {
-    if (!defaultEditPropertyId) {
-      return
-    }
-
-    if (handledDefaultEditPropertyIdRef.current === defaultEditPropertyId) {
-      return
-    }
-
+  if (defaultEditPropertyId && handledDefaultEditPropertyId !== defaultEditPropertyId) {
     const targetProperty = properties.find((property) => property.id === defaultEditPropertyId)
 
-    if (!targetProperty) {
-      return
+    if (targetProperty) {
+      setHandledDefaultEditPropertyId(defaultEditPropertyId)
+      setSelectedPropertyId(targetProperty.id)
+      setEditForm(toFormState(targetProperty))
+      setIsEditMode(true)
+      setExpandedPortfolioId(targetProperty.id)
     }
-
-    handledDefaultEditPropertyIdRef.current = defaultEditPropertyId
-    setSelectedPropertyId(targetProperty.id)
-    setEditForm(toFormState(targetProperty))
-    setIsEditMode(true)
-    setExpandedPortfolioId(targetProperty.id)
-  }, [defaultEditPropertyId, properties])
+  }
 
   function selectProperty(property: PropertyRecord | null, nextEditMode = false) {
     setSelectedPropertyId(property?.id ?? "")
@@ -884,7 +871,7 @@ export default function PropertyManager({
                     <div className="flex gap-3">
                       <button
                         type="button"
-                        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                        className="brand-button rounded-md px-4 py-2 text-sm font-semibold"
                         disabled={isPending}
                         onClick={() => handlePendingImageReview(review.propertyId, review.image.id, "approve")}
                       >
@@ -1203,7 +1190,7 @@ export default function PropertyManager({
           <div className="lg:col-span-2 flex justify-end">
             <button
               type="submit"
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+              className="brand-button rounded-md px-4 py-2 text-sm font-semibold"
               disabled={isPending}
             >
               {isPending ? "Saving..." : "Create property"}
@@ -1437,7 +1424,7 @@ export default function PropertyManager({
                 {!isEditMode ? (
                   <button
                     type="button"
-                    className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                    className="brand-button rounded-md px-4 py-2 text-sm font-semibold"
                     onClick={() => selectProperty(null)}
                   >
                     Close
@@ -1743,7 +1730,7 @@ export default function PropertyManager({
                       <div className="flex flex-wrap gap-3">
                         <button
                           type="submit"
-                          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                          className="brand-button rounded-md px-4 py-2 text-sm font-semibold"
                           disabled={isPending}
                         >
                           {isPending ? "Saving..." : "Save and close"}
@@ -1817,7 +1804,7 @@ export default function PropertyManager({
                     {editorImageFiles.length > 0 ? (
                       <>
                         <PendingImagePanel files={editorImageFiles} previewUrls={editorPreviewUrls} emptyMessage="" />
-                        <button type="submit" className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={isPending || remainingSelectedPropertySlots <= 0}>
+                        <button type="submit" className="brand-button rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60" disabled={isPending || remainingSelectedPropertySlots <= 0}>
                           {isPending ? "Uploading..." : `Upload ${editorImageFiles.length} image${editorImageFiles.length === 1 ? "" : "s"}`}
                         </button>
                       </>

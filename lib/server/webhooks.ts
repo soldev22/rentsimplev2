@@ -1,13 +1,6 @@
-import {
-  BlobServiceClient,
-  ContainerClient,
-} from "@azure/storage-blob"
 import type { WebhookEvent, WebhookEventType, AdvisoryNotification, CaseType } from "@/lib/auth"
 import { randomUUID } from "crypto"
 
-const blobConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING
-const cosmosEndpoint = process.env.COSMOS_ENDPOINT
-const cosmosKey = process.env.COSMOS_KEY
 
 // In-memory storage for webhooks (in production, use Cosmos DB)
 const webhookStore: Map<string, WebhookEvent> = new Map()

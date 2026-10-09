@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import {
   getWebhookDeliveryStats,
   processPendingDeliveries,
 } from "@/lib/server/webhooks"
 import { getSessionUser } from "@/lib/server/session"
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

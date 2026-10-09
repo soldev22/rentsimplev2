@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
 
         // Re-parse zip to get actual images
         const buffer = Buffer.from(await zipFile.arrayBuffer())
-        const { csvContent, images, errorMessage } = await parseZipFile(buffer)
+        const { images, errorMessage } = await parseZipFile(buffer)
 
         if (errorMessage) {
           return NextResponse.json({ error: errorMessage }, { status: 400 })

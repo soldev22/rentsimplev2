@@ -40,15 +40,15 @@ export default function ThreadSummaryPanel({ caseId, propertyId }: ThreadSummary
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className="bg-white rounded-lg border border-slate-200 p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">
+        <h3 className="text-lg font-semibold text-slate-900">
           🤖 Case Summary (AI)
         </h3>
         <button
           onClick={handleGenerateSummary}
           disabled={loading}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors text-sm"
+          className="brand-button px-4 py-2 font-medium rounded-lg text-sm"
           aria-label="Generate AI summary of case discussion thread"
           title="Use Claude AI to analyze and summarize all messages in this case"
         >
@@ -65,9 +65,9 @@ export default function ThreadSummaryPanel({ caseId, propertyId }: ThreadSummary
       {summary ? (
         <div className="space-y-4">
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <p className="text-gray-900 leading-relaxed">{summary.summary}</p>
+            <p className="text-slate-900 leading-relaxed">{summary.summary}</p>
           </div>
-          <div className="flex items-center justify-between text-xs text-gray-600">
+          <div className="flex items-center justify-between text-xs text-slate-600">
             <span>
               📝 {summary.messageCount} messages analyzed • 🔤 {summary.tokensUsed}{" "}
               tokens
@@ -84,7 +84,7 @@ export default function ThreadSummaryPanel({ caseId, propertyId }: ThreadSummary
           </div>
         </div>
       ) : (
-        <div className="text-center py-8 text-gray-600">
+        <div className="text-center py-8 text-slate-600">
           <p>No summary generated yet.</p>
           <p className="text-sm mt-2">
             Click &quot;Generate Summary&quot; to use AI to summarize the case discussion.

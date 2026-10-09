@@ -134,7 +134,7 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                   <option value="3000">Up to £3,000</option>
                 </select>
                 <input type="hidden" name="sort" value={sort} />
-                <button type="submit" className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800">
+                <button type="submit" className="brand-button rounded-xl px-5 py-3 text-sm font-semibold">
                   Search
                 </button>
               </div>
@@ -252,7 +252,7 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                         <p className="mt-1 text-sm text-slate-500">{property.type} in {property.city}{property.postcode ? `, ${property.postcode}` : ""}</p>
                       </div>
 
-                      <Link href={`/properties/${property.id}`} className="rounded-xl bg-slate-950 px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-slate-800">
+                      <Link href={`/properties/${property.id}`} className="brand-button rounded-xl px-4 py-2.5 text-center text-sm font-semibold">
                         View details
                       </Link>
                     </div>
@@ -334,7 +334,7 @@ export default async function PublicPropertiesPage({ searchParams }: PropertiesP
                   </div>
                   <input type="hidden" name="sort" value={sort} />
                   <div className="flex gap-3">
-                    <button type="submit" className="flex-1 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800">
+                    <button type="submit" className="brand-button flex-1 rounded-xl px-4 py-3 text-sm font-semibold">
                       Update results
                     </button>
                     <Link href="/properties" className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">

@@ -75,13 +75,13 @@ export default function PropertyHealthDashboard({
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow cursor-pointer"
+      className="bg-white rounded-lg border border-slate-200 p-6 hover:shadow-lg transition-shadow cursor-pointer"
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">{property.address}</h3>
-          <p className="text-sm text-gray-600 mt-1">
+          <h3 className="text-lg font-semibold text-slate-900">{property.address}</h3>
+          <p className="text-sm text-slate-600 mt-1">
             {property.bedrooms} bed • {property.bathrooms} bath • £{property.monthlyRent}/month
           </p>
         </div>
@@ -91,10 +91,10 @@ export default function PropertyHealthDashboard({
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 pb-6 border-b border-gray-200">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 pb-6 border-b border-slate-200">
         {/* Unread Messages */}
         <div className="bg-blue-50 rounded-lg p-4">
-          <p className="text-xs font-medium text-gray-600">Unread Messages</p>
+          <p className="text-xs font-medium text-slate-600">Unread Messages</p>
           <div className="mt-2 flex items-end gap-1">
             <span className="text-2xl font-bold text-blue-600">{unreadMessageCount}</span>
             {unreadMessageCount > 0 && <span className="text-xs text-blue-600 mb-1">new</span>}
@@ -102,17 +102,17 @@ export default function PropertyHealthDashboard({
         </div>
 
         {/* Active Cases */}
-        <div className="bg-purple-50 rounded-lg p-4">
-          <p className="text-xs font-medium text-gray-600">Active Cases</p>
+        <div className="bg-cyan-50 rounded-lg p-4">
+          <p className="text-xs font-medium text-slate-600">Active Cases</p>
           <div className="mt-2 flex items-end gap-1">
-            <span className="text-2xl font-bold text-purple-600">{activeCases}</span>
+            <span className="text-2xl font-bold text-cyan-600">{activeCases}</span>
             {overdueCases > 0 && <span className="text-xs text-red-600 mb-1 font-semibold">{overdueCases} overdue</span>}
           </div>
         </div>
 
         {/* Response Time */}
         <div className="bg-green-50 rounded-lg p-4">
-          <p className="text-xs font-medium text-gray-600">Avg Response Time</p>
+          <p className="text-xs font-medium text-slate-600">Avg Response Time</p>
           <p className="text-2xl font-bold text-green-600 mt-2">
             {averageResponseTimeHours}h
           </p>
@@ -134,7 +134,7 @@ export default function PropertyHealthDashboard({
       {/* Case Summary */}
       {activeCases > 0 && (
         <div className="space-y-2 text-sm">
-          <p className="font-medium text-gray-900">Active Cases</p>
+          <p className="font-medium text-slate-900">Active Cases</p>
           {cases
             .filter((c) => !c.archived && c.status !== "resolved")
             .slice(0, 3)
@@ -142,19 +142,19 @@ export default function PropertyHealthDashboard({
               const overdue = case_.stages.some((s) => !s.completedAt && s.status === "overdue")
               return (
                 <div key={case_.id} className="flex items-center justify-between">
-                  <span className={`text-sm ${overdue ? "text-red-600 font-semibold" : "text-gray-600"}`}>
+                  <span className={`text-sm ${overdue ? "text-red-600 font-semibold" : "text-slate-600"}`}>
                     {overdue ? "⚠️ " : "• "} {case_.title}
                   </span>
-                  <span className="text-xs text-gray-500">{case_.messageCount} messages</span>
+                  <span className="text-xs text-slate-500">{case_.messageCount} messages</span>
                 </div>
               )
             })}
-          {activeCases > 3 && <p className="text-gray-500 text-xs pt-2">+ {activeCases - 3} more</p>}
+          {activeCases > 3 && <p className="text-slate-500 text-xs pt-2">+ {activeCases - 3} more</p>}
         </div>
       )}
 
       {/* Footer */}
-      <div className="mt-6 pt-6 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+      <div className="mt-6 pt-6 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
         <span>Updated: {new Date().toLocaleTimeString()}</span>
         <span className="text-blue-600 font-medium">View Details →</span>
       </div>

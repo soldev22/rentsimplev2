@@ -36,7 +36,7 @@ export default function AnalyticsPage() {
   if (properties.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-600 mb-4">No properties available</p>
+        <p className="text-slate-600 mb-4">No properties available</p>
         <Link href="/dashboard/properties" className="text-blue-600 hover:underline">
           Create a property first
         </Link>
@@ -49,16 +49,16 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">📊 Case Analytics</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-3xl font-bold text-slate-900">📊 Case Analytics</h1>
+          <p className="text-slate-600 mt-1">
             Performance metrics and insights across your cases
           </p>
         </div>
       </div>
 
       {/* Property Selector */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+      <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <label className="block text-sm font-medium text-slate-700 mb-2">
           Select Property
         </label>
         <select
@@ -66,7 +66,7 @@ export default function AnalyticsPage() {
           onChange={(e) => setSelectedPropertyId(e.target.value)}
           aria-label="Select property for analytics"
           title="Select a property to view its case analytics"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           {properties.map((prop) => (
             <option key={prop.id} value={prop.id}>

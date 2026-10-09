@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
-const mockUsers: Record<string, any> = {}
+const mockUsers: Record<string, unknown> = {}
 
 const { canAdminEditUser } = await import("@/components/forms/AdminUserManager")
-const mockUpsert = vi.fn(async (user: any) => {
+const mockUpsert = vi.fn(async (user: { email: string }) => {
   mockUsers[user.email] = user
   return user
 })
@@ -41,6 +41,7 @@ describe("updateUserForAdmin", () => {
 
   it("updates editable user profile fields for admin edits", async () => {
     const { updateUserForAdmin } = await import("./users")
+    type UpdateUserForAdminArgs = Parameters<typeof updateUserForAdmin>
 
     const adminUser = {
       id: "admin@example.com",
@@ -54,13 +55,13 @@ describe("updateUserForAdmin", () => {
       updatedAt: new Date().toISOString(),
     }
 
-    const updated = await updateUserForAdmin(adminUser as any, "existing.user@example.com", {
+    const updated = await updateUserForAdmin(adminUser as UpdateUserForAdminArgs[0], "existing.user@example.com", {
       first_name: "Updated",
       last_name: "Profile",
       mobile: "07777777777",
       role: "tenant",
       approval_status: "approved",
-    } as any)
+    } as UpdateUserForAdminArgs[2])
 
     expect(updated).not.toBeNull()
     expect(updated?.first_name).toBe("Updated")

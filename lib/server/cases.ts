@@ -7,9 +7,7 @@ import {
   canManageProperties,
   type CaseType,
   type LegalTimerConfiguration,
-  type LegalTimerRequirement,
   type PropertyCase,
-  type CaseStatus,
 } from "@/lib/auth"
 import { AUDIT_ACTION_TYPES } from "@/lib/types/audit"
 import { writeAuditEvent } from "@/lib/server/audit"
@@ -568,7 +566,6 @@ export async function updateCaseInDb(case_: PropertyCase): Promise<PropertyCase>
  * Delete/Archive case
  */
 export async function archiveCaseInDb(caseId: string, propertyId: string): Promise<void> {
-  const container = await getCasesContainer()
   const case_ = await getCaseById(caseId, propertyId)
   if (!case_) throw new Error(`Case ${caseId} not found`)
   case_.archived = true
@@ -578,7 +575,7 @@ export async function archiveCaseInDb(caseId: string, propertyId: string): Promi
 // ==================== CASE MESSAGES ====================
 
 import { getCaseMessagesContainer } from "@/lib/server/cosmos"
-import type { CaseMessage, CaseMessageRead } from "@/lib/types/case"
+import type { CaseMessage } from "@/lib/types/case"
 
 /**
  * Save a case message to Cosmos DB

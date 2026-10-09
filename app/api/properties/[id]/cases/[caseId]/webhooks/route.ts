@@ -11,7 +11,7 @@ export async function GET(
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const { id: propertyId, caseId } = await params
+    const { caseId } = await params
 
     // Verify user can manage this property
     if (!(await canManageProperties(user))) {

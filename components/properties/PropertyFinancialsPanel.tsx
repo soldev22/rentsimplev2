@@ -383,7 +383,7 @@ export default function PropertyFinancialsPanel({
           <div className="flex gap-3">
             <button
               type="submit"
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              className="brand-button rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60"
               disabled={isPending}
             >
               {isPending ? "Saving…" : "Save financials"}

@@ -155,7 +155,7 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
                     applicantProfile={sessionUser.applicantProfile}
                   />
                 ) : null}
-                <Link href={applicationCtaHref} className="block rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-slate-800">
+                <Link href={applicationCtaHref} className="brand-button block rounded-xl px-4 py-3 text-center text-sm font-semibold">
                   {applicationCtaLabel}
                 </Link>
                 {!sessionUser ? (

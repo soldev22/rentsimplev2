@@ -3,7 +3,6 @@ import { getSessionUser } from "@/lib/server/session"
 import { canManageProperties } from "@/lib/auth"
 import { getPropertyForUser } from "@/lib/server/properties"
 import { getCaseById, getCaseAttachmentById, deleteCaseAttachmentMetadata } from "@/lib/server/cases"
-import { downloadCaseAttachment, deleteCaseAttachment } from "@/lib/server/blob"
 import { writeAuditEvent } from "@/lib/server/audit"
 import { AUDIT_ACTION_TYPES } from "@/lib/types/audit"
 

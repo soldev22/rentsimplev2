@@ -1,92 +1,240 @@
-import Image from "next/image"
 import Link from "next/link"
 
-import { getPropertyImageLabel, getPropertyImagePath } from "@/lib/auth"
-import { hasCosmosConfiguration } from "@/lib/server/cosmos"
-import { listPublicAvailableProperties } from "@/lib/server/properties"
+const highlights = ["Tenant reporting with photos", "Competing builder bids", "Accreditation checks", "Deadline alerts"]
 
-const steps = [
-  ["01", "See what is verified", "Every listing shows its evidence, costs, and current status before you enquire."],
-  ["02", "Apply with clarity", "Know the timeline, documents, and decision criteria at every stage."],
-  ["03", "Move forward together", "A secure workspace keeps tenants, landlords, and support in sync."],
+const repairSteps = [
+  ["01", "Tenant reports it", "Your tenant logs the issue with photos, a category, and a priority, so you start with the facts instead of a phone call."],
+  ["02", "Builders quote", "Invite builders to bid. Compare price, availability, and duration side by side, then pick the one that fits."],
+  ["03", "Checked, done, signed off", "Accreditation is checked before work starts, and the job closes only once it has been signed off."],
 ]
 
-const trustFeatures = [
-  ["01", "Property Trust", "Clear listing status, approved images, compliance records, and costs in one view."],
-  ["02", "Authenticity checks", "Registration signals are assessed before a permanent account can exist."],
-  ["03", "A visible paper trail", "Applications, payments, messages, and decisions stay easy to find."],
+const maintenanceFeatures = [
+  ["Builder bids in one place", "Every quote shows the amount, earliest start date, and estimated duration, so choosing a builder takes minutes rather than days."],
+  ["Accreditation before access", "Insurance, Gas Safe, electrical certification, DBS, and method statements are ticked off and dated before anyone starts work."],
+  ["Photos, messages, and a paper trail", "Photos, attachments, and conversations stay with the job, so you always know what was reported, agreed, and done."],
 ]
 
-function formatCurrency(value: number) {
-  return `£${value.toLocaleString("en-GB")} pcm`
+const dampStages = [
+  { label: "Investigate", allowance: "10 working days", progress: "100%", status: "Done" },
+  { label: "Written summary to tenant", allowance: "3 working days", progress: "66%", status: "Day 2" },
+  { label: "Begin repairs", allowance: "5 working days", progress: "0%", status: "Next" },
+]
+
+const repairStages = ["Reported", "Quoted", "In progress", "Signed off"]
+
+const complianceExamples = [
+  { label: "Gas safety certificate", due: "Due in 7 months", tone: "bg-emerald-100 text-emerald-800" },
+  { label: "Electrical installation (EICR)", due: "Due in 64 days", tone: "bg-amber-100 text-amber-800" },
+  { label: "Smoke and heat alarm testing", due: "Due in 12 days", tone: "bg-red-100 text-red-800" },
+]
+
+const metrics = [
+  ["1", "record for every repair"],
+  ["11", "compliance checks tracked per property"],
+  ["3", "escalation alerts before a deadline slips"],
+]
+
+function SectionHeading({ kicker, title, intro }: { kicker: string; title: string; intro?: string }) {
+  return (
+    <div className="max-w-2xl">
+      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">{kicker}</p>
+      <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">{title}</h2>
+      {intro ? <p className="mt-4 leading-7 text-slate-600">{intro}</p> : null}
+    </div>
+  )
 }
 
-export default async function HomePage() {
-  const properties = hasCosmosConfiguration() ? await listPublicAvailableProperties("") : []
-  const featuredProperty = [...properties].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))[0]
-  const featuredImage = featuredProperty?.images.find((image) => image.moderationStatus === "approved" && image.isCoverImage)
-    ?? featuredProperty?.images.find((image) => image.moderationStatus === "approved")
-
+export default function HomePage() {
   return (
-    <div className="landing-page">
-      <section className="landing-hero">
-        <div className="landing-grid" />
-        <div className="landing-container relative z-10">
-          <div className="landing-hero-copy">
-            <p className="landing-kicker">The transparent rental platform</p>
-            <h1>Rent with Confidence.<br /><em>Let with Confidence.</em></h1>
-            <p className="landing-lede">A clearer way to rent and let. Verified homes, visible decisions, and human support when the process needs a person.</p>
-            <div className="landing-actions">
-              <Link href="/properties" className="landing-button landing-button-primary">Find a verified home <span aria-hidden="true">↗</span></Link>
-              <Link href="/login?mode=register" className="landing-button landing-button-quiet">List with clarity</Link>
+    <div className="bg-slate-100 text-slate-900">
+      <section className="bg-white">
+        <div className="relative mx-auto grid max-w-6xl gap-12 px-6 py-16 md:grid-cols-[1.2fr_1fr] md:items-center md:py-24">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Maintenance support for landlords</p>
+            <h1 className="mt-4 text-4xl font-bold leading-tight text-slate-900 sm:text-5xl">
+              Repairs handled.
+              <br />
+              <span className="text-blue-700">Records kept.</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
+              From a dripping tap to a damp report, RentSimple takes each maintenance task from your tenant&apos;s first message to a signed-off job, with the builders, checks, and deadlines all in one place.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/login?mode=register" className="brand-button rounded-xl px-5 py-3 text-sm font-semibold">
+                Register as a landlord
+              </Link>
+              <Link href="/login" className="brand-outline-button rounded-xl px-5 py-3 text-sm font-semibold">
+                Sign in
+              </Link>
             </div>
-            <p className="landing-note"><span className="status-dot" /> No hidden steps. No pressure to commit.</p>
+            <p className="mt-6 text-sm text-slate-500">Less chasing. Fewer missed deadlines.</p>
           </div>
-          <div className="trust-console" aria-label="RentSimple trust console preview">
-            <div className="console-top"><span>RENT SIMPLE / PROPERTY TRUST</span><span className="console-live">LIVE STATUS</span></div>
-            <div className="console-title">A rental decision you can understand.</div>
-            <div className="console-row"><span>Listing identity</span><strong>Confirmed</strong></div>
-            <div className="console-row"><span>Compliance record</span><strong>Up to date</strong></div>
-            <div className="console-row"><span>Costs before commitment</span><strong>Shown in full</strong></div>
-            <div className="console-footer"><span>Trust is a process, not a badge.</span><span aria-hidden="true">→</span></div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm" aria-label="Example maintenance job">
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em]">
+              <span className="text-slate-500">Maintenance job</span>
+              <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-800">Live</span>
+            </div>
+            <p className="mt-6 text-2xl font-semibold text-slate-900">No hot water at Flat 2</p>
+            <dl className="mt-6 divide-y divide-slate-200 text-sm">
+              {[
+                ["Reported by tenant", "With 3 photos"],
+                ["Builder bids", "3 received"],
+                ["Gas Safe registration", "Checked"],
+                ["Next step", "Book the engineer"],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between gap-4 py-3">
+                  <dt className="text-slate-500">{label}</dt>
+                  <dd className="font-medium text-slate-900">{value}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </div>
       </section>
 
-      <section className="trust-strip" aria-label="Trust indicators">
-        <div className="landing-container trust-strip-inner">
-          <span><b>✓</b> Verified information</span><span><b>◷</b> Clear timelines</span><span><b>⌁</b> Secure records</span><span><b>○</b> Human support</span>
+      <section className="border-y border-slate-200 bg-slate-50" aria-label="Maintenance features">
+        <ul className="mx-auto grid max-w-6xl gap-3 px-6 py-5 text-sm font-medium text-slate-700 sm:grid-cols-2 lg:grid-cols-4">
+          {highlights.map((item) => (
+            <li key={item} className="flex items-center gap-2">
+              <span className="text-cyan-700" aria-hidden="true">✓</span>
+              {item}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+        <SectionHeading
+          kicker="How a repair moves"
+          title="One job. One clear route."
+          intro="Maintenance usually means texts, missed calls, and quotes in three different inboxes. RentSimple gives every repair a single record that you, your tenant, and your builder can all follow."
+        />
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {repairSteps.map(([number, title, copy]) => (
+            <article key={number} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <span className="text-xs font-semibold tracking-[0.2em] text-cyan-700">{number}</span>
+              <h3 className="mt-4 text-lg font-semibold text-slate-900">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{copy}</p>
+            </article>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          {maintenanceFeatures.map(([title, copy]) => (
+            <article key={title} className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+              <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{copy}</p>
+            </article>
+          ))}
         </div>
       </section>
 
-      <section className="landing-section landing-section-light">
-        <div className="landing-container split-heading"><div><p className="landing-kicker">A better starting point</p><h2>Trust before search.<br /><span>Clarity before commitment.</span></h2></div><p className="section-intro">RentSimple brings the details people usually have to chase into one calm, shared place. Less guesswork for tenants. Less admin for landlords.</p></div>
-        <div className="landing-container step-grid">{steps.map(([number, title, copy]) => <article className="step-item" key={number}><span className="step-number">{number}</span><h3>{title}</h3><p>{copy}</p></article>)}</div>
-      </section>
-
-      <section className="landing-section landing-section-ink">
-        <div className="landing-container"><div className="section-heading-inverse"><p className="landing-kicker">01 / Property Trust</p><h2>See the home.<br /><span>Understand the context.</span></h2><p>Listings should answer the important questions before they ask for your details.</p></div>
-          <div className="property-showcase">
-            {featuredProperty && featuredImage ? <Image src={getPropertyImagePath(featuredProperty.id, featuredImage.id, "thumbnail")} alt={getPropertyImageLabel(featuredImage)} fill className="property-showcase-image" unoptimized /> : <div className="property-illustration"><div className="illustration-window" /><div className="illustration-door" /><div className="illustration-sun" /></div>}
-            <div className="property-overlay"><span className="verified-label">✓ Verified listing</span><span>Evidence-led property details</span></div>
+      <section className="border-y border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 md:grid-cols-2 md:items-center md:py-20">
+          <SectionHeading
+            kicker="Damp, mould, and flood cases"
+            title="Deadlines you can see coming."
+            intro="Serious cases follow timed stages: investigate within 10 working days, send your tenant a written summary within 3, and begin repairs within 5. If a stage runs late, you are alerted after 24 hours, 72 hours, and 5 days, before a slipped deadline becomes a bigger problem."
+          />
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm" aria-label="Example damp and mould case">
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em]">
+              <span className="text-slate-500">Damp &amp; mould case</span>
+              <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-800">On track</span>
+            </div>
+            <ul className="mt-6 space-y-5">
+              {dampStages.map((stage) => (
+                <li key={stage.label}>
+                  <div className="flex justify-between gap-4 text-sm">
+                    <span className="font-medium text-slate-900">{stage.label}</span>
+                    <span className="text-slate-500">{stage.status}</span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-slate-200">
+                    <div className="h-2 rounded-full bg-blue-700" style={{ width: stage.progress }} />
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">Allowed: {stage.allowance}</p>
+                </li>
+              ))}
+            </ul>
           </div>
-          {featuredProperty ? <div className="property-caption"><div><p className="landing-kicker">Available now</p><h3>{featuredProperty.address}</h3><p>{featuredProperty.city} · {featuredProperty.bedrooms} bed · {featuredProperty.bathrooms} bath</p></div><strong>{formatCurrency(featuredProperty.monthlyRent)}</strong><Link href={`/properties/${featuredProperty.id}`} aria-label={`View ${featuredProperty.address}`}>View home ↗</Link></div> : <div className="property-caption"><div><p className="landing-kicker">Designed for confidence</p><h3>Every detail has a place.</h3><p>Costs, records, images, and status stay together.</p></div><Link href="/properties">Browse homes ↗</Link></div>}
         </div>
       </section>
 
-      <section className="landing-section landing-section-paper"><div className="landing-container feature-grid">{trustFeatures.map(([number, title, copy]) => <article className="feature-item" key={number}><span className="feature-number">{number}</span><h3>{title}</h3><p>{copy}</p></article>)}</div></section>
+      <section className="mx-auto grid max-w-6xl gap-10 px-6 py-16 md:grid-cols-2 md:py-20">
+        <div>
+          <SectionHeading
+            kicker="No more “any update?”"
+            title="Everyone knows where the job is."
+            intro="Each repair moves through clear stages, and your tenant can see them too. That means fewer chasing messages for you, and a tenant who knows their report hasn't disappeared."
+          />
+          <ol className="mt-8 flex flex-wrap gap-2">
+            {repairStages.map((stage, index) => (
+              <li
+                key={stage}
+                className={`rounded-full px-4 py-2 text-sm font-medium ${
+                  index === 2 ? "bg-blue-700 text-white" : index < 2 ? "bg-cyan-100 text-cyan-900" : "border border-slate-300 text-slate-500"
+                }`}
+              >
+                {stage}
+              </li>
+            ))}
+          </ol>
+        </div>
 
-      <section className="landing-section landing-section-accent"><div className="landing-container security-layout"><div><p className="landing-kicker">02 / Registration authenticity</p><h2>Good systems know when to slow down.</h2><p>RentSimple checks authenticity signals before a permanent account is created. It helps keep fake, automated, and disposable registrations away from the people doing the real work.</p><Link href="/login?mode=register" className="text-link">Create an account safely ↗</Link></div><div className="signal-card"><div className="signal-card-top"><span>AUTHENTICITY GATEWAY</span><span className="signal-lock">LOCKED</span></div><div className="signal-line"><span>Email confidence</span><i><b style={{ width: "92%" }} /></i><strong>92</strong></div><div className="signal-line"><span>Device confidence</span><i><b style={{ width: "87%" }} /></i><strong>87</strong></div><div className="signal-line"><span>Decision trail</span><strong className="signal-ok">READY ✓</strong></div></div></div></section>
+        <div>
+          <SectionHeading
+            kicker="Planned maintenance"
+            title="Certificates on a calendar, not in a drawer."
+            intro="Gas safety, EICR, EPC, smoke and heat alarms, legionella, boiler servicing, PAT testing and more are tracked for each property. Each check turns amber 90 days before it's due and red at 30 days, so renewals get booked in good time."
+          />
+          <ul className="mt-8 space-y-2">
+            {complianceExamples.map((item) => (
+              <li key={item.label} className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
+                <span className="font-medium text-slate-800">{item.label}</span>
+                <span className={`whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ${item.tone}`}>{item.due}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
 
-      <section className="landing-section landing-section-light"><div className="landing-container transparency-layout"><div className="transparency-index">03<br /><span>Application transparency</span></div><div><p className="landing-kicker">No more black boxes</p><h2>Know where you stand.</h2><p>From first enquiry to final decision, you can see what is happening, what is needed, and who owns the next step. A calm process is a fairer process.</p><div className="timeline"><span className="timeline-active">Enquiry</span><span>Documents</span><span>Review</span><span>Decision</span></div></div></div></section>
+      <section className="border-y border-slate-200 bg-white">
+        <div className="relative mx-auto grid max-w-6xl gap-10 px-6 py-16 md:grid-cols-2 md:items-center">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Built for landlords</p>
+            <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">Technology for the routine. People for the human bits.</h2>
+            <p className="mt-4 leading-7 text-slate-600">
+              Most maintenance is routine and should run itself. When a job gets complicated, you have the whole history in front of you: who reported what, which builder quoted, and what was agreed.
+            </p>
+          </div>
+          <dl className="grid gap-4 sm:grid-cols-3">
+            {metrics.map(([value, label]) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <dt className="text-4xl font-bold text-blue-700">{value}</dt>
+                <dd className="mt-2 text-sm text-slate-600">{label}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </section>
 
-      <section className="landing-section landing-section-paper"><div className="landing-container payment-layout"><div><p className="landing-kicker">04 / Payment transparency</p><h2>See every pound<br /><span>before it moves.</span></h2></div><div><p>RentSimple makes the numbers legible: rent, deposits, dates, records, and communication live in the same tenant and landlord workspace.</p><div className="payment-list"><span><b>£</b> Charges explained</span><span><b>↗</b> Receipts recorded</span><span><b>◷</b> Dates made visible</span></div></div></div></section>
-
-      <section className="landing-section landing-section-ink support-section"><div className="landing-container support-layout"><div><p className="landing-kicker">05 / Support model</p><h2>Technology for the routine.<br /><span>People for the human bits.</span></h2></div><div><p>Self-serve when it is simple. Clear routes to support when it is not. RentSimple is designed to reduce chasing, not hide behind automation.</p><Link href="/waiting" className="text-link text-link-light">See how support works ↗</Link></div></div></section>
-
-      <section className="landing-section metrics-section"><div className="landing-container metrics-grid"><div><strong>100%</strong><span>of key decisions<br />kept visible</span></div><div><strong>1</strong><span>shared place<br />for the journey</span></div><div><strong>24/7</strong><span>access to your<br />rental records</span></div></div></section>
-
-      <section className="landing-final"><div className="landing-container final-inner"><p className="landing-kicker">A simpler standard for renting</p><h2>Confidence is<br /><em>the feature.</em></h2><p>Start with the route that fits you.</p><div className="landing-actions"><Link href="/properties" className="landing-button landing-button-primary">I am looking for a home <span aria-hidden="true">↗</span></Link><Link href="/login?mode=register" className="landing-button landing-button-secondary">I am letting a property</Link><Link href="/login" className="landing-button landing-button-text">Existing customer →</Link></div></div></section>
+      <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm md:p-12">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Maintenance, managed</p>
+          <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">Fix it once. Prove it forever.</h2>
+          <p className="mt-4 text-slate-600">Bring your properties, your tenants, and your builders into one place.</p>
+          <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <Link href="/login?mode=register" className="brand-button rounded-xl px-5 py-3 text-sm font-semibold">
+              Register as a landlord
+            </Link>
+            <Link href="/login" className="brand-outline-button rounded-xl px-5 py-3 text-sm font-semibold">
+              Sign in
+            </Link>
+            <Link href="/properties" className="px-3 py-3 text-sm font-semibold text-cyan-700 hover:text-cyan-900">
+              Looking for a home? →
+            </Link>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }

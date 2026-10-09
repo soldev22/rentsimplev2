@@ -11,7 +11,6 @@ import {
   BulkUploadPreviewResult,
   PROPERTY_TYPE_OPTIONS,
   type PropertyBulkUploadPropertyType,
-  BULK_UPLOAD_CSV_HEADERS,
   BULK_UPLOAD_REQUIRED_FIELDS,
   BULK_UPLOAD_MAX_PROPERTIES,
   BULK_UPLOAD_MAX_IMAGES_PER_PROPERTY,
@@ -22,7 +21,6 @@ import { addPropertyImage, createProperty, PropertyInput } from "@/lib/server/pr
 import { uploadPropertyImage } from "@/lib/server/blob"
 import { writeAuditEvent } from "@/lib/server/audit"
 import type { AuthUser } from "@/lib/types/user"
-import type { PropertyRecord } from "@/lib/types/property"
 
 /**
  * Parse zip file containing CSV and images folder

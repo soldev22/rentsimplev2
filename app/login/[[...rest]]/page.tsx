@@ -15,7 +15,6 @@ type FormState = {
   mobile: string
   email: string
   password: string
-  accountType: "applicant" | "general"
 }
 
 const redirectUrl = "/dashboard"
@@ -54,7 +53,6 @@ export default function LoginPage() {
       : "login"
   const token = searchParams.get("token") ?? ""
   const redirectToParam = getSafeRedirectPath(searchParams.get("redirectTo"))
-  const isApplicantPropertyRegistration = searchParams.get("accountType") === "applicant"
   const redirectQuery = redirectToParam ? `&redirectTo=${encodeURIComponent(redirectToParam)}` : ""
   const registerHref = `/login?mode=register${redirectQuery}`
   const forgotHref = `/login?mode=forgot${redirectQuery}`
@@ -71,7 +69,6 @@ export default function LoginPage() {
     mobile: "",
     email: "",
     password: "",
-    accountType: isApplicantPropertyRegistration ? "applicant" : "general",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -93,11 +90,6 @@ export default function LoginPage() {
     router.replace(nextQuery ? `/login?${nextQuery}` : "/login")
   }, [router, searchParams])
 
-  useEffect(() => {
-    if (isApplicantPropertyRegistration) {
-      setFormState((current) => ({ ...current, accountType: "applicant" }))
-    }
-  }, [isApplicantPropertyRegistration])
 
   useEffect(() => {
     let isActive = true
@@ -243,7 +235,6 @@ export default function LoginPage() {
                 mobile: formState.mobile,
                 email: formState.email,
                 password: formState.password,
-                accountType: (isApplicantPropertyRegistration || formState.accountType === "applicant") ? "applicant" : undefined,
               }
             : isForgotPasswordMode || isVerifyRequestMode
               ? {
@@ -312,7 +303,7 @@ export default function LoginPage() {
     <div className="relative flex min-h-[calc(100dvh-4rem)] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#e0ecff_0%,#f6f8fc_45%,#f1f5f9_100%)] px-4 py-8">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white/95 p-6 shadow-2xl shadow-slate-300/40 backdrop-blur-sm sm:p-7">
         <div className="mb-5 text-center">
-          <p className="text-[0.72rem] font-semibold tracking-[0.3em] text-slate-500">rentsimple</p>
+          <p className="text-[0.72rem] font-semibold tracking-[0.3em] text-slate-500">RentSimple</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
             {isRegistrationMode
               ? "Create account"
@@ -411,30 +402,6 @@ export default function LoginPage() {
               </label>
             ) : null}
 
-            {isRegistrationMode ? (
-              <label className="block text-sm font-medium text-slate-700">
-                Registering as
-                {isApplicantPropertyRegistration ? (
-                  <div className="mt-2 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900">Applicant</div>
-                ) : (
-                  <select
-                    className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 focus:border-sky-500"
-                    name="accountType"
-                    value={formState.accountType}
-                    onChange={handleInputChange}
-                    aria-label="Account type"
-                  >
-                    <option value="applicant">Applicant</option>
-                    <option value="general">General account</option>
-                  </select>
-                )}
-                <span className="mt-2 block text-xs text-slate-500">
-                  {isApplicantPropertyRegistration
-                    ? "Property applications require an applicant account."
-                    : "General accounts enter the admin approval queue after email verification. Applicants can start the tenancy workflow immediately."}
-                </span>
-              </label>
-            ) : null}
 
             {!isResetPasswordMode ? (
               <label className="block text-sm font-medium text-slate-700">

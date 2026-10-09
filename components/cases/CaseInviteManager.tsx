@@ -18,7 +18,7 @@ function getStatusBadgeColor(status: string): string {
     case "declined":
       return "bg-red-100 text-red-800"
     default:
-      return "bg-gray-100 text-gray-800"
+      return "bg-slate-100 text-slate-800"
   }
 }
 
@@ -27,9 +27,9 @@ function getRoleBadgeColor(role: string): string {
     case "contractor":
       return "bg-orange-100 text-orange-800"
     case "advisor":
-      return "bg-purple-100 text-purple-800"
+      return "bg-cyan-100 text-cyan-800"
     default:
-      return "bg-gray-100 text-gray-800"
+      return "bg-slate-100 text-slate-800"
   }
 }
 
@@ -141,19 +141,19 @@ export default function CaseInviteManager({ caseId, propertyId, currentUserRole 
   }
 
   if (loading) {
-    return <div className="text-center py-6 text-gray-600">Loading invites...</div>
+    return <div className="text-center py-6 text-slate-600">Loading invites...</div>
   }
 
   const isPropertyManager = ["landlord", "agent", "admin"].includes(currentUserRole)
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className="bg-white rounded-lg border border-slate-200 p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">Team Access</h3>
+        <h3 className="text-lg font-semibold text-slate-900">Team Access</h3>
         {isPropertyManager && (
           <button
             onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm"
+            className="brand-button px-4 py-2 font-medium rounded-lg text-sm"
           >
             {showForm ? "Cancel" : "Invite Team Member"}
           </button>
@@ -164,39 +164,39 @@ export default function CaseInviteManager({ caseId, propertyId, currentUserRole 
 
       {/* Invite form */}
       {showForm && isPropertyManager && (
-        <form onSubmit={handleSendInvite} className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <form onSubmit={handleSendInvite} className="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-1">Email Address *</label>
+              <label className="block text-sm font-medium text-slate-900 mb-1">Email Address *</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="contractor@example.com"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={sending}
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-1">Name</label>
+              <label className="block text-sm font-medium text-slate-900 mb-1">Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="John Smith (optional)"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={sending}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 mb-1">Role *</label>
+              <label className="block text-sm font-medium text-slate-900 mb-1">Role *</label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as "contractor" | "advisor")}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={sending}
                 aria-label="Select the role for this invite"
                 title="Select whether this person is a contractor or advisor"
@@ -204,13 +204,13 @@ export default function CaseInviteManager({ caseId, propertyId, currentUserRole 
                 <option value="contractor">Contractor (can view & comment)</option>
                 <option value="advisor">Advisor (can view & comment)</option>
               </select>
-              <p className="text-xs text-gray-600 mt-1">Both roles can view case and add comments, but cannot modify case status or archive.</p>
+              <p className="text-xs text-slate-600 mt-1">Both roles can view case and add comments, but cannot modify case status or archive.</p>
             </div>
 
             <button
               type="submit"
               disabled={sending}
-              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors"
+              className="brand-button w-full px-4 py-2 font-medium rounded-lg"
             >
               {sending ? "Sending..." : "Send Invite"}
             </button>
@@ -220,14 +220,14 @@ export default function CaseInviteManager({ caseId, propertyId, currentUserRole 
 
       {/* Invites list */}
       {invites.length === 0 ? (
-        <p className="text-gray-600 text-center py-8">No team members invited yet.</p>
+        <p className="text-slate-600 text-center py-8">No team members invited yet.</p>
       ) : (
         <div className="space-y-3">
           {invites.map((invite) => (
-            <div key={invite.id} className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div key={invite.id} className="flex items-start justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
               <div className="flex-1">
-                <p className="font-semibold text-gray-900">{invite.invitedName}</p>
-                <p className="text-sm text-gray-600 mt-1">{invite.invitedEmail}</p>
+                <p className="font-semibold text-slate-900">{invite.invitedName}</p>
+                <p className="text-sm text-slate-600 mt-1">{invite.invitedEmail}</p>
                 <div className="flex gap-2 mt-2">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(invite.role)}`}>
                     {invite.role}
@@ -236,7 +236,7 @@ export default function CaseInviteManager({ caseId, propertyId, currentUserRole 
                     {invite.status}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-slate-500 mt-2">
                   {invite.status === "accepted" ? `Accepted on ${formatDate(invite.acceptedAt!)}` : `Invited on ${formatDate(invite.invitedAt)}`}
                 </p>
               </div>
@@ -245,7 +245,7 @@ export default function CaseInviteManager({ caseId, propertyId, currentUserRole 
                 <button
                   onClick={() => handleRevokeInvite(invite.id)}
                   disabled={revoking === invite.id}
-                  className="ml-4 px-3 py-1 text-red-600 hover:text-red-700 disabled:text-gray-400 font-medium text-sm transition-colors"
+                  className="ml-4 px-3 py-1 text-red-600 hover:text-red-700 disabled:text-slate-400 font-medium text-sm transition-colors"
                 >
                   {revoking === invite.id ? "Revoking..." : "Revoke"}
                 </button>

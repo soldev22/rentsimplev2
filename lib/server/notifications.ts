@@ -725,12 +725,6 @@ export async function sendEscalationNotification(params: EscalationNotificationP
     const now = new Date()
     const daysOverdue = Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
 
-    const escalationLevelLabels = {
-      alert_24h: "24 hours",
-      alert_72h: "3 days",
-      alert_5d: "5 days",
-    }
-
     const subjectPrefix =
       params.escalationLevel === "alert_24h" ? "🔔 URGENT" : params.escalationLevel === "alert_72h" ? "⚠️ WARNING" : "🚨 CRITICAL"
 

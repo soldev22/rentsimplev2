@@ -78,12 +78,12 @@ export default function WebhookStatusWidget({
   }
 
   if (loading) {
-    return <div className="text-center py-6 text-gray-600">Loading webhook status...</div>
+    return <div className="text-center py-6 text-slate-600">Loading webhook status...</div>
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">🔗 Webhook Events</h3>
+    <div className="bg-white rounded-lg border border-slate-200 p-6">
+      <h3 className="text-lg font-semibold text-slate-900 mb-4">🔗 Webhook Events</h3>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 text-sm">
@@ -92,29 +92,29 @@ export default function WebhookStatusWidget({
       )}
 
       {webhooks.length === 0 ? (
-        <p className="text-gray-600 text-center py-8">No webhook events yet.</p>
+        <p className="text-slate-600 text-center py-8">No webhook events yet.</p>
       ) : (
         <div className="space-y-3">
           {webhooks.map((webhook) => (
             <div
               key={webhook.id}
-              className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+              className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors"
             >
               <div className="text-2xl">{getEventIcon(webhook.eventType)}</div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-gray-900 capitalize">
+                  <span className="font-semibold text-slate-900 capitalize">
                     {webhook.eventType.replace(/_/g, " ")}
                   </span>
                   <span className="text-xl">{getStatusIcon(webhook.status)}</span>
-                  <span className="text-xs font-medium px-2 py-1 rounded bg-gray-200 text-gray-700 capitalize" aria-label={`Webhook status: ${webhook.status}`} title={`Delivery status: ${webhook.status}`}>
+                  <span className="text-xs font-medium px-2 py-1 rounded bg-slate-200 text-slate-700 capitalize" aria-label={`Webhook status: ${webhook.status}`} title={`Delivery status: ${webhook.status}`}>
                     {webhook.status}
                   </span>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="text-xs text-slate-600 mt-1">
                   Created: {new Date(webhook.createdAt).toLocaleString("en-GB")}
                 </p>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-slate-600">
                   Attempts: {webhook.deliveryAttempts.length} / {webhook.maxRetries}
                 </p>
               </div>

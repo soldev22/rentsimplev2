@@ -12,7 +12,6 @@ export async function POST(request: Request) {
     firstName?: string
     lastName?: string
     mobile?: string
-    accountType?: "applicant"
     website?: string
   }
 
@@ -116,7 +115,6 @@ export async function POST(request: Request) {
     firstName: body.firstName,
     lastName: body.lastName,
     mobile: body.mobile ?? "",
-    requestedRole: body.accountType === "applicant" ? "applicant" : undefined,
   })
 
   if (!user || error) {

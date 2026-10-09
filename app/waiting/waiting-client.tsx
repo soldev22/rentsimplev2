@@ -125,7 +125,7 @@ export default function WaitingClient({
           </Link>
           <Link
             href="/"
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            className="brand-button rounded-md px-4 py-2 text-sm font-semibold"
           >
             Go to homepage
           </Link>

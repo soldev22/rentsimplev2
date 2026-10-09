@@ -95,7 +95,7 @@ export default function PropertyIncludedItemsPanel({
             <input type="checkbox" checked={isElectrical} onChange={(event) => setIsElectrical(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
             Electrical item
           </label>
-          <button type="button" onClick={addItem} disabled={isPending || !name.trim()} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+          <button type="button" onClick={addItem} disabled={isPending || !name.trim()} className="brand-button rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60">
             Add item
           </button>
         </div>

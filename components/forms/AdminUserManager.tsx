@@ -58,7 +58,7 @@ function getRoleBadgeClass(role: UserRole) {
     case "admin":
       return "bg-slate-900 text-white"
     case "landlord":
-      return "bg-indigo-100 text-indigo-900"
+      return "bg-blue-100 text-blue-900"
     case "agent":
       return "bg-sky-100 text-sky-900"
     case "tenant":
@@ -505,7 +505,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                     type="button"
                     onClick={() => approveUserAsApplicant(user)}
                     disabled={isPending && savingEmail === user.email}
-                    className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="brand-button rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isPending && savingEmail === user.email ? "Approving..." : "Approve as applicant"}
                   </button>
@@ -649,8 +649,8 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                       />
                     </label>
                     {getNotificationSummary(user) ? (
-                      <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs text-slate-700">
-                        <div className="font-semibold uppercase tracking-[0.16em] text-violet-800">Notification routing</div>
+                      <div className="mt-3 rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-xs text-slate-700">
+                        <div className="font-semibold uppercase tracking-[0.16em] text-cyan-800">Notification routing</div>
                         <div className="mt-2">Transactional landlord email: {getNotificationSummary(user)?.transactionalEmail}</div>
                         <div className="mt-1">Registered onboarding email: {getNotificationSummary(user)?.registeredEmail}</div>
                       </div>
@@ -787,7 +787,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                         type="button"
                         onClick={() => saveUser(user)}
                         disabled={isCurrentAdmin && !canEditProfile || (isPending && savingEmail === user.email)}
-                        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="brand-button rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {isCurrentAdmin && !canEditProfile ? "Current admin" : isPending && savingEmail === user.email ? "Saving..." : "Save"}
                       </button>

@@ -2,7 +2,6 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import type {
   AnalyticsMetrics,
   CaseAnalytics,
-  ContractorPerformanceMetric,
   TimeSeriesDataPoint,
   ThreadSummary,
   CaseType,
@@ -18,7 +17,7 @@ const client = new Anthropic()
 
 export async function generateThreadSummary(
   caseId: string,
-  propertyId: string
+  _propertyId: string
 ): Promise<ThreadSummary> {
   const messageContainer = await getCaseMessagesContainer()
 
@@ -89,7 +88,6 @@ export async function calculateCaseAnalytics(
 ): Promise<CaseAnalytics[]> {
   return cases.map((c) => {
     const completedStages = c.stages.filter((s) => s.status === "completed")
-    const firstIncompleteStage = c.stages.find((s) => s.status !== "completed")
 
     let daysToResolve: number | undefined
     let resolvedAt: string | undefined
@@ -126,7 +124,6 @@ export async function aggregateAnalyticsMetrics(
   caseAnalytics: CaseAnalytics[]
 ): Promise<AnalyticsMetrics> {
   const now = new Date()
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
   // Count by type and status
   const casesByType: Record<CaseType, number> = {} as Record<CaseType, number>

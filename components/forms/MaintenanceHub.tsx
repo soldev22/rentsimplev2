@@ -118,7 +118,6 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [capturedPhotos, setCapturedPhotos] = useState<Array<{ blob: Blob; preview: string }>>([])
-  const [uploadingPhotoIds, setUploadingPhotoIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     return () => {
@@ -282,9 +281,6 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
 
   function uploadPhotosForIssue(issueId: string, photos: Array<{ blob: Blob }>) {
     photos.forEach(async ({ blob }, index) => {
-      const photoId = `${issueId}-${index}-${Date.now()}`
-      setUploadingPhotoIds((current) => new Set([...current, photoId]))
-
       try {
         const formData = new FormData()
         formData.append("file", blob, `photo-${index}.jpg`)
@@ -321,12 +317,6 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
         )
       } catch (error) {
         console.error("Photo upload failed:", error)
-      } finally {
-        setUploadingPhotoIds((current) => {
-          const updated = new Set(current)
-          updated.delete(photoId)
-          return updated
-        })
       }
     })
   }
@@ -351,7 +341,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
               : issue,
           ),
         )
-      } catch (error) {
+      } catch {
         setFeedback({ type: "error", message: "Failed to delete photo" })
       }
     })
@@ -408,7 +398,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
               </div>
             ))}
           </div>
-          <a href="/dashboard/settings" className="mt-5 inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+          <a href="/dashboard/settings" className="brand-button mt-5 inline-flex rounded-md px-4 py-2 text-sm font-semibold">
             Open builder settings
           </a>
         </section>
@@ -469,7 +459,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
               {/* Photo Capture & Preview */}
               <div className="lg:col-span-2 space-y-3">
                 <div className="flex items-center gap-2">
-                  <label className="cursor-pointer rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                  <label className="brand-button cursor-pointer rounded-md px-4 py-2 text-sm font-semibold">
                     Add photos
                     <input
                       type="file"
@@ -492,6 +482,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
                   <div className="flex flex-wrap gap-2">
                     {capturedPhotos.map((photo, index) => (
                       <div key={index} className="relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- local blob: preview URL, not optimisable by next/image */}
                         <img src={photo.preview} alt={`Captured ${index + 1}`} className="h-20 w-20 rounded-lg object-cover border border-slate-200" />
                         <button
                           type="button"
@@ -508,7 +499,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
               </div>
 
               <div className="lg:col-span-2 flex justify-end">
-                <button type="submit" disabled={isPending} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{isPending ? "Submitting..." : "Report fault"}</button>
+                <button type="submit" disabled={isPending} className="brand-button rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60">{isPending ? "Submitting..." : "Report fault"}</button>
               </div>
             </form>
           )}
@@ -589,7 +580,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
                       <label className="text-sm font-medium text-slate-700">Availability date<input name="availabilityDate" className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" type="date" defaultValue={myBid?.availabilityDate ?? ""} /></label>
                       <label className="text-sm font-medium text-slate-700">Estimated duration (days)<input name="estimatedDurationDays" className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" type="number" min="1" defaultValue={myBid?.estimatedDurationDays ?? 1} /></label>
                       <label className="text-sm font-medium text-slate-700 lg:col-span-2">Notes<textarea name="notes" className="mt-2 min-h-24 w-full rounded-md border border-slate-300 px-3 py-2" defaultValue={myBid?.notes ?? currentUser.builderProfile?.availabilityNotes ?? ""} /></label>
-                      <div className="lg:col-span-2 flex justify-end"><button type="submit" disabled={isPending || issue.status !== "bidding_open"} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{issue.status === "bidding_open" ? (isPending ? "Submitting..." : "Submit bid") : "Bidding closed"}</button></div>
+                      <div className="lg:col-span-2 flex justify-end"><button type="submit" disabled={isPending || issue.status !== "bidding_open"} className="brand-button rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60">{issue.status === "bidding_open" ? (isPending ? "Submitting..." : "Submit bid") : "Bidding closed"}</button></div>
                     </form>
                   ) : null}
 
@@ -643,7 +634,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
                       <section className="xl:col-span-2 rounded-xl border border-slate-200 p-4">
                         <div className="flex items-center justify-between gap-4">
                           <h3 className="text-lg font-semibold text-slate-900">Builder bids</h3>
-                          <button type="button" disabled={isPending} onClick={() => saveStaffIssue(issue)} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{isPending ? "Saving..." : "Save issue"}</button>
+                          <button type="button" disabled={isPending} onClick={() => saveStaffIssue(issue)} className="brand-button rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60">{isPending ? "Saving..." : "Save issue"}</button>
                         </div>
                         {issue.bids.length === 0 ? <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">No builder bids submitted yet.</div> : (
                           <div className="mt-4 space-y-3">

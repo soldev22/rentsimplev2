@@ -216,8 +216,8 @@ export default function PropertyBulkUploadForm({
               <p className="text-red-700 text-xs">Validation Errors</p>
             </div>
             <div>
-              <p className="text-purple-600 font-semibold">{preview.imageCount}</p>
-              <p className="text-purple-700 text-xs">Total Images</p>
+              <p className="text-cyan-600 font-semibold">{preview.imageCount}</p>
+              <p className="text-cyan-700 text-xs">Total Images</p>
             </div>
           </div>
 
@@ -246,7 +246,7 @@ export default function PropertyBulkUploadForm({
                       {prop.bedrooms}bd • {prop.bathrooms}ba • £{prop.monthlyRent}/mo
                     </span>
                     {prop.images.length > 0 && (
-                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                      <span className="text-xs bg-cyan-100 text-cyan-700 px-2 py-1 rounded">
                         {prop.images.length} image{prop.images.length !== 1 ? "s" : ""}
                       </span>
                     )}
@@ -282,7 +282,7 @@ export default function PropertyBulkUploadForm({
             <button
               onClick={handleConfirm}
               disabled={!acknowledged}
-              className="flex-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              className="brand-button flex-1 rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
               Confirm & Upload
             </button>
