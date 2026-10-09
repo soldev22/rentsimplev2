@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
@@ -64,96 +63,58 @@ export default function AppChrome({
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      {isHomeRoute ? (
-        <header className="landing-nav">
-          <div className="landing-container landing-nav-inner">
-            <div className="flex items-center justify-between gap-4">
-              <Link href="/" className="min-w-0">
-                <span className="brand-lockup">
-                  <Image src="/logo/Designer.png" alt="" width={52} height={52} className="brand-lockup-logo" priority />
-                  <p className="landing-wordmark">rentsimple<span>.</span></p>
-                </span>
+      <header className="brand-shell-surface border-b border-white/10 shadow-sm">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
+          <Link href="/" className="min-w-0">
+            <span className="brand-lockup">
+              <svg className="brand-lockup-logo" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 0H26A6 6 0 0 1 32 6V26A6 6 0 0 1 26 32H24V12H16V32H6A6 6 0 0 1 0 26V6A6 6 0 0 1 6 0ZM6 12H11V17H6Z" fill="currentColor" fillRule="evenodd" />
+                <rect x={16} y={12} width={8} height={20} fill="currentColor" />
+                <rect x={6} y={12} width={5} height={5} fill="currentColor" />
+              </svg>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-200">
+                RentSimple
+              </p>
+            </span>
+            <h1 className="text-lg font-semibold text-white">
+              Property management, refined.
+            </h1>
+          </Link>
+
+          <div className="flex items-center gap-3">
+            {!isHomeRoute && !isPropertiesRoute && !isLoginRoute ? (
+              <Link href="/properties" className="rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20">
+                Search properties
               </Link>
-
-              <div className="landing-nav-actions">
-                <Link href="/properties" className="landing-nav-link">Explore homes</Link>
-                {!isAuthenticated ? (
-                  <Link href="/login" className="landing-nav-login">
-                    Access portal <span aria-hidden="true">↗</span>
-                  </Link>
-                ) : (
-                  <>
-                    {initialUser ? (
-                      <div className="whitespace-nowrap text-xs font-medium text-slate-200/80">
-                        {initialUser.displayName} <span className="text-slate-300/60">·</span> {getDesignationLabel(initialUser.displayRole)}
-                      </div>
-                    ) : null}
-                    <Link href="/dashboard" className="landing-nav-login">
-                      Dashboard <span aria-hidden="true">↗</span>
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      disabled={isSigningOut}
-                      className="brand-nav-button brand-nav-button-solid px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isSigningOut ? "Signing out..." : "Logout"}
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </header>
-      ) : (
-        <header className="brand-shell-surface border-b border-white/10 shadow-sm">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
-            <Link href="/" className="min-w-0">
-              <span className="brand-lockup">
-                <Image src="/logo/Designer.png" alt="" width={58} height={58} className="brand-lockup-logo" />
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-200">
-                  RentSimple
-                </p>
-              </span>
-              <h1 className="text-lg font-semibold text-white">
-                Property management, refined.
-              </h1>
-            </Link>
-
-            <div className="flex items-center gap-3">
-              {!isPropertiesRoute && !isLoginRoute ? (
-                <Link href="/properties" className="rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20">
-                  Search properties
+            ) : null}
+            {!isAuthenticated && !isHomeRoute ? (
+              <Link href="/login" className="brand-nav-button brand-nav-button-solid px-4 py-2 text-sm font-semibold">
+                Login
+              </Link>
+            ) : null}
+            {isAuthenticated ? (
+              <>
+                {initialUser ? (
+                  <div className="whitespace-nowrap text-xs font-medium text-slate-200/80">
+                    {initialUser.displayName} <span className="text-slate-300/60">·</span> {getDesignationLabel(initialUser.displayRole)}
+                  </div>
+                ) : null}
+                <Link href="/dashboard" className="rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20">
+                  Dashboard
                 </Link>
-              ) : null}
-              {!isAuthenticated ? (
-                <Link href="/login" className="brand-nav-button brand-nav-button-solid px-4 py-2 text-sm font-semibold">
-                  Login
-                </Link>
-              ) : (
-                <>
-                  {initialUser ? (
-                    <div className="whitespace-nowrap text-xs font-medium text-slate-200/80">
-                      {initialUser.displayName} <span className="text-slate-300/60">·</span> {getDesignationLabel(initialUser.displayRole)}
-                    </div>
-                  ) : null}
-                  <Link href="/dashboard" className="rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20">
-                    Dashboard
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    disabled={isSigningOut}
-                    className="brand-nav-button brand-nav-button-solid px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isSigningOut ? "Signing out..." : "Logout"}
-                  </button>
-                </>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={isSigningOut}
+                  className="brand-nav-button brand-nav-button-solid px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSigningOut ? "Signing out..." : "Logout"}
+                </button>
+              </>
+            ) : null}
           </div>
-        </header>
-      )}
+        </div>
+      </header>
 
       <main className="flex-1">{children}</main>
 
@@ -172,9 +133,11 @@ export default function AppChrome({
             <Link href="/" className="hover:text-white">
               Support
             </Link>
-            <Link href="/login" className="hover:text-white">
-              Access portal
-            </Link>
+            {!isHomeRoute ? (
+              <Link href="/login" className="hover:text-white">
+                Access portal
+              </Link>
+            ) : null}
             <Link href="/waiting" className="hover:text-white">
               Approval status
             </Link>
