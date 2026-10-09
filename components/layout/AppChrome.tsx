@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
@@ -67,12 +68,16 @@ export default function AppChrome({
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
           <Link href="/" className="min-w-0">
             <span className="brand-lockup">
-              <svg className="brand-lockup-logo" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                <path d="M6 0H26A6 6 0 0 1 32 6V26A6 6 0 0 1 26 32H24V12H16V32H6A6 6 0 0 1 0 26V6A6 6 0 0 1 6 0ZM6 12H11V17H6Z" fill="currentColor" fillRule="evenodd" />
-                <rect x={16} y={12} width={8} height={20} fill="currentColor" />
-                <rect x={6} y={12} width={5} height={5} fill="currentColor" />
-              </svg>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-200">
+              <span className="brand-lockup-mark">
+                <Image
+                  src="/logo/Designer.png"
+                  alt=""
+                  width={72}
+                  height={72}
+                  className="brand-lockup-logo"
+                />
+              </span>
+              <p className="text-xs font-semibold tracking-[0.3em] text-sky-200">
                 RentSimple
               </p>
             </span>
