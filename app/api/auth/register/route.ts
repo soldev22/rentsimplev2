@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getClientIpAddress, registerRateLimitAttempt } from "@/lib/server/auth-security"
 import { assessRegistration, getDeviceFingerprint, hashRegistrationIdentifier } from "@/lib/server/registration-authenticity"
-import { countRecentRegistrationAttempts, recordRegistrationAttempt } from "@/lib/server/registration-attempts"
+import { countOtherDeviceAccounts, countRecentRegistrationAttempts, recordRegistrationAttempt } from "@/lib/server/registration-attempts"
 import { createUser, sendVerificationForUser } from "@/lib/server/users"
 
 async function atRegistrationStage<T>(stage: string, operation: () => Promise<T>): Promise<T> {
@@ -47,7 +47,7 @@ async function handleRegistration(request: Request) {
     screen: request.headers.get("x-screen") ?? "",
   })
   const ipHash = hashRegistrationIdentifier(ipAddress)
-  const [ipRateLimit, subnetRateLimit, emailRateLimit, deviceRateLimit, recentAttempts] = await Promise.all([
+  const [ipRateLimit, subnetRateLimit, emailRateLimit, deviceRateLimit, recentAttempts, deviceAccountCount] = await Promise.all([
     atRegistrationStage("ip_rate_limit", () => registerRateLimitAttempt({
       action: "register",
       scope: "ip",
@@ -72,7 +72,7 @@ async function handleRegistration(request: Request) {
     atRegistrationStage("device_rate_limit", () => registerRateLimitAttempt({
       action: "register",
       scope: "device",
-      identifier: [userAgent, request.headers.get("accept-language") ?? "", request.headers.get("x-timezone") ?? ""].join("|"),
+      identifier: hashRegistrationIdentifier([userAgent, request.headers.get("accept-language") ?? "", request.headers.get("x-timezone") ?? ""].join("|")),
       maxAttempts: 5,
       windowMs: 1000 * 60 * 60,
     })),
@@ -80,6 +80,11 @@ async function handleRegistration(request: Request) {
       ipHash,
       deviceFingerprint,
       since: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    })),
+    atRegistrationStage("device_account_lookup", () => countOtherDeviceAccounts({
+      deviceFingerprint,
+      emailHash: hashRegistrationIdentifier(emailAddress),
+      since: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
     })),
   ])
 
@@ -100,7 +105,7 @@ async function handleRegistration(request: Request) {
     screen: request.headers.get("x-screen") ?? "",
     honeypot: body.website,
     recentAttempts,
-    deviceAccountCount: recentAttempts,
+    deviceAccountCount,
   })
   const attempt = await atRegistrationStage("registration_attempt_save", () => recordRegistrationAttempt({
     emailHash: assessment.emailHash,
@@ -137,13 +142,20 @@ async function handleRegistration(request: Request) {
 
   const appOrigin = new URL(request.url).origin
   const verification = await atRegistrationStage("verification_setup", () => sendVerificationForUser(user.email, appOrigin))
+  const verificationDelivery = verification.delivery?.status ?? "failed"
+  const message = verificationDelivery === "sent"
+    ? "Your account was created. Check your inbox and spam folder for the verification email."
+    : verificationDelivery === "skipped"
+      ? "Your account was created, but verification email delivery is not configured. Please contact support."
+      : "Your account was created, but the verification email could not be sent. Please try resending it later."
 
   return NextResponse.json(
     {
       user,
       requiresVerification: true,
+      message,
       developmentVerificationUrl: process.env.NODE_ENV === "production" ? undefined : verification.verificationUrl,
-      verificationDelivery: verification.delivery?.status ?? null,
+      verificationDelivery,
     },
     { status: 201 },
   )

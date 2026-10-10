@@ -53,6 +53,7 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
             { name: "Settings", href: "/dashboard/settings" },
           ]
       : [
+          ...(displayRole === "admin" ? [{ name: "Platform", href: "/dashboard/platform" }] : []),
           { name: "Properties", href: "/dashboard/properties" },
           { name: "Cases", href: "/dashboard/cases" },
           ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
@@ -258,6 +259,9 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
               ) : null}
               {displayRole === "admin" ? (
                 <>
+                  <Link href="/dashboard/platform" className="hover:text-white">
+                    Platform
+                  </Link>
                   <Link href="/dashboard/users" className="hover:text-white">
                     Users
                   </Link>

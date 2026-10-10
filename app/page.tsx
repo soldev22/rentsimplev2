@@ -61,7 +61,7 @@ export default function HomePage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/login?mode=register" className="brand-button rounded-xl px-5 py-3 text-sm font-semibold">
-                Register as a landlord
+                Create account
               </Link>
               <Link href="/login" className="brand-outline-button rounded-xl px-5 py-3 text-sm font-semibold">
                 Sign in
@@ -224,7 +224,7 @@ export default function HomePage() {
           <p className="mt-4 text-slate-600">Bring your properties, your tenants, and your builders into one place.</p>
           <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link href="/login?mode=register" className="brand-button rounded-xl px-5 py-3 text-sm font-semibold">
-              Register as a landlord
+              Create account
             </Link>
             <Link href="/login" className="brand-outline-button rounded-xl px-5 py-3 text-sm font-semibold">
               Sign in

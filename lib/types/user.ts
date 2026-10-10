@@ -84,6 +84,7 @@ export type ApplicantScreeningScoreConfig = {
 export type AuthUser = {
   id: string
   email: string
+  pendingEmail?: string
   first_name: string
   last_name: string
   mobile: string

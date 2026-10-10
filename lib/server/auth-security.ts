@@ -5,8 +5,8 @@ import type { ItemDefinition } from "@azure/cosmos"
 
 import { getAuthSecurityContainer } from "@/lib/server/cosmos"
 
-type AuthChallengeKind = "verification" | "password_reset" | "guarantor_reference" | "site_visit_confirmation"
-type AuthRateLimitAction = "login" | "register" | "forgot_password" | "verify_request"
+type AuthChallengeKind = "verification" | "password_reset" | "guarantor_reference" | "site_visit_confirmation" | "email_change"
+type AuthRateLimitAction = "login" | "register" | "forgot_password" | "verify_request" | "change_email"
 type AuthRateLimitScope = "ip" | "email" | "device"
 
 type AuthChallengeRecord = {
@@ -17,6 +17,7 @@ type AuthChallengeRecord = {
   applicationId?: string
   refereeId?: string
   requestId?: string
+  userId?: string
   expiresAt: string
   createdAt: string
   consumedAt?: string
@@ -81,6 +82,7 @@ export async function createAuthChallenge(
     applicationId?: string
     refereeId?: string
     requestId?: string
+    userId?: string
   },
 ) {
   const token = randomBytes(32).toString("hex")
@@ -94,6 +96,7 @@ export async function createAuthChallenge(
     applicationId: metadata?.applicationId,
     refereeId: metadata?.refereeId,
     requestId: metadata?.requestId,
+    userId: metadata?.userId,
     createdAt: now,
     expiresAt: new Date(Date.now() + expiresInMs).toISOString(),
   }
@@ -115,6 +118,7 @@ export async function consumeAuthChallenge(kind: AuthChallengeKind, token: strin
       applicationId: null,
       refereeId: null,
       requestId: null,
+      userId: null,
       error: "InvalidOrExpiredToken" as const,
     }
   }
@@ -125,6 +129,7 @@ export async function consumeAuthChallenge(kind: AuthChallengeKind, token: strin
       applicationId: null,
       refereeId: null,
       requestId: null,
+      userId: null,
       error: "InvalidOrExpiredToken" as const,
     }
   }
@@ -137,6 +142,7 @@ export async function consumeAuthChallenge(kind: AuthChallengeKind, token: strin
     applicationId: record.applicationId ?? null,
     refereeId: record.refereeId ?? null,
     requestId: record.requestId ?? null,
+    userId: record.userId ?? null,
     error: null,
   }
 }

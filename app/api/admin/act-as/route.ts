@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getDefaultDashboardPath, getUserRole, isPendingApproval } from "@/lib/auth"
 import { createSession, getSessionUser } from "@/lib/server/session"
-import { getUserByEmail } from "@/lib/server/users"
+import { getUserByEmail, getUserById } from "@/lib/server/users"
 
 export async function POST(request: Request) {
   const adminUser = await getSessionUser()
@@ -17,16 +17,18 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as {
+      userId?: string
       email?: string
     }
 
+    const targetUserId = body.userId?.trim()
     const targetEmail = body.email?.trim().toLowerCase()
 
-    if (!targetEmail) {
-      return NextResponse.json({ error: "Target email is required." }, { status: 400 })
+    if (!targetUserId && !targetEmail) {
+      return NextResponse.json({ error: "Target user is required." }, { status: 400 })
     }
 
-    const targetUser = await getUserByEmail(targetEmail)
+    const targetUser = targetUserId ? await getUserById(targetUserId) : await getUserByEmail(targetEmail!)
 
     if (!targetUser) {
       return NextResponse.json({ error: "Target user not found." }, { status: 404 })
@@ -39,7 +41,7 @@ export async function POST(request: Request) {
       )
     }
 
-    await createSession(targetUser.email)
+    await createSession(targetUser.id)
 
     return NextResponse.json({
       ok: true,

@@ -149,7 +149,7 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
                   </div>
                 ) : (
                   <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
-                    Register as an applicant to apply for this flat and use Quick Apply.
+                    Create an account to apply for this flat and use Quick Apply.
                   </div>
                 )}
                 {canQuickApply && sessionUser?.applicantProfile ? (

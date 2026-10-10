@@ -116,6 +116,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
   const [savingEmail, setSavingEmail] = useState<string | null>(null)
   const [isResettingWorkspace, setIsResettingWorkspace] = useState(false)
   const [switchingEmail, setSwitchingEmail] = useState<string | null>(null)
+  const [emailDrafts, setEmailDrafts] = useState<Record<string, string>>({})
   const [isPending, startTransition] = useTransition()
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
@@ -153,6 +154,8 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
   function persistUserUpdate(user: AuthUser, successMessage: string) {
     setFeedback(null)
     setSavingEmail(user.email)
+    const draftEmail = emailDrafts[user.id]?.trim()
+    const nextEmail = draftEmail && draftEmail.toLowerCase() !== user.email.toLowerCase() ? draftEmail : undefined
 
     startTransition(async () => {
       try {
@@ -162,7 +165,8 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            email: user.email,
+            userId: user.id,
+            ...(nextEmail ? { newEmail: nextEmail } : {}),
             first_name: user.first_name,
             last_name: user.last_name,
             mobile: user.mobile,
@@ -188,7 +192,12 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
           throw new Error(payload.error || "Unable to update user.")
         }
 
-        setUsers((current) => sortUsers(current.map((candidate) => (candidate.email === payload.user?.email ? payload.user : candidate))))
+        setUsers((current) => sortUsers(current.map((candidate) => (candidate.id === payload.user?.id ? payload.user : candidate))))
+        setEmailDrafts((current) => {
+          const next = { ...current }
+          delete next[user.id]
+          return next
+        })
         setFeedback({
           type: "success",
           message: successMessage,
@@ -286,7 +295,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ email: user.email }),
+          body: JSON.stringify({ userId: user.id }),
         })
 
         const payload = (await response.json()) as {
@@ -331,7 +340,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ email: user.email }),
+          body: JSON.stringify({ userId: user.id }),
         })
 
         const payload = (await response.json()) as {
@@ -372,7 +381,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
         const response = await fetch("/api/admin/users", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: user.email, accountErasure: true }),
+          body: JSON.stringify({ userId: user.id, accountErasure: true }),
         })
         const payload = (await response.json()) as { deleted?: boolean; error?: string }
         if (!response.ok || !payload.deleted) throw new Error(payload.error || "Unable to erase applicant account.")
@@ -637,7 +646,23 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                     <div className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-500">{user.id}</div>
                   </td>
                   <td className="px-4 py-4 text-sm text-slate-600">
-                    <div>{user.email}</div>
+                    <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Email
+                      <input
+                        aria-label={`Email address for ${user.email}`}
+                        type="email"
+                        className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-sky-500"
+                        value={emailDrafts[user.id] ?? user.email}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          setEmailDrafts((current) => ({ ...current, [user.id]: value }))
+                        }}
+                        disabled={isCurrentAdmin && !canEditProfile}
+                      />
+                    </label>
+                    {user.pendingEmail ? (
+                      <div className="mt-1 text-xs text-amber-700">Pending change to {user.pendingEmail}</div>
+                    ) : null}
                     <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Mobile
                       <input

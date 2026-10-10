@@ -54,6 +54,17 @@ async function sendAuthEmail(to: string, subject: string, text: string): Promise
       detail: `Delivered using the platform SMTP sender ${config.from}.`,
     }
   } catch (error) {
+    const metadata: { code?: string; errorName: string; responseCode?: number } = {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    }
+    if (typeof error === "object" && error !== null) {
+      const code = Reflect.get(error, "code")
+      const responseCode = Reflect.get(error, "responseCode")
+      if (typeof code === "string") metadata.code = code
+      if (typeof responseCode === "number") metadata.responseCode = responseCode
+    }
+    console.error("Authentication email delivery failed.", metadata)
+
     return {
       status: "failed",
       detail: error instanceof Error ? error.message : "Unable to send email.",
@@ -72,6 +83,21 @@ export async function sendVerificationEmail(to: string, verificationUrl: string)
       verificationUrl,
       "",
       "If you did not create this account, you can ignore this email.",
+    ].join("\n"),
+  )
+}
+
+export async function sendEmailChangeVerificationEmail(to: string, confirmUrl: string) {
+  return sendAuthEmail(
+    to,
+    "Confirm your new RentSimple email address",
+    [
+      "We received a request to change the email address on your RentSimple account to this address.",
+      "",
+      "Use the link below to confirm the change:",
+      confirmUrl,
+      "",
+      "If you did not request this change, you can ignore this email and your account will not be changed.",
     ].join("\n"),
   )
 }

@@ -7,7 +7,7 @@ import { useEffect, useState } from "react"
 
 import { getDefaultDashboardPath, type AuthUser } from "@/lib/auth"
 
-type AuthMode = "login" | "register" | "forgot" | "reset" | "verify" | "verify-request"
+type AuthMode = "login" | "register" | "forgot" | "reset" | "verify" | "verify-request" | "confirm-email-change"
 
 type FormState = {
   firstName: string
@@ -48,7 +48,8 @@ export default function LoginPage() {
     rawMode === "forgot" ||
     rawMode === "reset" ||
     rawMode === "verify" ||
-    rawMode === "verify-request"
+    rawMode === "verify-request" ||
+    rawMode === "confirm-email-change"
       ? rawMode
       : "login"
   const token = searchParams.get("token") ?? ""
@@ -61,7 +62,8 @@ export default function LoginPage() {
   const isRegistrationMode = mode === "register"
   const isForgotPasswordMode = mode === "forgot"
   const isResetPasswordMode = mode === "reset"
-  const isVerifyMode = mode === "verify"
+  const isEmailChangeMode = mode === "confirm-email-change"
+  const isVerifyMode = mode === "verify" || isEmailChangeMode
   const isVerifyRequestMode = mode === "verify-request"
   const [formState, setFormState] = useState<FormState>({
     firstName: "",
@@ -92,6 +94,10 @@ export default function LoginPage() {
 
 
   useEffect(() => {
+    if (isEmailChangeMode) {
+      return
+    }
+
     let isActive = true
 
     async function checkSession() {
@@ -122,7 +128,7 @@ export default function LoginPage() {
     return () => {
       isActive = false
     }
-  }, [redirectToParam, router])
+  }, [isEmailChangeMode, redirectToParam, router])
 
   useEffect(() => {
     if (!isVerifyMode || !token) {
@@ -137,7 +143,7 @@ export default function LoginPage() {
       setSuccessMessage(null)
 
       try {
-        const response = await fetch("/api/auth/verify-email", {
+        const response = await fetch(isEmailChangeMode ? "/api/auth/confirm-email-change" : "/api/auth/verify-email", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -173,7 +179,7 @@ export default function LoginPage() {
     return () => {
       isActive = false
     }
-  }, [isVerifyMode, token])
+  }, [isEmailChangeMode, isVerifyMode, token])
 
   function handleInputChange(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = event.target
@@ -317,7 +323,9 @@ export default function LoginPage() {
                 ? "Reset password"
                 : isResetPasswordMode
                   ? "Set new password"
-                  : isVerifyMode
+                  : isEmailChangeMode
+                    ? "Confirm new email"
+                    : isVerifyMode
                     ? "Verify email"
                     : isVerifyRequestMode
                       ? "Resend verification"

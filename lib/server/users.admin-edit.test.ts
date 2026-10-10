@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
+const EXISTING_USER_ID = "3f2b8c1e-4d5a-4e6f-8a7b-9c0d1e2f3a4b"
 const mockUsers: Record<string, unknown> = {}
 
 const { canAdminEditUser } = await import("@/components/forms/AdminUserManager")
-const mockUpsert = vi.fn(async (user: { email: string }) => {
-  mockUsers[user.email] = user
+const mockUpsert = vi.fn(async (user: { id: string }) => {
+  mockUsers[user.id] = user
   return user
 })
 
@@ -26,8 +27,8 @@ describe("updateUserForAdmin", () => {
     mockUpsert.mockClear()
     Object.keys(mockUsers).forEach((key) => delete mockUsers[key])
 
-    mockUsers["existing.user@example.com"] = {
-      id: "existing.user@example.com",
+    mockUsers[EXISTING_USER_ID] = {
+      id: EXISTING_USER_ID,
       email: "existing.user@example.com",
       first_name: "Existing",
       last_name: "User",
@@ -44,7 +45,7 @@ describe("updateUserForAdmin", () => {
     type UpdateUserForAdminArgs = Parameters<typeof updateUserForAdmin>
 
     const adminUser = {
-      id: "admin@example.com",
+      id: "00000000-0000-4000-8000-000000000001",
       email: "admin@example.com",
       first_name: "Admin",
       last_name: "User",
@@ -55,7 +56,7 @@ describe("updateUserForAdmin", () => {
       updatedAt: new Date().toISOString(),
     }
 
-    const updated = await updateUserForAdmin(adminUser as UpdateUserForAdminArgs[0], "existing.user@example.com", {
+    const updated = await updateUserForAdmin(adminUser as UpdateUserForAdminArgs[0], EXISTING_USER_ID, {
       first_name: "Updated",
       last_name: "Profile",
       mobile: "07777777777",

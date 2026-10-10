@@ -52,6 +52,20 @@ export async function countRecentRegistrationAttempts(input: { ipHash: string; d
   return resources[0] ?? 0
 }
 
+export async function countOtherDeviceAccounts(input: { deviceFingerprint: string; emailHash: string; since: string }) {
+  const { resources } = await (await getRegistrationAttemptsContainer()).items
+    .query<{ emailHash: string }>({
+      query: "SELECT c.emailHash FROM c WHERE c.type = @type AND c.createdAt >= @since AND c.deviceFingerprint = @deviceFingerprint",
+      parameters: [
+        { name: "@type", value: "registration_attempt" },
+        { name: "@since", value: input.since },
+        { name: "@deviceFingerprint", value: input.deviceFingerprint },
+      ],
+    })
+    .fetchAll()
+  return new Set(resources.map((item) => item.emailHash).filter((hash) => hash && hash !== input.emailHash)).size
+}
+
 export async function listRegistrationReviews() {
   const { resources } = await (await getRegistrationAttemptsContainer()).items
     .query<RegistrationAttempt>({

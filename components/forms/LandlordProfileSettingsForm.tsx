@@ -370,6 +370,9 @@ export default function LandlordProfileSettingsForm({
             value={initialProfile.email}
             disabled
           />
+          <span className="mt-2 block text-xs text-slate-500">
+            Use &quot;Change email&quot; above to update your sign-in email.
+          </span>
         </label>
 
         <label className="block text-sm font-medium text-slate-700 lg:col-span-2">

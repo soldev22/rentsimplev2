@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     )
   }
 
-  await createSession(user.email)
+  await createSession(user.id)
 
   return NextResponse.json({ user })
 }

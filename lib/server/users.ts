@@ -1,5 +1,7 @@
 import "server-only"
 
+import { randomUUID } from "node:crypto"
+
 import type { ItemResponse } from "@azure/cosmos"
 
 import {
@@ -14,7 +16,7 @@ import {
   getUserRole,
   normalizeEmail,
 } from "@/lib/auth"
-import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/server/auth-email"
+import { sendEmailChangeVerificationEmail, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/server/auth-email"
 import { consumeAuthChallenge, createAuthChallenge } from "@/lib/server/auth-security"
 import {
   getApplicationCommunicationsContainer,
@@ -98,12 +100,43 @@ function getFullName(user: Pick<AuthUser, "first_name" | "last_name" | "email">)
   return fullName || user.email
 }
 
+export function generateUserId() {
+  return randomUUID()
+}
+
 async function readStoredUser(email: string) {
   const normalizedEmail = normalizeEmail(email)
+
+  if (!normalizedEmail) {
+    return null
+  }
+
+  const container = await getUsersContainer()
+  const { resources } = await container.items
+    .query<StoredUser>({
+      query: "SELECT * FROM c WHERE c.email = @email",
+      parameters: [{ name: "@email", value: normalizedEmail }],
+    })
+    .fetchAll()
+
+  if (resources.length > 1) {
+    console.error("[users] Multiple user records share the same email address", { count: resources.length })
+  }
+
+  return resources[0] ?? null
+}
+
+async function readStoredUserById(id: string) {
+  const normalizedId = typeof id === "string" ? id.trim().toLowerCase() : ""
+
+  if (!normalizedId) {
+    return null
+  }
+
   const container = await getUsersContainer()
 
   try {
-    const response: ItemResponse<StoredUser> = await container.item(normalizedEmail, normalizedEmail).read<StoredUser>()
+    const response: ItemResponse<StoredUser> = await container.item(normalizedId, normalizedId).read<StoredUser>()
     return response.resource ?? null
   } catch (error) {
     if (isNotFoundError(error)) {
@@ -310,7 +343,7 @@ export async function createUser(input: {
 
   const timestamp = new Date().toISOString()
   const storedUser: StoredUser = {
-    id: normalizedEmail,
+    id: generateUserId(),
     email: normalizedEmail,
     first_name: input.firstName.trim(),
     last_name: input.lastName.trim(),
@@ -468,22 +501,101 @@ export async function getUserByEmail(email: string) {
   return storedUser ? sanitizeUser(storedUser) : null
 }
 
-export async function getUserById(id: string) {
-  const normalizedId = typeof id === "string" ? id.trim().toLowerCase() : ""
+export type EmailChangeErrorCode = "InvalidEmail" | "SameEmail" | "EmailAlreadyInUse" | "InvalidPassword" | "PasswordNotSet"
 
-  if (!normalizedId) {
-    return null
+function isValidEmailAddress(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+export async function requestEmailChange(
+  user: Pick<AuthUser, "id">,
+  input: { newEmail: string; currentPassword: string },
+  appOrigin: string,
+) {
+  const storedUser = await readStoredUserById(user.id)
+
+  if (!storedUser) {
+    throw new Error("UserNotFound")
   }
 
-  const container = await getUsersContainer()
-  const { resources } = await container.items
-    .query<StoredUser>({
-      query: "SELECT * FROM c WHERE c.id = @id",
-      parameters: [{ name: "@id", value: normalizedId }],
-    })
-    .fetchAll()
+  const newEmail = normalizeEmail(input.newEmail)
 
-  return resources[0] ? sanitizeUser(resources[0]) : null
+  if (!newEmail || !isValidEmailAddress(newEmail)) {
+    return { error: "InvalidEmail" as EmailChangeErrorCode, confirmationUrl: null, delivery: null }
+  }
+
+  if (newEmail === normalizeEmail(storedUser.email)) {
+    return { error: "SameEmail" as EmailChangeErrorCode, confirmationUrl: null, delivery: null }
+  }
+
+  if (!storedUser.passwordHash) {
+    return { error: "PasswordNotSet" as EmailChangeErrorCode, confirmationUrl: null, delivery: null }
+  }
+
+  if (!verifyPassword(input.currentPassword, storedUser.passwordHash)) {
+    return { error: "InvalidPassword" as EmailChangeErrorCode, confirmationUrl: null, delivery: null }
+  }
+
+  const existingUser = await readStoredUser(newEmail)
+
+  if (existingUser && existingUser.id !== storedUser.id) {
+    return { error: "EmailAlreadyInUse" as EmailChangeErrorCode, confirmationUrl: null, delivery: null }
+  }
+
+  storedUser.pendingEmail = newEmail
+  storedUser.updatedAt = new Date().toISOString()
+  await writeStoredUser(storedUser)
+
+  const challenge = await createAuthChallenge(newEmail, "email_change", VERIFICATION_TOKEN_DURATION_MS, {
+    userId: storedUser.id,
+  })
+  const confirmationUrl = `${appOrigin}/login?mode=confirm-email-change&token=${challenge.token}`
+  const delivery = await sendEmailChangeVerificationEmail(newEmail, confirmationUrl)
+
+  return { error: null, confirmationUrl, delivery }
+}
+
+export async function confirmEmailChange(token: string) {
+  const consumed = await consumeAuthChallenge("email_change", token)
+
+  if (consumed.error || !consumed.email || !consumed.userId) {
+    return { user: null, error: "InvalidOrExpiredToken" as const }
+  }
+
+  const storedUser = await readStoredUserById(consumed.userId)
+  const newEmail = normalizeEmail(consumed.email)
+
+  if (!storedUser || normalizeEmail(storedUser.pendingEmail ?? "") !== newEmail) {
+    return { user: null, error: "InvalidOrExpiredToken" as const }
+  }
+
+  const existingUser = await readStoredUser(newEmail)
+
+  if (existingUser && existingUser.id !== storedUser.id) {
+    return { user: null, error: "EmailAlreadyInUse" as const }
+  }
+
+  const previousEmail = normalizeEmail(storedUser.email)
+  const now = new Date().toISOString()
+
+  storedUser.email = newEmail
+  storedUser.pendingEmail = undefined
+  storedUser.emailVerifiedAt = now
+  storedUser.sessionTokenHash = undefined
+  storedUser.sessionExpiresAt = undefined
+  storedUser.updatedAt = now
+  await writeStoredUser(storedUser)
+
+  if (previousEmail) {
+    await deleteAuthSecurityRecordsForEmail(previousEmail)
+  }
+
+  return { user: sanitizeUser(storedUser), error: null }
+}
+
+export async function getUserById(id: string) {
+  const storedUser = await readStoredUserById(id)
+  return storedUser ? sanitizeUser(storedUser) : null
 }
 
 export async function listApprovedGlobalAdmins() {
@@ -550,8 +662,9 @@ export async function listUsersForAdminByContinuation(
 
 export async function updateUserForAdmin(
   adminUser: AuthUser,
-  email: string,
+  userId: string,
   input: {
+    email?: string
     first_name?: string
     last_name?: string
     mobile?: string
@@ -563,27 +676,53 @@ export async function updateUserForAdmin(
 ) {
   assertAdmin(adminUser)
 
-  const normalizedEmail = normalizeEmail(email)
-
-  if (normalizedEmail === adminUser.email && input.role && input.role !== "admin") {
-    throw new Error("CannotChangeOwnAdminRole")
-  }
-
-  const storedUser = await readStoredUser(normalizedEmail)
+  const storedUser = await readStoredUserById(userId)
 
   if (!storedUser) {
     return null
   }
 
+  const isSelf = storedUser.id === adminUser.id
+
+  if (isSelf && input.role && input.role !== "admin") {
+    throw new Error("CannotChangeOwnAdminRole")
+  }
+
+  const previousEmail = normalizeEmail(storedUser.email)
+  let nextEmail = previousEmail
+
+  if (typeof input.email === "string") {
+    const requestedEmail = normalizeEmail(input.email)
+
+    if (!requestedEmail || !isValidEmailAddress(requestedEmail)) {
+      throw new Error("InvalidEmail")
+    }
+
+    if (requestedEmail !== previousEmail) {
+      const existingUser = await readStoredUser(requestedEmail)
+
+      if (existingUser && existingUser.id !== storedUser.id) {
+        throw new Error("EmailAlreadyInUse")
+      }
+
+      nextEmail = requestedEmail
+    }
+  }
+
+  const emailChanged = nextEmail !== previousEmail
   const managedInput = normalizeManagedUserInput(input)
   const nextLandlordAccountId = managedInput.role === "landlord" ? getLandlordAccountId(storedUser) : undefined
   const updatedUser: StoredUser = {
     ...storedUser,
+    email: nextEmail,
+    ...(emailChanged
+      ? { pendingEmail: undefined, sessionTokenHash: undefined, sessionExpiresAt: undefined }
+      : {}),
     first_name: typeof input.first_name === "string" ? input.first_name.trim() : storedUser.first_name,
     last_name: typeof input.last_name === "string" ? input.last_name.trim() : storedUser.last_name,
     mobile: typeof input.mobile === "string" ? input.mobile.trim() : storedUser.mobile,
     role: managedInput.role,
-    approval_status: normalizedEmail === adminUser.email ? "approved" : managedInput.approval_status,
+    approval_status: isSelf ? "approved" : managedInput.approval_status,
     landlordAccountId: nextLandlordAccountId,
     managedByAgentId: managedInput.role === "landlord" ? managedInput.managedByAgentId : undefined,
     notificationProfile: managedInput.notificationProfile,
@@ -592,32 +731,50 @@ export async function updateUserForAdmin(
 
   await writeStoredUser(updatedUser)
 
+  if (emailChanged && previousEmail) {
+    await deleteAuthSecurityRecordsForEmail(previousEmail)
+  }
+
   return sanitizeUser(updatedUser)
 }
 
-export async function deleteUserForAdmin(adminUser: AuthUser, email: string) {
+export async function deleteUserForAdmin(adminUser: AuthUser, userId: string) {
   assertAdmin(adminUser)
 
-  const normalizedEmail = normalizeEmail(email)
-
-  if (normalizedEmail === adminUser.email) {
-    throw new Error("CannotDeleteOwnAccount")
-  }
-
-  const storedUser = await readStoredUser(normalizedEmail)
+  const storedUser = await readStoredUserById(userId)
 
   if (!storedUser) {
     return null
   }
 
+  if (storedUser.id === adminUser.id) {
+    throw new Error("CannotDeleteOwnAccount")
+  }
+
+  const normalizedEmail = normalizeEmail(storedUser.email)
+
   if (storedUser.role === "applicant" && storedUser.approval_status === "approved") {
     throw new Error("ApplicantAccountErasureWorkflowRequired")
   }
 
+  await deleteAuthSecurityRecordsForEmail(normalizedEmail)
+
   const container = await getUsersContainer()
-  await container.item(normalizedEmail, normalizedEmail).delete()
+  await container.item(storedUser.id, storedUser.id).delete()
 
   return sanitizeUser(storedUser)
+}
+
+async function deleteAuthSecurityRecordsForEmail(normalizedEmail: string) {
+  const authSecurityContainer = await getAuthSecurityContainer()
+  const { resources } = await authSecurityContainer.items
+    .query<{ id: string }>({
+      query: "SELECT c.id FROM c WHERE c.email = @email OR (c.scope = 'email' AND c.identifier = @email)",
+      parameters: [{ name: "@email", value: normalizedEmail }],
+    })
+    .fetchAll()
+
+  await Promise.all(resources.map((record) => authSecurityContainer.item(record.id, record.id).delete()))
 }
 
 async function listAllUsers() {
@@ -702,7 +859,7 @@ export async function setUserRoleForWorkflow(email: string, role: UserRole, appr
 export async function updateApplicantProfile(user: AuthUser, input: Partial<ApplicantProfileDefaults>) {
   assertApplicant(user)
 
-  const storedUser = await readStoredUser(user.email)
+  const storedUser = await readStoredUserById(user.id)
 
   if (!storedUser) {
     return null
@@ -721,7 +878,7 @@ export async function updateApplicantProfile(user: AuthUser, input: Partial<Appl
 export async function requestApplicantAccountErasure(user: AuthUser) {
   assertApplicant(user)
 
-  const storedUser = await readStoredUser(user.email)
+  const storedUser = await readStoredUserById(user.id)
   if (!storedUser) {
     return null
   }
@@ -735,15 +892,16 @@ export async function requestApplicantAccountErasure(user: AuthUser) {
   return sanitizeUser(storedUser)
 }
 
-export async function eraseApplicantAccountForAdmin(adminUser: AuthUser, email: string) {
+export async function eraseApplicantAccountForAdmin(adminUser: AuthUser, userId: string) {
   assertAdmin(adminUser)
 
-  const normalizedEmail = normalizeEmail(email)
-  const storedUser = await readStoredUser(normalizedEmail)
+  const storedUser = await readStoredUserById(userId)
 
   if (!storedUser) {
     return null
   }
+
+  const normalizedEmail = normalizeEmail(storedUser.email)
 
   if (storedUser.role !== "applicant" || !storedUser.accountErasureRequestedAt) {
     throw new Error("AccountErasureNotRequested")
@@ -762,13 +920,12 @@ export async function eraseApplicantAccountForAdmin(adminUser: AuthUser, email: 
   }
 
   const applicationIds = applications.map((application) => application.id)
-  const [communicationsContainer, auditEventsContainer, authSecurityContainer, usersContainer] = await Promise.all([
+  const [communicationsContainer, auditEventsContainer, usersContainer] = await Promise.all([
     getApplicationCommunicationsContainer(),
     getAuditEventsContainer(),
-    getAuthSecurityContainer(),
     getUsersContainer(),
   ])
-  const [communicationRecords, auditRecords, authSecurityRecords] = await Promise.all([
+  const [communicationRecords, auditRecords] = await Promise.all([
     applicationIds.length > 0
       ? communicationsContainer.items.query<{ id: string; applicationId: string }>({
           query: "SELECT c.id, c.applicationId FROM c WHERE c.applicantId = @applicantId",
@@ -781,10 +938,6 @@ export async function eraseApplicantAccountForAdmin(adminUser: AuthUser, email: 
           parameters: [{ name: "@entityKeys", value: applicationIds.map((id) => `application:${id}`) }],
         }).fetchAll()
       : Promise.resolve({ resources: [] as Array<{ id: string; entityKey: string }> }),
-    authSecurityContainer.items.query<{ id: string }>({
-      query: "SELECT c.id FROM c WHERE c.email = @email",
-      parameters: [{ name: "@email", value: normalizedEmail }],
-    }).fetchAll(),
   ])
 
   await Promise.all([
@@ -794,7 +947,7 @@ export async function eraseApplicantAccountForAdmin(adminUser: AuthUser, email: 
     ]),
     ...communicationRecords.resources.map((record) => communicationsContainer.item(record.id, record.applicationId).delete()),
     ...auditRecords.resources.map((record) => auditEventsContainer.item(record.id, record.entityKey).delete()),
-    ...authSecurityRecords.resources.map((record) => authSecurityContainer.item(record.id, record.id).delete()),
+    deleteAuthSecurityRecordsForEmail(normalizedEmail),
     ...applications.map((application) => applicationsContainer.item(application.id, application.applicantId).delete()),
   ])
 
@@ -805,7 +958,7 @@ export async function eraseApplicantAccountForAdmin(adminUser: AuthUser, email: 
 export async function updateBuilderProfile(user: AuthUser, input: Partial<BuilderProfileDefaults>) {
   assertBuilder(user)
 
-  const storedUser = await readStoredUser(user.email)
+  const storedUser = await readStoredUserById(user.id)
 
   if (!storedUser) {
     return null
@@ -834,7 +987,7 @@ export async function updateLandlordProfile(
 ) {
   assertLandlord(user)
 
-  const storedUser = await readStoredUser(user.email)
+  const storedUser = await readStoredUserById(user.id)
 
   if (!storedUser) {
     return null
@@ -924,7 +1077,7 @@ export async function createLandlordTeamUser(
 
   const now = new Date().toISOString()
   const storedUser: StoredUser = {
-    id: normalizedEmail,
+    id: generateUserId(),
     email: normalizedEmail,
     first_name: input.firstName.trim(),
     last_name: input.lastName.trim(),
@@ -944,8 +1097,8 @@ export async function createLandlordTeamUser(
   return sanitizeUser(storedUser)
 }
 
-export async function setUserSession(email: string, sessionTokenHash: string, sessionExpiresAt: string) {
-  const storedUser = await readStoredUser(email)
+export async function setUserSession(userId: string, sessionTokenHash: string, sessionExpiresAt: string) {
+  const storedUser = await readStoredUserById(userId)
 
   if (!storedUser) {
     return null
@@ -960,8 +1113,8 @@ export async function setUserSession(email: string, sessionTokenHash: string, se
   return sanitizeUser(storedUser)
 }
 
-export async function clearUserSession(email: string) {
-  const storedUser = await readStoredUser(email)
+export async function clearUserSession(userId: string) {
+  const storedUser = await readStoredUserById(userId)
 
   if (!storedUser) {
     return
@@ -974,8 +1127,8 @@ export async function clearUserSession(email: string) {
   await writeStoredUser(storedUser)
 }
 
-export async function getUserBySession(email: string, sessionTokenHash: string) {
-  const storedUser = await readStoredUser(email)
+export async function getUserBySession(userId: string, sessionTokenHash: string) {
+  const storedUser = await readStoredUserById(userId)
 
   if (!storedUser?.sessionTokenHash || storedUser.sessionTokenHash !== sessionTokenHash) {
     return null

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 
 import ApplicantProfileSettingsForm from "@/components/forms/ApplicantProfileSettingsForm"
 import BuilderProfileSettingsForm from "@/components/forms/BuilderProfileSettingsForm"
+import ChangeEmailForm from "@/components/forms/ChangeEmailForm"
 import LandlordProfileSettingsForm from "@/components/forms/LandlordProfileSettingsForm"
 import { getUserRole, isPendingApproval } from "@/lib/auth"
 import { getSessionUser } from "@/lib/server/session"
@@ -42,6 +43,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Account settings</h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">Manage your profile details and preferred contact settings.</p>
         </div>
+        <ChangeEmailForm currentEmail={user.email} pendingEmail={user.pendingEmail} />
         <ApplicantProfileSettingsForm initialApplicantProfile={user.applicantProfile} />
       </section>
     )
@@ -55,6 +57,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Account settings</h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">Keep your builder profile and contact information current.</p>
         </div>
+        <ChangeEmailForm currentEmail={user.email} pendingEmail={user.pendingEmail} />
         <BuilderProfileSettingsForm initialBuilderProfile={user.builderProfile} />
       </section>
     )
@@ -96,6 +99,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             })}
           </div>
         </section>
+
+        {activeTab === "profile" ? <ChangeEmailForm currentEmail={user.email} pendingEmail={user.pendingEmail} /> : null}
 
         {activeTab === "profile" ? (
           <LandlordProfileSettingsForm
@@ -145,12 +150,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Settings</p>
-      <h1 className="mt-2 text-3xl font-bold text-slate-900">Account settings</h1>
-      <p className="mt-2 max-w-2xl text-sm text-slate-600">
-        Profile and workflow settings for this role are still being expanded. Applicant profile defaults are now available on the applicant settings screen.
-      </p>
-    </section>
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Settings</p>
+        <h1 className="mt-2 text-3xl font-bold text-slate-900">Account settings</h1>
+        <p className="mt-2 max-w-2xl text-sm text-slate-600">
+          Profile and workflow settings for this role are still being expanded. Applicant profile defaults are now available on the applicant settings screen.
+        </p>
+      </section>
+      <ChangeEmailForm currentEmail={user.email} pendingEmail={user.pendingEmail} />
+    </div>
   )
 }

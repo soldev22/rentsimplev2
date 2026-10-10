@@ -144,7 +144,7 @@ export function getDefaultDashboardPath(user: Pick<AuthUser, "role" | "approval_
 
   switch (getUserRole(user)) {
     case "admin":
-      return "/dashboard/properties"
+      return "/dashboard/platform"
     case "agent":
       return "/dashboard/agent"
     case "landlord":

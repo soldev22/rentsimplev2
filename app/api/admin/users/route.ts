@@ -1,7 +1,24 @@
 import { NextResponse } from "next/server"
 
 import { getSessionUser } from "@/lib/server/session"
-import { deleteUserForAdmin, eraseApplicantAccountForAdmin, listAgentsForAdmin, listUsersForAdmin, updateUserForAdmin } from "@/lib/server/users"
+import { deleteUserForAdmin, eraseApplicantAccountForAdmin, getUserByEmail, listAgentsForAdmin, listUsersForAdmin, updateUserForAdmin } from "@/lib/server/users"
+
+async function resolveTargetUserId(body: { userId?: string; email?: string }) {
+  const userId = body.userId?.trim()
+
+  if (userId) {
+    return userId
+  }
+
+  const email = body.email?.trim()
+
+  if (!email) {
+    return null
+  }
+
+  const user = await getUserByEmail(email)
+  return user?.id ?? null
+}
 
 export async function GET() {
   const user = await getSessionUser()
@@ -31,7 +48,9 @@ export async function PATCH(request: Request) {
 
   try {
     const body = (await request.json()) as {
+      userId?: string
       email?: string
+      newEmail?: string
       first_name?: string
       last_name?: string
       mobile?: string
@@ -44,11 +63,18 @@ export async function PATCH(request: Request) {
       } | null
     }
 
-    if (!body.email?.trim() || !body.role || !body.approval_status) {
-      return NextResponse.json({ error: "email, role, and approval_status are required." }, { status: 400 })
+    if ((!body.userId?.trim() && !body.email?.trim()) || !body.role || !body.approval_status) {
+      return NextResponse.json({ error: "userId, role, and approval_status are required." }, { status: 400 })
     }
 
-    const updatedUser = await updateUserForAdmin(user, body.email, {
+    const targetUserId = await resolveTargetUserId(body)
+
+    if (!targetUserId) {
+      return NextResponse.json({ error: "User not found." }, { status: 404 })
+    }
+
+    const updatedUser = await updateUserForAdmin(user, targetUserId, {
+      email: body.newEmail,
       first_name: body.first_name,
       last_name: body.last_name,
       mobile: body.mobile,
@@ -72,6 +98,14 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "You cannot remove your own admin access from this screen." }, { status: 400 })
     }
 
+    if (error instanceof Error && error.message === "InvalidEmail") {
+      return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 })
+    }
+
+    if (error instanceof Error && error.message === "EmailAlreadyInUse") {
+      return NextResponse.json({ error: "That email address is already used by another account." }, { status: 409 })
+    }
+
     return NextResponse.json({ error: "Unable to update user." }, { status: 500 })
   }
 }
@@ -84,15 +118,21 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    const body = (await request.json()) as { email?: string; accountErasure?: boolean }
+    const body = (await request.json()) as { userId?: string; email?: string; accountErasure?: boolean }
 
-    if (!body.email?.trim()) {
-      return NextResponse.json({ error: "email is required." }, { status: 400 })
+    if (!body.userId?.trim() && !body.email?.trim()) {
+      return NextResponse.json({ error: "userId is required." }, { status: 400 })
+    }
+
+    const targetUserId = await resolveTargetUserId(body)
+
+    if (!targetUserId) {
+      return NextResponse.json({ error: "User not found." }, { status: 404 })
     }
 
     const deletedUser = body.accountErasure
-      ? await eraseApplicantAccountForAdmin(user, body.email)
-      : await deleteUserForAdmin(user, body.email)
+      ? await eraseApplicantAccountForAdmin(user, targetUserId)
+      : await deleteUserForAdmin(user, targetUserId)
 
     if (!deletedUser) {
       return NextResponse.json({ error: "User not found." }, { status: 404 })
