@@ -19,6 +19,7 @@ type AdminUserManagerProps = {
 type FeedbackState = {
   type: "success" | "error"
   message: string
+  link?: { label: string; href: string }
 } | null
 
 type UserView = "all" | "pending" | "approved"
@@ -116,6 +117,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
   const [savingEmail, setSavingEmail] = useState<string | null>(null)
   const [isResettingWorkspace, setIsResettingWorkspace] = useState(false)
   const [switchingEmail, setSwitchingEmail] = useState<string | null>(null)
+  const [resendingWelcomeEmail, setResendingWelcomeEmail] = useState<string | null>(null)
   const [emailDrafts, setEmailDrafts] = useState<Record<string, string>>({})
   const [isPending, startTransition] = useTransition()
   const deferredSearchQuery = useDeferredValue(searchQuery)
@@ -186,6 +188,11 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
         const payload = (await response.json()) as {
           user?: AuthUser
           error?: string
+          welcomeEmail?: {
+            status: "sent" | "skipped" | "failed"
+            detail: string
+            developmentTermsUrl?: string
+          }
         }
 
         if (!response.ok || !payload.user) {
@@ -198,9 +205,19 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
           delete next[user.id]
           return next
         })
+        const welcomeEmail = payload.welcomeEmail
+        const welcomeMessage = welcomeEmail
+          ? welcomeEmail.status === "sent"
+            ? " Landlord welcome email sent."
+            : " The Landlord welcome email could not be sent."
+          : ""
+
         setFeedback({
           type: "success",
-          message: successMessage,
+          message: `${successMessage}${welcomeMessage}`,
+          ...(welcomeEmail?.developmentTermsUrl
+            ? { link: { label: "Development terms link", href: welcomeEmail.developmentTermsUrl } }
+            : {}),
         })
       } catch (error) {
         setFeedback({
@@ -270,6 +287,56 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
         })
       } finally {
         setIsResettingWorkspace(false)
+      }
+    })
+  }
+
+  function resendLandlordWelcome(user: AuthUser) {
+    setFeedback(null)
+    setResendingWelcomeEmail(user.email)
+
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/admin/users/welcome", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: user.id }),
+        })
+
+        const payload = (await response.json()) as {
+          error?: string
+          welcomeEmail?: {
+            status: "sent" | "skipped" | "failed"
+            detail: string
+            developmentTermsUrl?: string
+          }
+        }
+
+        if (!response.ok || !payload.welcomeEmail) {
+          throw new Error(payload.error || "Unable to resend the Landlord welcome email.")
+        }
+
+        const { welcomeEmail } = payload
+
+        setFeedback({
+          type: welcomeEmail.status === "sent" || welcomeEmail.developmentTermsUrl ? "success" : "error",
+          message:
+            welcomeEmail.status === "sent"
+              ? `Landlord welcome email resent to ${user.email}.`
+              : `The Landlord welcome email to ${user.email} could not be sent.`,
+          ...(welcomeEmail.developmentTermsUrl
+            ? { link: { label: "Development terms link", href: welcomeEmail.developmentTermsUrl } }
+            : {}),
+        })
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to resend the Landlord welcome email.",
+        })
+      } finally {
+        setResendingWelcomeEmail(null)
       }
     })
   }
@@ -552,6 +619,14 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
           }`}
         >
           {feedback.message}
+          {feedback.link ? (
+            <div className="mt-1">
+              {feedback.link.label}:{" "}
+              <a href={feedback.link.href} className="break-all underline">
+                {feedback.link.href}
+              </a>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -824,6 +899,17 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                       >
                         {isCurrentAdmin ? "Current admin" : isPending && switchingEmail === user.email ? "Switching..." : "Act as"}
                       </button>
+                      {user.role === "landlord" ? (
+                        <button
+                          type="button"
+                          onClick={() => resendLandlordWelcome(user)}
+                          disabled={isPending && resendingWelcomeEmail === user.email}
+                          title={user.termsAcceptedAt ? `Terms accepted ${new Date(user.termsAcceptedAt).toLocaleDateString()}` : "Terms not yet accepted"}
+                          className="rounded-md border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isPending && resendingWelcomeEmail === user.email ? "Sending..." : "Resend welcome email"}
+                        </button>
+                      ) : null}
                       {user.role === "applicant" ? (
                         <span className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">
                           {user.accountErasureRequestedAt ? "Erasure requested" : "Awaiting applicant request"}

@@ -16,7 +16,8 @@ import {
   getUserRole,
   normalizeEmail,
 } from "@/lib/auth"
-import { sendEmailChangeVerificationEmail, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/server/auth-email"
+import { LANDLORD_TERMS_VERSION } from "@/lib/landlord-terms"
+import { sendEmailChangeVerificationEmail, sendLandlordWelcomeEmail, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/server/auth-email"
 import { consumeAuthChallenge, createAuthChallenge } from "@/lib/server/auth-security"
 import {
   getApplicationCommunicationsContainer,
@@ -736,6 +737,56 @@ export async function updateUserForAdmin(
   }
 
   return sanitizeUser(updatedUser)
+}
+
+export async function acceptLandlordTerms(user: AuthUser) {
+  if (user.role !== "landlord") {
+    throw new Error("Forbidden")
+  }
+
+  const storedUser = await readStoredUserById(user.id)
+
+  if (!storedUser || storedUser.role !== "landlord") {
+    throw new Error("Forbidden")
+  }
+
+  const now = new Date().toISOString()
+  const updatedUser: StoredUser = {
+    ...storedUser,
+    termsAcceptedAt: now,
+    termsVersion: LANDLORD_TERMS_VERSION,
+    updatedAt: now,
+  }
+
+  await writeStoredUser(updatedUser)
+
+  return sanitizeUser(updatedUser)
+}
+
+export async function sendLandlordWelcomeForUser(user: Pick<AuthUser, "email" | "first_name">, appOrigin: string) {
+  const termsUrl = new URL("/landlord/terms", appOrigin).toString()
+  const delivery = await sendLandlordWelcomeEmail(user.email, user.first_name, termsUrl)
+
+  return {
+    ...delivery,
+    developmentTermsUrl: process.env.NODE_ENV === "production" ? undefined : termsUrl,
+  }
+}
+
+export async function resendLandlordWelcomeForAdmin(adminUser: AuthUser, userId: string, appOrigin: string) {
+  assertAdmin(adminUser)
+
+  const storedUser = await readStoredUserById(userId)
+
+  if (!storedUser) {
+    return null
+  }
+
+  if (storedUser.role !== "landlord") {
+    throw new Error("NotLandlord")
+  }
+
+  return sendLandlordWelcomeForUser(storedUser, appOrigin)
 }
 
 export async function deleteUserForAdmin(adminUser: AuthUser, userId: string) {

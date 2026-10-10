@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import DashboardShell from "@/components/layout/DashboardShell";
 import { getUserRole, isPendingApproval } from "@/lib/auth";
+import { needsLandlordTermsAcceptance } from "@/lib/landlord-terms";
 import { getSessionUser } from "@/lib/server/session";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +14,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (isPendingApproval(user)) {
     redirect("/waiting")
+  }
+
+  if (needsLandlordTermsAcceptance(user)) {
+    redirect("/landlord/terms")
   }
 
   return <DashboardShell initialUser={{ displayName: `${user.first_name} ${user.last_name}`.trim() || "User", displayRole: getUserRole(user) }}>{children}</DashboardShell>;

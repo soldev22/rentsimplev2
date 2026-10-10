@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getSessionUser } from "@/lib/server/session"
-import { deleteUserForAdmin, eraseApplicantAccountForAdmin, getUserByEmail, listAgentsForAdmin, listUsersForAdmin, updateUserForAdmin } from "@/lib/server/users"
+import { deleteUserForAdmin, eraseApplicantAccountForAdmin, getUserByEmail, getUserById, listAgentsForAdmin, listUsersForAdmin, sendLandlordWelcomeForUser, updateUserForAdmin } from "@/lib/server/users"
 
 async function resolveTargetUserId(body: { userId?: string; email?: string }) {
   const userId = body.userId?.trim()
@@ -73,6 +73,8 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "User not found." }, { status: 404 })
     }
 
+    const previousUser = await getUserById(targetUserId)
+
     const updatedUser = await updateUserForAdmin(user, targetUserId, {
       email: body.newEmail,
       first_name: body.first_name,
@@ -86,6 +88,11 @@ export async function PATCH(request: Request) {
 
     if (!updatedUser) {
       return NextResponse.json({ error: "User not found." }, { status: 404 })
+    }
+
+    if (previousUser?.role !== "landlord" && updatedUser.role === "landlord") {
+      const welcomeEmail = await sendLandlordWelcomeForUser(updatedUser, new URL(request.url).origin)
+      return NextResponse.json({ user: updatedUser, welcomeEmail })
     }
 
     return NextResponse.json({ user: updatedUser })

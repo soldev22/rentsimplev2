@@ -116,3 +116,26 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
     ].join("\n"),
   )
 }
+
+export async function sendLandlordWelcomeEmail(to: string, firstName: string, termsUrl: string) {
+  const greetingName = firstName.trim() || "there"
+
+  return sendAuthEmail(
+    to,
+    "Welcome to RentSimple - please review your Landlord terms",
+    [
+      `Hi ${greetingName},`,
+      "",
+      "Welcome to RentSimple! Your account has been set up as a Landlord, and we're delighted to have you on board.",
+      "",
+      "RentSimple helps you manage your properties, Applicants and Tenants in one place, from listing a property through to managing compliance and maintenance.",
+      "",
+      "Before you can use your Landlord dashboard, please read and accept our Landlord terms:",
+      termsUrl,
+      "",
+      "If you have any questions, just reply to this email and our team will be happy to help.",
+      "",
+      "The RentSimple team",
+    ].join("\n"),
+  )
+}

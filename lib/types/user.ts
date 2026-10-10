@@ -96,6 +96,8 @@ export type AuthUser = {
   screeningScoreConfig?: ApplicantScreeningScoreConfig
   managedByAgentId?: string
   accountErasureRequestedAt?: string
+  termsAcceptedAt?: string
+  termsVersion?: string
   role: UserRole
   approval_status: ApprovalStatus
   createdAt: string
