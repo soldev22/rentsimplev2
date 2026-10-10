@@ -48,7 +48,7 @@ export default function HomePage() {
   return (
     <div className="bg-slate-100 text-slate-900">
       <section className="bg-white">
-        <div className="relative mx-auto grid max-w-6xl gap-12 px-6 py-16 md:grid-cols-[1.2fr_1fr] md:items-center md:py-24">
+        <div className="relative mx-auto max-w-6xl px-6 py-16 md:py-24">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Maintenance support for landlords</p>
             <h1 className="mt-4 text-4xl font-bold leading-tight text-slate-900 sm:text-5xl">
@@ -66,29 +66,11 @@ export default function HomePage() {
               <Link href="/login" className="brand-outline-button rounded-xl px-5 py-3 text-sm font-semibold">
                 Sign in
               </Link>
+              <Link href="/landlords" className="px-3 py-3 text-sm font-semibold text-cyan-700 hover:text-cyan-900">
+                Why Landlords choose us →
+              </Link>
             </div>
             <p className="mt-6 text-sm text-slate-500">Less chasing. Fewer missed deadlines.</p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm" aria-label="Example maintenance job">
-            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em]">
-              <span className="text-slate-500">Maintenance job</span>
-              <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-800">Live</span>
-            </div>
-            <p className="mt-6 text-2xl font-semibold text-slate-900">No hot water at Flat 2</p>
-            <dl className="mt-6 divide-y divide-slate-200 text-sm">
-              {[
-                ["Reported by tenant", "With 3 photos"],
-                ["Builder bids", "3 received"],
-                ["Gas Safe registration", "Checked"],
-                ["Next step", "Book the engineer"],
-              ].map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-4 py-3">
-                  <dt className="text-slate-500">{label}</dt>
-                  <dd className="font-medium text-slate-900">{value}</dd>
-                </div>
-              ))}
-            </dl>
           </div>
         </div>
       </section>

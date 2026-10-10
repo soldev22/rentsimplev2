@@ -87,6 +87,11 @@ export default function AppChrome({
           </Link>
 
           <div className="flex items-center gap-3">
+            {!isAuthenticated && !isLoginRoute && pathname !== "/landlords" ? (
+              <Link href="/landlords" className="hidden rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 sm:inline-block">
+                For Landlords
+              </Link>
+            ) : null}
             {!isHomeRoute && !isPropertiesRoute && !isLoginRoute ? (
               <Link href="/properties" className="rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20">
                 Search properties
@@ -129,8 +134,8 @@ export default function AppChrome({
             <Link href="/" className="hover:text-white">
               About
             </Link>
-            <Link href="/" className="hover:text-white">
-              Features
+            <Link href="/landlords" className="hover:text-white">
+              For Landlords
             </Link>
             <Link href="/" className="hover:text-white">
               Pricing
