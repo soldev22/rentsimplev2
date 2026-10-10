@@ -1,3 +1,4 @@
+import Image from "next/image"
 import Link from "next/link"
 
 const highlights = ["Tenant reporting with photos", "Competing builder bids", "Accreditation checks", "Deadline alerts"]
@@ -48,30 +49,41 @@ export default function HomePage() {
   return (
     <div className="bg-slate-100 text-slate-900">
       <section className="bg-white">
-        <div className="relative mx-auto max-w-6xl px-6 py-16 md:py-24">
+        <div className="relative mx-auto grid max-w-6xl gap-10 px-6 py-16 md:py-24 lg:grid-cols-[1.4fr_1fr] lg:items-center">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Maintenance support for landlords</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Rental property management, nothing else</p>
             <h1 className="mt-4 text-4xl font-bold leading-tight text-slate-900 sm:text-5xl">
-              Repairs handled.
+              Your rental, protected.
               <br />
-              <span className="text-blue-700">Records kept.</span>
+              <span className="text-blue-700">Your time, back.</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-              From a dripping tap to a damp report, RentSimple takes each maintenance task from your tenant&apos;s first message to a signed-off job, with the builders, checks, and deadlines all in one place.
+              RentSimple only manages rental properties, so every Landlord gets our full attention. Our own maintenance team fixes the small jobs fast and keeps costs low, and every property we manage is kept insurance-compliant, giving you the strongest possible chance of a successful claim.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/login?mode=register" className="brand-button rounded-xl px-5 py-3 text-sm font-semibold">
-                Create account
-              </Link>
-              <Link href="/login" className="brand-outline-button rounded-xl px-5 py-3 text-sm font-semibold">
-                Sign in
-              </Link>
-              <Link href="/landlords" className="px-3 py-3 text-sm font-semibold text-cyan-700 hover:text-cyan-900">
-                Why Landlords choose us →
-              </Link>
-            </div>
-            <p className="mt-6 text-sm text-slate-500">Less chasing. Fewer missed deadlines.</p>
+            <p className="mt-6 text-sm font-semibold text-slate-700">Lower costs. Fewer headaches. Cover you can count on.</p>
+            <Link href="/landlords" className="mt-6 inline-block text-sm font-semibold text-cyan-700 hover:text-cyan-900">
+              Why Landlords choose us →
+            </Link>
           </div>
+
+          <figure className="rounded-3xl border border-slate-200 bg-slate-50 p-8 shadow-sm">
+            <blockquote className="text-lg italic leading-8 text-slate-700">
+              &ldquo;I was nearly giving up renting &ndash; I didn&apos;t want the hassle. Then I started using RentSimple and, well, the company name says it all: renting became simple and stress-free.&rdquo;
+            </blockquote>
+            <figcaption className="mt-6 flex items-center gap-4">
+              <Image
+                src="/testimonials/stuart-mcaulley.png"
+                alt="Stuart Mcaulley"
+                width={88}
+                height={121}
+                className="h-16 w-16 shrink-0 rounded-full object-cover object-top ring-2 ring-white shadow"
+              />
+              <span>
+                <span className="block font-semibold text-slate-900">Stuart Mcaulley</span>
+                <span className="block text-sm text-slate-500">RentSimple Landlord</span>
+              </span>
+            </figcaption>
+          </figure>
         </div>
       </section>
 
