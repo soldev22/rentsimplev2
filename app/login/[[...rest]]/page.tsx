@@ -222,11 +222,17 @@ export default function LoginPage() {
             : isVerifyRequestMode
               ? "/api/auth/resend-verification"
               : "/api/auth/login"
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      }
+
+      if (isRegistrationMode) {
+        headers["x-timezone"] = Intl.DateTimeFormat().resolvedOptions().timeZone
+      }
+
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(
           isRegistrationMode
             ? {
@@ -266,7 +272,7 @@ export default function LoginPage() {
       }
 
       if (isRegistrationMode) {
-        setSuccessMessage("Check your email for a verification link before signing in.")
+        setSuccessMessage(payload?.message ?? "Check your email for a verification link before signing in.")
         setDevelopmentActionUrl(payload?.developmentVerificationUrl ?? null)
         return
       }

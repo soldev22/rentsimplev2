@@ -73,6 +73,7 @@ export type {
   MaintenanceBuilderBid,
   MaintenanceIssueCategory,
   MaintenanceIssueRecord,
+  MaintenanceIssueUpdate,
   MaintenanceIssueStatus,
   MaintenancePriority,
 } from "./types/maintenance"

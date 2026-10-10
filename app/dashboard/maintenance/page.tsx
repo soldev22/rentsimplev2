@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 
 import MaintenanceHub from "@/components/forms/MaintenanceHub"
 import { canAccessMaintenance, getUserRole, isPendingApproval } from "@/lib/auth"
-import { listMaintenanceIssuesForUserPage, listReportableTenantProperties } from "@/lib/server/maintenance"
+import { listMaintenanceIssuesForUserPage, listReportableMaintenanceProperties } from "@/lib/server/maintenance"
 import { getSessionUser } from "@/lib/server/session"
 
 export const dynamic = "force-dynamic"
@@ -12,6 +12,7 @@ type MaintenancePageProps = {
   searchParams: Promise<{
     page?: string
     pageSize?: string
+    propertyId?: string
   }>
 }
 
@@ -46,14 +47,16 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
   }
 
   const role = getUserRole(user)
-  const { page: pageParam, pageSize: pageSizeParam } = await searchParams
+  const { page: pageParam, pageSize: pageSizeParam, propertyId } = await searchParams
   const page = Number.isFinite(Number(pageParam)) ? Math.max(1, Math.floor(Number(pageParam))) : 1
   const pageSize = Number.isFinite(Number(pageSizeParam))
     ? Math.min(100, Math.max(10, Math.floor(Number(pageSizeParam))))
     : 25
   const [pagedIssues, reportableProperties] = await Promise.all([
     listMaintenanceIssuesForUserPage(user, { page, pageSize }),
-    role === "tenant" ? listReportableTenantProperties(user) : Promise.resolve([]),
+    role === "tenant" || role === "admin" || role === "agent" || role === "landlord"
+      ? listReportableMaintenanceProperties(user)
+      : Promise.resolve([]),
   ])
 
   return (
@@ -114,6 +117,7 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
       <MaintenanceHub
         initialIssues={pagedIssues.items}
         reportableProperties={reportableProperties}
+        initialPropertyId={propertyId}
         role={role}
         currentUser={{
           id: user.id,

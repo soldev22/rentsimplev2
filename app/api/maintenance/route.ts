@@ -72,8 +72,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Account pending approval" }, { status: 403 })
   }
 
-  if (getUserRole(user) !== "tenant") {
-    return NextResponse.json({ error: "Only tenants can report faults from this screen." }, { status: 403 })
+  const role = getUserRole(user)
+  if (role !== "tenant" && role !== "admin" && role !== "agent" && role !== "landlord") {
+    return NextResponse.json({ error: "You do not have permission to raise maintenance issues." }, { status: 403 })
   }
 
   try {

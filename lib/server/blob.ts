@@ -132,6 +132,13 @@ export async function deletePropertyImage(blobName: string) {
   })
 }
 
+export async function deleteBlob(blobName: string) {
+  const containerClient = await getPropertyImagesContainerClient()
+  await containerClient.deleteBlob(blobName, {
+    deleteSnapshots: "include",
+  })
+}
+
 export async function deletePropertyImageAssets(image: Pick<PropertyImageRecord, "blobName" | "thumbnailBlobName">) {
   await Promise.all([
     deletePropertyImage(image.blobName).catch(() => undefined),
@@ -399,4 +406,3 @@ export async function deleteCaseAttachment(blobName: string) {
   const blobClient = containerClient.getBlobClient(blobName)
   await blobClient.delete()
 }
-

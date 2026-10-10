@@ -6,7 +6,7 @@ import QuickApplyCard from "@/components/properties/QuickApplyCard"
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery"
 import { getPropertyImageLabel, getPropertyImagePath, getUserRole } from "@/lib/auth"
 import { listApplicationsForApplicant } from "@/lib/server/applications"
-import { getPublicAvailableProperty } from "@/lib/server/properties"
+import { getPublicAvailableProperty, listPropertiesForUser } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
 
 type PublicPropertyPageProps = {
@@ -31,6 +31,11 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
       application.status !== "declined" &&
       application.status !== "withdrawn",
   )
+  const sessionRole = sessionUser ? getUserRole(sessionUser) : null
+  const canReportMaintenance =
+    sessionUser && (sessionRole === "admin" || sessionRole === "agent" || sessionRole === "landlord")
+      ? (await listPropertiesForUser(sessionUser)).some((accessibleProperty) => accessibleProperty.id === property.id)
+      : false
 
   const approvedImages = property.images.filter((image) => image.moderationStatus === "approved")
   const heroImage = approvedImages.find((image) => image.isCoverImage) ?? approvedImages[0] ?? null
@@ -161,6 +166,14 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
                 {!sessionUser ? (
                   <Link href={signInApplyHref} className="block rounded-xl border border-slate-300 px-4 py-3 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">
                     Already registered? Sign in to apply
+                  </Link>
+                ) : null}
+                {canReportMaintenance ? (
+                  <Link
+                    href={`/dashboard/maintenance?propertyId=${encodeURIComponent(property.id)}#new-issue`}
+                    className="block rounded-xl border border-cyan-700 px-4 py-3 text-center text-sm font-semibold text-cyan-800 transition-colors hover:bg-cyan-50"
+                  >
+                    Raise an issue
                   </Link>
                 ) : null}
               </div>

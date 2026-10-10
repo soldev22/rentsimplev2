@@ -7,6 +7,7 @@ import { getSessionUser } from "@/lib/server/session"
 import { isPendingApproval, getUserRole } from "@/lib/auth"
 import { getMaintenanceContainer } from "@/lib/server/cosmos"
 import { uploadToBlob, getBlobUrl } from "@/lib/server/blob"
+import { MAX_MAINTENANCE_UPDATE_PHOTO_SIZE } from "@/lib/types/maintenance"
 
 type RouteContext = {
   params: Promise<{ id: string }>
@@ -32,8 +33,8 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
-    if (!file.type.startsWith("image/")) {
-      return NextResponse.json({ error: "File must be an image" }, { status: 400 })
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > MAX_MAINTENANCE_UPDATE_PHOTO_SIZE || file.size === 0) {
+      return NextResponse.json({ error: "Use a JPEG, PNG, or WebP image smaller than 10 MB." }, { status: 400 })
     }
 
     // Get the issue to verify access

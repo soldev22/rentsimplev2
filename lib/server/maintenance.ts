@@ -112,6 +112,43 @@ async function getIssueById(id: string) {
   return resources[0] ?? null
 }
 
+export async function getMaintenanceIssueForUpdate(user: AuthUser, issueId: string) {
+  const role = getUserRole(user)
+  const issue = await getIssueById(issueId)
+
+  if (!issue) {
+    return null
+  }
+
+  if (role === "tenant") {
+    if (issue.tenantId !== user.id) {
+      throw new Error("Forbidden")
+    }
+
+    return issue
+  }
+
+  if (role === "builder") {
+    if (issue.selectedBuilderId !== user.id) {
+      throw new Error("Forbidden")
+    }
+
+    return issue
+  }
+
+  if (role === "admin" || role === "agent" || role === "landlord") {
+    const accessiblePropertyIds = await getAccessiblePropertyIds(user)
+
+    if (!accessiblePropertyIds?.has(issue.propertyId)) {
+      throw new Error("Forbidden")
+    }
+
+    return issue
+  }
+
+  throw new Error("Forbidden")
+}
+
 async function listActiveTenantPropertyIds(user: AuthUser) {
   const container = await getApplicationsContainer()
   const { resources } = await container.items
@@ -237,7 +274,13 @@ export async function listMaintenanceIssuesForUserPage(user: AuthUser, options?:
       container.items.query<MaintenanceIssueRecord>({ query: dataQuery, parameters }).fetchAll(),
     ])
 
-    const items = resources.sort((left, right) => Date.parse(right.reportedAt) - Date.parse(left.reportedAt))
+    const items = resources
+      .map((issue) =>
+        role === "builder" && issue.selectedBuilderId !== user.id
+          ? { ...issue, updates: [] }
+          : issue,
+      )
+      .sort((left, right) => Date.parse(right.reportedAt) - Date.parse(left.reportedAt))
     return buildPaginatedResult(items, countRows[0] ?? 0, page, pageSize)
   }
 
@@ -311,7 +354,13 @@ export async function listMaintenanceIssuesForUserByContinuation(
     )
 
     return {
-      items: page.items.sort((left, right) => Date.parse(right.reportedAt) - Date.parse(left.reportedAt)),
+      items: page.items
+        .map((issue) =>
+          role === "builder" && issue.selectedBuilderId !== user.id
+            ? { ...issue, updates: [] }
+            : issue,
+        )
+        .sort((left, right) => Date.parse(right.reportedAt) - Date.parse(left.reportedAt)),
       continuationToken: page.continuationToken,
       maxItemCount: page.maxItemCount,
     }
@@ -371,12 +420,19 @@ export async function listMaintenanceIssuesForUserByContinuation(
   return runContinuationQuery(` WHERE c.propertyId IN (${inClause})`, parameters)
 }
 
-export async function listReportableTenantProperties(user: AuthUser) {
-  if (getUserRole(user) !== "tenant") {
+export async function listReportableMaintenanceProperties(user: AuthUser) {
+  const role = getUserRole(user)
+  if (role !== "tenant" && role !== "admin" && role !== "agent" && role !== "landlord") {
     throw new Error("Forbidden")
   }
 
-  const propertyIds = await listActiveTenantPropertyIds(user)
+  const propertyIds = role === "tenant"
+    ? await listActiveTenantPropertyIds(user)
+    : await getAccessiblePropertyIds(user)
+  if (!propertyIds) {
+    throw new Error("Forbidden")
+  }
+
   const properties = await listPropertiesByIds(propertyIds)
   return properties
     .map((property) => ({ id: property.id, address: property.address }))
@@ -384,7 +440,8 @@ export async function listReportableTenantProperties(user: AuthUser) {
 }
 
 export async function createMaintenanceIssue(user: AuthUser, input: CreateMaintenanceIssueInput) {
-  if (getUserRole(user) !== "tenant") {
+  const role = getUserRole(user)
+  if (role !== "tenant" && role !== "admin" && role !== "agent" && role !== "landlord") {
     throw new Error("Forbidden")
   }
 
@@ -394,9 +451,11 @@ export async function createMaintenanceIssue(user: AuthUser, input: CreateMainte
     throw new Error("MaintenanceIssueValidationError")
   }
 
-  const accessiblePropertyIds = await listActiveTenantPropertyIds(user)
+  const accessiblePropertyIds = role === "tenant"
+    ? await listActiveTenantPropertyIds(user)
+    : await getAccessiblePropertyIds(user)
 
-  if (!accessiblePropertyIds.has(normalized.propertyId)) {
+  if (!accessiblePropertyIds?.has(normalized.propertyId)) {
     throw new Error("Forbidden")
   }
 
@@ -415,6 +474,9 @@ export async function createMaintenanceIssue(user: AuthUser, input: CreateMainte
     tenantId: user.id,
     tenantEmail: user.email,
     tenantName: getDisplayName(user),
+    reportedById: user.id,
+    reportedByEmail: user.email,
+    reportedByName: getDisplayName(user),
     title: normalized.title,
     description: normalized.description,
     category: normalized.category,

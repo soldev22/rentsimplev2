@@ -55,6 +55,15 @@ export type MaintenanceAccreditationChecklist = {
   notes: string
 }
 
+export type MaintenanceIssueUpdate = {
+  id: string
+  authorId: string
+  authorName: string
+  note: string
+  photos: Array<{ id: string; url: string; uploadedAt: string }>
+  createdAt: string
+}
+
 export type MaintenanceIssueRecord = {
   id: string
   propertyId: string
@@ -62,6 +71,9 @@ export type MaintenanceIssueRecord = {
   tenantId: string
   tenantEmail: string
   tenantName: string
+  reportedById?: string
+  reportedByEmail?: string
+  reportedByName?: string
   title: string
   description: string
   category: MaintenanceIssueCategory
@@ -78,6 +90,11 @@ export type MaintenanceIssueRecord = {
   bids: MaintenanceBuilderBid[]
   photoIds?: string[]
   photoUrls?: Array<{ id: string; url: string; uploadedAt: string }>
+  updates?: MaintenanceIssueUpdate[]
   createdAt: string
   updatedAt: string
 }
+
+export const MAX_MAINTENANCE_UPDATE_PHOTOS = 5
+export const MAX_MAINTENANCE_UPDATE_NOTE_LENGTH = 2000
+export const MAX_MAINTENANCE_UPDATE_PHOTO_SIZE = 10 * 1024 * 1024

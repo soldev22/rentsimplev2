@@ -7,9 +7,15 @@ import type {
   MaintenanceIssueCategory,
   MaintenanceIssueRecord,
   MaintenanceIssueStatus,
+  MaintenanceIssueUpdate,
   MaintenancePriority,
   UserRole,
 } from "@/lib/auth"
+import {
+  MAX_MAINTENANCE_UPDATE_NOTE_LENGTH,
+  MAX_MAINTENANCE_UPDATE_PHOTOS,
+  MAX_MAINTENANCE_UPDATE_PHOTO_SIZE,
+} from "@/lib/types/maintenance"
 import { PhotoGallery } from "@/components/maintenance/PhotoGallery"
 
 type ReportableProperty = {
@@ -20,6 +26,7 @@ type ReportableProperty = {
 type MaintenanceHubProps = {
   initialIssues: MaintenanceIssueRecord[]
   reportableProperties: ReportableProperty[]
+  initialPropertyId?: string
   role: UserRole
   currentUser: {
     id: string
@@ -74,9 +81,11 @@ const statusOptions: Array<{ value: MaintenanceIssueStatus; label: string }> = [
   { value: "closed", label: "Closed" },
 ]
 
-function createEmptyIssueForm(reportableProperties: ReportableProperty[]): TenantIssueFormState {
+function createEmptyIssueForm(reportableProperties: ReportableProperty[], initialPropertyId?: string): TenantIssueFormState {
+  const initialProperty = reportableProperties.find((property) => property.id === initialPropertyId)
+
   return {
-    propertyId: reportableProperties[0]?.id ?? "",
+    propertyId: initialProperty?.id ?? reportableProperties[0]?.id ?? "",
     title: "",
     description: "",
     category: "general",
@@ -111,13 +120,14 @@ function getPriorityTone(priority: MaintenancePriority) {
   }
 }
 
-export default function MaintenanceHub({ initialIssues, reportableProperties, role, currentUser }: MaintenanceHubProps) {
+export default function MaintenanceHub({ initialIssues, reportableProperties, initialPropertyId, role, currentUser }: MaintenanceHubProps) {
   const [issues, setIssues] = useState(initialIssues)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
-  const [issueForm, setIssueForm] = useState<TenantIssueFormState>(() => createEmptyIssueForm(reportableProperties))
+  const [issueForm, setIssueForm] = useState<TenantIssueFormState>(() => createEmptyIssueForm(reportableProperties, initialPropertyId))
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [capturedPhotos, setCapturedPhotos] = useState<Array<{ blob: Blob; preview: string }>>([])
+  const [updatePhotoFiles, setUpdatePhotoFiles] = useState<Record<string, File[]>>({})
 
   useEffect(() => {
     return () => {
@@ -186,7 +196,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
     })
   }
 
-  function submitTenantIssue(event: React.FormEvent<HTMLFormElement>) {
+  function submitIssue(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setFeedback(null)
 
@@ -204,19 +214,75 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
           throw new Error(payload.error || "Unable to report fault.")
         }
 
-        setIssues((current) => [payload.issue as MaintenanceIssueRecord, ...current])
-        setExpandedIssueId(payload.issue.id)
-        
-        // Upload any captured photos
-        if (capturedPhotos.length > 0) {
-          uploadPhotosForIssue(payload.issue.id, capturedPhotos)
-        }
-        
-        setIssueForm(createEmptyIssueForm(reportableProperties))
+        const issue = payload.issue
+        setIssues((current) => [issue, ...current])
+        setExpandedIssueId(issue.id)
+        setIssueForm(createEmptyIssueForm(reportableProperties, initialPropertyId))
         clearCapturedPhotos()
-        setFeedback({ type: "success", message: "Fault reported. The maintenance case is now in the workflow." })
+        const failedPhotoCount = capturedPhotos.length > 0
+          ? await uploadPhotosForIssue(issue.id, capturedPhotos)
+          : 0
+        const issueLabel = role === "tenant" ? "repair request" : "maintenance issue"
+        setFeedback(failedPhotoCount > 0
+          ? { type: "error", message: `Your ${issueLabel} was sent, but ${failedPhotoCount} photo${failedPhotoCount === 1 ? "" : "s"} could not be uploaded. Add them in the report updates below.` }
+          : { type: "success", message: `Your ${issueLabel} was sent.` })
       } catch (error) {
         setFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to report fault." })
+      }
+    })
+  }
+
+  function submitTenantUpdate(issueId: string, event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setFeedback(null)
+
+    const form = event.currentTarget
+    const formData = new FormData(form)
+    const note = String(formData.get("note") ?? "").trim()
+    const photos = formData.getAll("photos").filter((value): value is File => value instanceof File && value.size > 0)
+
+    if (!note && photos.length === 0) {
+      setFeedback({ type: "error", message: "Add a note or at least one photo to post an update." })
+      return
+    }
+
+    if (photos.length > MAX_MAINTENANCE_UPDATE_PHOTOS || photos.some((photo) =>
+      !["image/jpeg", "image/png", "image/webp"].includes(photo.type)
+      || photo.size > MAX_MAINTENANCE_UPDATE_PHOTO_SIZE
+    )) {
+      setFeedback({ type: "error", message: `Choose up to ${MAX_MAINTENANCE_UPDATE_PHOTOS} JPEG, PNG, or WebP photos under 10 MB each.` })
+      return
+    }
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/maintenance/${issueId}/updates`, {
+          method: "POST",
+          body: formData,
+        })
+        const payload = (await response.json()) as { update?: MaintenanceIssueUpdate; error?: string }
+
+        if (!response.ok || !payload.update) {
+          throw new Error(payload.error || "Unable to post update.")
+        }
+
+        const update = payload.update
+        setIssues((current) =>
+          current.map((issue) =>
+            issue.id === issueId
+              ? { ...issue, updates: [...(issue.updates ?? []), update] }
+              : issue,
+          ),
+        )
+        form.reset()
+        setUpdatePhotoFiles((current) => {
+          const next = { ...current }
+          delete next[issueId]
+          return next
+        })
+        setFeedback({ type: "success", message: "Your update was posted." })
+      } catch (error) {
+        setFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to post update." })
       }
     })
   }
@@ -256,7 +322,18 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
       return
     }
 
-    const nextPhotos = Array.from(files).map((file) => ({
+    const selectedFiles = Array.from(files)
+    if (selectedFiles.some((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > MAX_MAINTENANCE_UPDATE_PHOTO_SIZE || file.size === 0)) {
+      setFeedback({ type: "error", message: "Choose JPEG, PNG, or WebP photos smaller than 10 MB each." })
+      return
+    }
+
+    if (capturedPhotos.length + selectedFiles.length > MAX_MAINTENANCE_UPDATE_PHOTOS) {
+      setFeedback({ type: "error", message: `Choose up to ${MAX_MAINTENANCE_UPDATE_PHOTOS} photos.` })
+      return
+    }
+
+    const nextPhotos = selectedFiles.map((file) => ({
       blob: file,
       preview: URL.createObjectURL(file),
     }))
@@ -279,8 +356,8 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
     })
   }
 
-  function uploadPhotosForIssue(issueId: string, photos: Array<{ blob: Blob }>) {
-    photos.forEach(async ({ blob }, index) => {
+  async function uploadPhotosForIssue(issueId: string, photos: Array<{ blob: Blob }>) {
+    const results = await Promise.all(photos.map(async ({ blob }, index) => {
       try {
         const formData = new FormData()
         formData.append("file", blob, `photo-${index}.jpg`)
@@ -302,23 +379,26 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
           throw new Error("Photo upload response is invalid")
         }
 
-        const uploadedPhoto = payload.photo
-
-        // Update the issue with the new photo
-        setIssues((current) =>
-          current.map((issue) =>
-            issue.id === issueId
-              ? {
-                  ...issue,
-                  photoUrls: [...(issue.photoUrls || []), uploadedPhoto],
-                }
-              : issue,
-          ),
-        )
+        return payload.photo
       } catch (error) {
         console.error("Photo upload failed:", error)
+        return null
       }
-    })
+    }))
+    const uploadedPhotos = results.filter((photo): photo is NonNullable<typeof photo> => photo !== null)
+    const failedPhotoCount = results.length - uploadedPhotos.length
+
+    if (uploadedPhotos.length > 0) {
+      setIssues((current) =>
+        current.map((issue) =>
+          issue.id === issueId
+            ? { ...issue, photoUrls: [...(issue.photoUrls || []), ...uploadedPhotos] }
+            : issue,
+        ),
+      )
+    }
+
+    return failedPhotoCount
   }
 
   function deletePhoto(issueId: string, photoId: string) {
@@ -351,9 +431,13 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Maintenance</p>
-        <h1 className="mt-2 text-3xl font-bold text-slate-900">Faults, bids, and accreditation</h1>
+        <h1 className="mt-2 text-3xl font-bold text-slate-900">
+          {role === "tenant" ? "Your home, looked after" : "Faults, bids, and accreditation"}
+        </h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Track maintenance issues from tenant report through builder bidding, accreditation checks, and delivery dates.
+          {role === "tenant"
+            ? "Report a repair with a few details and photos, then keep up with progress here."
+            : "Track maintenance issues from tenant report through builder bidding, accreditation checks, and delivery dates."}
         </p>
       </section>
 
@@ -410,62 +494,73 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
         </div>
       ) : null}
 
-      {role === "tenant" ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-900">Report a fault</h2>
+      {role === "tenant" || role === "admin" || role === "agent" || role === "landlord" ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
+              {role === "tenant" ? "New repair request" : "New maintenance issue"}
+            </p>
+            <h2 id="new-issue" className="mt-1 text-xl font-semibold text-slate-900">
+              {role === "tenant" ? "What needs fixing?" : "Raise an issue"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">Add a note and photos so the property team can understand what is happening.</p>
+          </div>
           {reportableProperties.length === 0 ? (
             <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
-              No active tenancy properties are linked to this account yet.
+              {role === "tenant"
+                ? "No active tenancy properties are linked to this account yet."
+                : "No properties are available to this account for maintenance reporting."}
             </div>
           ) : (
-            <form className="mt-6 grid gap-4 lg:grid-cols-2" onSubmit={submitTenantIssue}>
-              <label className="text-sm font-medium text-slate-700 lg:col-span-2">
-                Property
-                <select className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" value={issueForm.propertyId} onChange={(event) => setIssueForm((current) => ({ ...current, propertyId: event.target.value }))} aria-label="Select property" title="Select a property for this maintenance issue">
+            <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={submitIssue}>
+              {reportableProperties.length > 1 ? (
+                <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+                  {role === "tenant" ? "Which home?" : "Property"}
+                  <select className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 py-3" value={issueForm.propertyId} onChange={(event) => setIssueForm((current) => ({ ...current, propertyId: event.target.value }))} aria-label="Select property" title="Select a property for this maintenance issue">
                   {reportableProperties.map((property) => (
                     <option key={property.id} value={property.id}>{property.address}</option>
                   ))}
-                </select>
-              </label>
-              <label className="text-sm font-medium text-slate-700 lg:col-span-2">
-                Fault title
-                <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" value={issueForm.title} onChange={(event) => setIssueForm((current) => ({ ...current, title: event.target.value }))} required />
+                  </select>
+                </label>
+              ) : (
+                <p className="text-sm text-slate-700 sm:col-span-2">
+                  Property: <span className="font-semibold">{reportableProperties[0].address}</span>
+                </p>
+              )}
+              <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+                Short title
+                <input className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 px-3 py-3" placeholder="For example, leak under the kitchen sink" value={issueForm.title} onChange={(event) => setIssueForm((current) => ({ ...current, title: event.target.value }))} required />
               </label>
               <label className="text-sm font-medium text-slate-700">
                 Category
-                <select className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" value={issueForm.category} onChange={(event) => setIssueForm((current) => ({ ...current, category: event.target.value as MaintenanceIssueCategory }))} aria-label="Select category" title="Select maintenance issue category">
+                <select className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 py-3" value={issueForm.category} onChange={(event) => setIssueForm((current) => ({ ...current, category: event.target.value as MaintenanceIssueCategory }))} aria-label="Select category" title="Select maintenance issue category">
                   {categoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
               <label className="text-sm font-medium text-slate-700">
                 Priority
-                <select className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" value={issueForm.priority} onChange={(event) => setIssueForm((current) => ({ ...current, priority: event.target.value as MaintenancePriority }))}>
+                <select className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 py-3" value={issueForm.priority} onChange={(event) => setIssueForm((current) => ({ ...current, priority: event.target.value as MaintenancePriority }))}>
                   {priorityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
-              <label className="text-sm font-medium text-slate-700">
-                Response target date
-                <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" type="date" value={issueForm.responseDueAt} onChange={(event) => setIssueForm((current) => ({ ...current, responseDueAt: event.target.value }))} />
-              </label>
-              <label className="text-sm font-medium text-slate-700">
-                Resolution target date
-                <input className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2" type="date" value={issueForm.resolutionDueAt} onChange={(event) => setIssueForm((current) => ({ ...current, resolutionDueAt: event.target.value }))} />
-              </label>
-              <label className="text-sm font-medium text-slate-700 lg:col-span-2">
-                Fault description
-                <textarea className="mt-2 min-h-32 w-full rounded-md border border-slate-300 px-3 py-2" value={issueForm.description} onChange={(event) => setIssueForm((current) => ({ ...current, description: event.target.value }))} required />
+              <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+                Tell us what happened
+                <textarea className="mt-2 min-h-32 w-full rounded-xl border border-slate-300 px-3 py-3" placeholder="Where is the problem? When did you first notice it? Is anything getting worse?" value={issueForm.description} onChange={(event) => setIssueForm((current) => ({ ...current, description: event.target.value }))} required />
               </label>
 
-              {/* Photo Capture & Preview */}
-              <div className="lg:col-span-2 space-y-3">
-                <div className="flex items-center gap-2">
-                  <label className="brand-button cursor-pointer rounded-md px-4 py-2 text-sm font-semibold">
-                    Add photos
+              <div className="space-y-3 sm:col-span-2">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">Photos (optional)</p>
+                  <p className="mt-1 text-xs text-slate-500">Add up to {MAX_MAINTENANCE_UPDATE_PHOTOS} JPEG, PNG, or WebP images. Each can be up to 10 MB.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="brand-button inline-flex min-h-12 cursor-pointer items-center rounded-xl px-4 py-3 text-sm font-semibold">
+                    Choose photos
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       multiple
-                      className="hidden"
+                      className="sr-only"
                       onChange={(event) => {
                         handlePhotoSelection(event.target.files)
                         event.currentTarget.value = ""
@@ -498,8 +593,8 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
                 )}
               </div>
 
-              <div className="lg:col-span-2 flex justify-end">
-                <button type="submit" disabled={isPending} className="brand-button rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60">{isPending ? "Submitting..." : "Report fault"}</button>
+              <div className="sm:col-span-2">
+                <button type="submit" disabled={isPending} className="brand-button min-h-12 w-full rounded-xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">{isPending ? "Submitting..." : role === "tenant" ? "Send repair request" : "Raise maintenance issue"}</button>
               </div>
             </form>
           )}
@@ -513,6 +608,12 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
       ) : (
         sortedIssues.map((issue) => {
           const isExpanded = expandedIssueId === issue.id
+          const canPostUpdate =
+            role === "tenant"
+            || role === "admin"
+            || role === "agent"
+            || role === "landlord"
+            || (role === "builder" && issue.selectedBuilderId === currentUser.id)
           const selectedBid = issue.selectedBuilderId ? issue.bids.find((bid) => bid.builderId === issue.selectedBuilderId) : undefined
           const myBid = issue.bids.find((bid) => bid.builderId === currentUser.id)
 
@@ -522,18 +623,19 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">{issue.propertyAddress}</p>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">{issue.title}</h2>
-                  <p className="mt-2 text-sm text-slate-600">Reported by {issue.tenantName} on {new Date(issue.reportedAt).toLocaleString()}</p>
+                  <p className="mt-2 text-sm text-slate-600">Reported by {issue.reportedByName || issue.tenantName} on {new Date(issue.reportedAt).toLocaleString()}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getStatusTone(issue.status)}`}>{issue.status.replaceAll("_", " ")}</span>
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${getPriorityTone(issue.priority)}`}>{issue.priority}</span>
                   <button
                     type="button"
-                    className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700"
-                    aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                    aria-label={isExpanded ? "Hide report details" : canPostUpdate ? "Open report and add update" : "View report details"}
                     onClick={() => setExpandedIssueId((current) => current === issue.id ? null : issue.id)}
                   >
-                    <span className={`inline-block text-[2.5rem] leading-none transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`}>▾</span>
+                    <span>{isExpanded ? "Hide details" : canPostUpdate ? "Open report & add update" : "View details"}</span>
+                    <span aria-hidden="true" className={`inline-block text-lg leading-none transition-transform ${isExpanded ? "rotate-180" : ""}`}>⌄</span>
                   </button>
                 </div>
               </div>
@@ -567,6 +669,82 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, ro
                       isLoading={isPending}
                     />
                   )}
+
+                  {role !== "builder" || issue.selectedBuilderId === currentUser.id ? (
+                    <section className="rounded-xl border border-slate-200 p-4 sm:p-5">
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900">Updates</h3>
+                        <p className="mt-1 text-sm text-slate-600">Notes and photos are shared with the tenant, property management team, and assigned builder.</p>
+                      </div>
+
+                      {issue.updates && issue.updates.length > 0 ? (
+                        <ol className="mt-5 space-y-4">
+                          {issue.updates.map((update) => (
+                            <li key={update.id} className="rounded-xl bg-slate-50 p-4">
+                              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                <p className="text-sm font-semibold text-slate-900">{update.authorName}</p>
+                                <time className="text-xs text-slate-500" dateTime={update.createdAt}>{new Date(update.createdAt).toLocaleString()}</time>
+                              </div>
+                              {update.note ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{update.note}</p> : null}
+                              {update.photos.length > 0 ? (
+                                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                  {update.photos.map((photo, index) => (
+                                    <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+                                      {/* eslint-disable-next-line @next/next/no-img-element -- stored maintenance photos use the existing blob URLs */}
+                                      <img src={photo.url} alt={`Update photo ${index + 1}`} className="aspect-square w-full object-cover" />
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">No updates have been added yet.</p>
+                      )}
+
+                      {canPostUpdate ? (
+                        <form className="mt-5 space-y-4 border-t border-slate-200 pt-5" onSubmit={(event) => submitTenantUpdate(issue.id, event)}>
+                          <label htmlFor={`maintenance-update-note-${issue.id}`} className="block text-sm font-medium text-slate-700">
+                            Add a note or progress update
+                            <textarea
+                              id={`maintenance-update-note-${issue.id}`}
+                              name="note"
+                              rows={3}
+                              maxLength={MAX_MAINTENANCE_UPDATE_NOTE_LENGTH}
+                              placeholder="Share anything new about this repair..."
+                              className="mt-2 min-h-24 w-full rounded-xl border border-slate-300 px-3 py-3"
+                            />
+                          </label>
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <label className="brand-button inline-flex min-h-12 cursor-pointer items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold">
+                              Add photos
+                              <input
+                                name="photos"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                multiple
+                                className="sr-only"
+                                onChange={(event) => setUpdatePhotoFiles((current) => ({
+                                  ...current,
+                                  [issue.id]: Array.from(event.target.files ?? []),
+                                }))}
+                              />
+                            </label>
+                            {updatePhotoFiles[issue.id]?.length ? (
+                              <span className="text-sm text-slate-600">
+                                {updatePhotoFiles[issue.id].length} photo{updatePhotoFiles[issue.id].length === 1 ? "" : "s"} selected
+                              </span>
+                            ) : null}
+                            <span className="text-xs text-slate-500">Up to {MAX_MAINTENANCE_UPDATE_PHOTOS} JPEG, PNG, or WebP photos, 10 MB each.</span>
+                            <button type="submit" disabled={isPending} className="brand-button min-h-12 rounded-xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60">
+                              {isPending ? "Posting..." : "Post update"}
+                            </button>
+                          </div>
+                        </form>
+                      ) : null}
+                    </section>
+                  ) : null}
 
                   {role === "builder" ? (
                     <form key={`${issue.id}-${myBid?.updatedAt ?? "new"}`} className="grid gap-4 rounded-xl border border-slate-200 p-4 lg:grid-cols-2" onSubmit={(event) => { event.preventDefault(); submitBuilderBid(issue.id, new FormData(event.currentTarget)); }}>
