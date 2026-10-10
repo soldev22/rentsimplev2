@@ -118,6 +118,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
   const [isResettingWorkspace, setIsResettingWorkspace] = useState(false)
   const [switchingEmail, setSwitchingEmail] = useState<string | null>(null)
   const [resendingWelcomeEmail, setResendingWelcomeEmail] = useState<string | null>(null)
+  const [requestingReagreement, setRequestingReagreement] = useState<string | null>(null)
   const [emailDrafts, setEmailDrafts] = useState<Record<string, string>>({})
   const [isPending, startTransition] = useTransition()
   const deferredSearchQuery = useDeferredValue(searchQuery)
@@ -337,6 +338,132 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
         })
       } finally {
         setResendingWelcomeEmail(null)
+      }
+    })
+  }
+
+  function requestTermsReagreement(user: AuthUser) {
+    if (
+      !window.confirm(
+        `Ask ${user.email} to review and accept the Landlord terms again? Their dashboard will be blocked until they accept, and they will be emailed a link.`,
+      )
+    ) {
+      return
+    }
+
+    setFeedback(null)
+    setRequestingReagreement(user.id)
+
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/admin/users/terms-reagree", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: user.id }),
+        })
+
+        const payload = (await response.json()) as {
+          error?: string
+          user?: AuthUser
+          email?: {
+            status: "sent" | "skipped" | "failed"
+            detail: string
+            developmentTermsUrl?: string
+          }
+        }
+
+        if (!response.ok || !payload.user || !payload.email) {
+          throw new Error(payload.error || "Unable to request Landlord terms re-agreement.")
+        }
+
+        const updatedUser = payload.user
+        const { email } = payload
+        setUsers((current) => current.map((entry) => (entry.id === updatedUser.id ? updatedUser : entry)))
+
+        setFeedback({
+          type: email.status === "sent" ? "success" : "error",
+          message:
+            email.status === "sent"
+              ? `Re-agreement requested. ${user.email} has been emailed a link to the updated terms.`
+              : `Re-agreement requested for ${user.email}, but the email could not be sent. They will be prompted when they next sign in.`,
+          ...(email.developmentTermsUrl
+            ? { link: { label: "Development terms link", href: email.developmentTermsUrl } }
+            : {}),
+        })
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to request Landlord terms re-agreement.",
+        })
+      } finally {
+        setRequestingReagreement(null)
+      }
+    })
+  }
+
+  function requestAllLandlordsTermsReagreement() {
+    const landlordCount = users.filter((entry) => entry.role === "landlord").length
+
+    if (
+      !window.confirm(
+        `Ask all ${landlordCount} Landlord${landlordCount === 1 ? "" : "s"} to review and accept the terms again? Their dashboards will be blocked until they accept, and each will be emailed a link.`,
+      )
+    ) {
+      return
+    }
+
+    setFeedback(null)
+    setRequestingReagreement("all")
+
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/admin/users/terms-reagree", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ all: true }),
+        })
+
+        const payload = (await response.json()) as {
+          error?: string
+          result?: {
+            users: AuthUser[]
+            total: number
+            emailsSent: number
+            failedEmails: string[]
+            developmentTermsUrl?: string
+          }
+        }
+
+        if (!response.ok || !payload.result) {
+          throw new Error(payload.error || "Unable to request Landlord terms re-agreement.")
+        }
+
+        const { result } = payload
+        const updatedById = new Map(result.users.map((entry) => [entry.id, entry]))
+        setUsers((current) => current.map((entry) => updatedById.get(entry.id) ?? entry))
+
+        const failedNote = result.failedEmails.length
+          ? ` Emails could not be sent to: ${result.failedEmails.join(", ")}.`
+          : ""
+
+        setFeedback({
+          type: result.failedEmails.length ? "error" : "success",
+          message: `Re-agreement requested for ${result.total} Landlord${result.total === 1 ? "" : "s"}. ${result.emailsSent} email${result.emailsSent === 1 ? "" : "s"} sent.${failedNote}`,
+          ...(result.developmentTermsUrl
+            ? { link: { label: "Development terms link", href: result.developmentTermsUrl } }
+            : {}),
+        })
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to request Landlord terms re-agreement.",
+        })
+      } finally {
+        setRequestingReagreement(null)
       }
     })
   }
@@ -636,6 +763,14 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Directory</p>
             <h2 className="mt-2 text-2xl font-bold text-slate-900">User directory</h2>
             <p className="mt-2 text-sm text-slate-600">Search the account list and narrow it to pending or approved users.</p>
+            <button
+              type="button"
+              onClick={requestAllLandlordsTermsReagreement}
+              disabled={isPending && requestingReagreement === "all"}
+              className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isPending && requestingReagreement === "all" ? "Requesting..." : "Ask all Landlords to re-agree to terms"}
+            </button>
           </div>
           <div className="w-full max-w-md">
             <label className="block text-sm font-medium text-slate-700">
@@ -908,6 +1043,25 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                           className="rounded-md border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isPending && resendingWelcomeEmail === user.email ? "Sending..." : "Resend welcome email"}
+                        </button>
+                      ) : null}
+                      {user.role === "landlord" ? (
+                        <button
+                          type="button"
+                          onClick={() => requestTermsReagreement(user)}
+                          disabled={Boolean(user.termsReagreeRequestedAt) || (isPending && requestingReagreement === user.id)}
+                          title={
+                            user.termsReagreeRequestedAt
+                              ? `Re-agreement requested ${new Date(user.termsReagreeRequestedAt).toLocaleDateString()}`
+                              : "Ask this Landlord to review and accept the current terms again"
+                          }
+                          className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isPending && requestingReagreement === user.id
+                            ? "Requesting..."
+                            : user.termsReagreeRequestedAt
+                              ? "Re-agreement requested"
+                              : "Require re-agreement"}
                         </button>
                       ) : null}
                       {user.role === "applicant" ? (

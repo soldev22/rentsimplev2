@@ -10,6 +10,7 @@ type LandlordTermsClientProps = {
   displayName: string
   alreadyAccepted: boolean
   acceptedAt?: string
+  isReagreement: boolean
   version: string
   isPlaceholder: boolean
   sections: LandlordTermsSection[]
@@ -105,6 +106,7 @@ export default function LandlordTermsClient({
   displayName,
   alreadyAccepted,
   acceptedAt,
+  isReagreement,
   version,
   isPlaceholder,
   sections,
@@ -175,6 +177,13 @@ export default function LandlordTermsClient({
           Please read the terms below. You need to accept them before you can use your Landlord dashboard.
         </p>
         <p className="mt-2 text-xs text-slate-500">Version {version}</p>
+
+        {isReagreement ? (
+          <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            <strong>Our Landlord terms have been updated.</strong> Please review and accept them again to keep using your
+            dashboard.
+          </div>
+        ) : null}
 
         {isPlaceholder ? (
           <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">

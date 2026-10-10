@@ -1,26 +1,12 @@
 import "server-only"
 
-import nodemailer from "nodemailer"
 import type { AuthUser, PreferredContactMethod } from "@/lib/auth"
 import type { DampInspectionReport, PropertyCase } from "@/lib/types/case"
 import { getApplicationByIdForSystem } from "@/lib/server/applications"
 import { getUserById } from "@/lib/server/users"
 import { writeAuditEvent } from "@/lib/server/audit"
+import { sendEmail } from "@/lib/server/email"
 import { AUDIT_ACTION_TYPES } from "@/lib/types/audit"
-
-function getSmtpConfig() {
-  const host = process.env.SMTP_HOST?.trim()
-  const port = Number(process.env.SMTP_PORT ?? "587")
-  const user = process.env.SMTP_USER?.trim()
-  const pass = process.env.SMTP_PASS?.trim()
-  const from = process.env.SMTP_FROM?.trim()
-
-  if (!host || !user || !pass || !from || !Number.isFinite(port)) {
-    return null
-  }
-
-  return { host, port, user, pass, from }
-}
 
 type TenantInfo = {
   id: string
@@ -153,35 +139,24 @@ async function sendReportViaEmail(
   case_: PropertyCase,
   tenant: TenantInfo,
 ): Promise<{ success: boolean; detail: string }> {
-  const config = getSmtpConfig()
-
-  if (!config) {
-    return {
-      success: false,
-      detail: "SMTP configuration is missing",
-    }
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: config.host,
-      port: config.port,
-      secure: config.port === 465,
-      auth: {
-        user: config.user,
-        pass: config.pass,
-      },
-    })
-
     const { subject, text, html } = generateReportEmailContent(report, case_, tenant)
 
-    await transporter.sendMail({
-      from: config.from,
+    const delivery = await sendEmail({
+      fromName: "RentSimple Cases",
       to: tenant.email,
       subject,
       text,
       html,
+      tag: "damp-inspection-report",
     })
+
+    if (delivery.status !== "sent") {
+      return {
+        success: false,
+        detail: delivery.detail,
+      }
+    }
 
     return {
       success: true,

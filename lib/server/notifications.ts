@@ -1,12 +1,12 @@
 import "server-only"
 
-import nodemailer from "nodemailer"
-
 import type { TenantCommunicationEntry, TenantCommunicationNotification, TenancyApplicationRecord } from "@/lib/auth"
 import { getPropertyByIdForSystem } from "@/lib/server/properties"
 import { prepareTenantCommunicationNotification } from "@/lib/utils/tenant-communication-notifications"
 import { resolveTenantCommunicationEmailRouting } from "@/lib/utils/tenant-communication-routing"
 import { getUserByEmail, getUserById, listApprovedGlobalAdmins } from "@/lib/server/users"
+import { getPlatformFromAddress, sendEmail } from "@/lib/server/email"
+import { sendSms } from "@/lib/server/sms"
 
 type DeliveryResult = {
   status: TenantCommunicationNotification["status"]
@@ -16,36 +16,6 @@ type DeliveryResult = {
   fromAddress?: string
   replyTo?: string
   copiedTo?: string[]
-}
-
-function getSmtpConfig() {
-  const host = process.env.SMTP_HOST?.trim()
-  const port = Number(process.env.SMTP_PORT ?? "587")
-  const user = process.env.SMTP_USER?.trim()
-  const pass = process.env.SMTP_PASS?.trim()
-  const from = process.env.SMTP_FROM?.trim()
-
-  if (!host || !user || !pass || !from || !Number.isFinite(port)) {
-    return null
-  }
-
-  return { host, port, user, pass, from }
-}
-
-function getTwilioConfig() {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim()
-  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim()
-  const fromNumber = process.env.TWILIO_FROM_NUMBER?.trim()
-
-  if (!accountSid || !authToken || !fromNumber) {
-    return null
-  }
-
-  return { accountSid, authToken, fromNumber }
-}
-
-function formatMailbox(address: string, name: string) {
-  return name ? `${name} <${address}>` : address
 }
 
 function formatPlatformFromName(routedName: string) {
@@ -84,71 +54,52 @@ async function sendRoutedEmailNotification(
   subject: string,
   text: string,
 ): Promise<Omit<TenantCommunicationNotification, "channel" | "target">> {
-  const config = getSmtpConfig()
+  const platformFromAddress = getPlatformFromAddress()
   const attemptedAt = new Date().toISOString()
 
-  if (!config) {
+  if (!platformFromAddress) {
     return {
       status: "skipped",
       attemptedAt,
-      detail: "SMTP configuration is missing.",
+      detail: "Email delivery is not configured.",
     }
   }
 
-  const routing = await resolveEmailRouting(application, config.from)
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.port === 465,
-    auth: {
-      user: config.user,
-      pass: config.pass,
-    },
+  const routing = await resolveEmailRouting(application, platformFromAddress)
+  const delivery = await sendEmail({
+    to,
+    cc: routing.copiedTo.length > 0 ? routing.copiedTo : undefined,
+    fromName: formatPlatformFromName(routing.fromName),
+    replyTo: routing.replyTo,
+    subject,
+    text,
+    tag: "tenant-communication",
   })
+  const fromAddress = delivery.fromAddress ?? platformFromAddress
 
-  try {
-    await transporter.sendMail({
-      from: formatMailbox(config.from, formatPlatformFromName(routing.fromName)),
-      sender: config.from,
-      replyTo: routing.replyTo,
-      cc: routing.copiedTo.length > 0 ? routing.copiedTo : undefined,
-      to,
-      subject,
-      text,
-    })
-
+  if (delivery.status === "sent") {
     return {
       status: "sent",
       attemptedAt,
       sentAt: new Date().toISOString(),
-      fromAddress: config.from,
+      fromAddress,
       replyTo: routing.replyTo,
       copiedTo: routing.copiedTo,
-      detail: `${routing.detail} Delivered using the platform SMTP sender ${config.from}.`,
+      detail: `${routing.detail} Delivered using the platform sender ${fromAddress}.`,
     }
-  } catch (error) {
-    return {
-      status: "failed",
-      attemptedAt,
-      fromAddress: config.from,
-      replyTo: routing.replyTo,
-      copiedTo: routing.copiedTo,
-      detail:
-        error instanceof Error
-          ? `${routing.detail} Delivery via the platform SMTP sender ${config.from} failed. ${error.message}`.trim()
-          : `${routing.detail} Delivery via the platform SMTP sender ${config.from} failed.`,
-    }
+  }
+
+  return {
+    status: delivery.status,
+    attemptedAt,
+    fromAddress,
+    replyTo: routing.replyTo,
+    copiedTo: routing.copiedTo,
+    detail: `${routing.detail} Delivery via the platform sender ${fromAddress} did not complete. ${delivery.detail}`.trim(),
   }
 }
 
 export async function sendNewApplicationNotifications(application: TenancyApplicationRecord): Promise<boolean> {
-  const smtpConfig = getSmtpConfig()
-
-  if (!smtpConfig) {
-    console.warn("SMTP not configured - cannot send new application notifications")
-    return false
-  }
-
   const [property, globalAdmins] = await Promise.all([
     getPropertyByIdForSystem(application.propertyId),
     listApprovedGlobalAdmins(),
@@ -176,22 +127,18 @@ export async function sendNewApplicationNotifications(application: TenancyApplic
   ].join("\n")
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.port === 465,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-    })
-
-    await Promise.all(recipients.map((to) => transporter.sendMail({
-      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+    const deliveries = await Promise.all(recipients.map((to) => sendEmail({
+      fromName: "RentSimple Notifications",
       to,
       subject,
       text,
     })))
+    const failed = deliveries.filter((delivery) => delivery.status !== "sent")
+
+    if (failed.length > 0) {
+      console.warn(`New application notifications not fully sent: ${failed.map((delivery) => delivery.detail).join("; ")}`)
+      return false
+    }
 
     return true
   } catch (error) {
@@ -201,32 +148,12 @@ export async function sendNewApplicationNotifications(application: TenancyApplic
 }
 
 async function sendSmsNotification(to: string, body: string): Promise<DeliveryResult> {
-  const config = getTwilioConfig()
   const attemptedAt = new Date().toISOString()
+  const result = await sendSms(to, body)
 
-  if (!config) {
-    return { status: "skipped", attemptedAt, detail: "Twilio SMS configuration is missing." }
-  }
-
-  try {
-    const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}/Messages.json`, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${config.accountSid}:${config.authToken}`).toString("base64")}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({ To: to, From: config.fromNumber, Body: body }),
-    })
-
-    if (!response.ok) {
-      const detail = await response.text()
-      return { status: "failed", attemptedAt, detail: detail || `SMS notification failed with status ${response.status}.` }
-    }
-
-    return { status: "sent", attemptedAt, sentAt: new Date().toISOString(), detail: "SMS notification sent." }
-  } catch (error) {
-    return { status: "failed", attemptedAt, detail: error instanceof Error ? error.message : "SMS notification failed." }
-  }
+  return result.status === "sent"
+    ? { status: "sent", attemptedAt, sentAt: new Date().toISOString(), detail: result.detail }
+    : { status: result.status, attemptedAt, detail: result.detail }
 }
 
 export async function deliverTenantCommunicationNotification(
@@ -290,24 +217,7 @@ type CreditReportRequestNotificationParams = {
 export async function sendCreditReportRequestNotification(
   params: CreditReportRequestNotificationParams,
 ): Promise<boolean> {
-  const smtpConfig = getSmtpConfig()
-
-  if (!smtpConfig) {
-    console.warn("SMTP not configured - cannot send credit report request notification")
-    return false
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.port === 465,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-    })
-
     const subject = `Credit report requested for ${params.applicantName}`
     const text = [
       "A landlord has requested a tenant credit score and report.",
@@ -321,12 +231,17 @@ export async function sendCreditReportRequestNotification(
       "Please process this report request within 24 hours.",
     ].join("\n")
 
-    await transporter.sendMail({
-      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+    const delivery = await sendEmail({
+      fromName: "RentSimple Notifications",
       to: params.toEmail,
       subject,
       text,
     })
+
+    if (delivery.status !== "sent") {
+      console.warn(`Email notification not sent: ${delivery.detail}`)
+      return false
+    }
 
     return true
   } catch (error) {
@@ -346,24 +261,7 @@ type DepositRequestedNotificationParams = {
 }
 
 export async function sendDepositRequestedNotification(params: DepositRequestedNotificationParams): Promise<boolean> {
-  const smtpConfig = getSmtpConfig()
-
-  if (!smtpConfig) {
-    console.warn("SMTP not configured - cannot send deposit request notification")
-    return false
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.port === 465,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-    })
-
     const subject = `Deposit requested for ${params.propertyAddress}`
     const text = [
       `Hello ${params.tenantName},`,
@@ -377,12 +275,17 @@ export async function sendDepositRequestedNotification(params: DepositRequestedN
       "Please log in to RentSimple to acknowledge this request and confirm once payment has been made.",
     ].filter(Boolean).join("\n")
 
-    await transporter.sendMail({
-      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+    const delivery = await sendEmail({
+      fromName: "RentSimple Notifications",
       to: params.toEmail,
       subject,
       text,
     })
+
+    if (delivery.status !== "sent") {
+      console.warn(`Email notification not sent: ${delivery.detail}`)
+      return false
+    }
 
     return true
   } catch (error) {
@@ -401,24 +304,7 @@ type DepositReminderNotificationParams = {
 }
 
 export async function sendDepositReminderNotification(params: DepositReminderNotificationParams): Promise<boolean> {
-  const smtpConfig = getSmtpConfig()
-
-  if (!smtpConfig) {
-    console.warn("SMTP not configured - cannot send deposit reminder notification")
-    return false
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.port === 465,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-    })
-
     const subject = `Deposit reminder for ${params.propertyAddress}`
     const text = [
       `Hello ${params.tenantName},`,
@@ -429,12 +315,17 @@ export async function sendDepositReminderNotification(params: DepositReminderNot
       "Please review the deposit request in your RentSimple dashboard.",
     ].filter(Boolean).join("\n")
 
-    await transporter.sendMail({
-      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+    const delivery = await sendEmail({
+      fromName: "RentSimple Notifications",
       to: params.toEmail,
       subject,
       text,
     })
+
+    if (delivery.status !== "sent") {
+      console.warn(`Email notification not sent: ${delivery.detail}`)
+      return false
+    }
 
     return true
   } catch (error) {
@@ -454,24 +345,7 @@ type DepositPaymentReceivedNotificationParams = {
 export async function sendDepositPaymentReceivedNotification(
   params: DepositPaymentReceivedNotificationParams,
 ): Promise<boolean> {
-  const smtpConfig = getSmtpConfig()
-
-  if (!smtpConfig) {
-    console.warn("SMTP not configured - cannot send deposit payment received notification")
-    return false
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.port === 465,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-    })
-
     const subject = `Deposit payment received confirmation for ${params.propertyAddress}`
     const text = [
       `Deposit payment for ${params.tenantName} at ${params.propertyAddress} has been marked as received.`,
@@ -481,12 +355,17 @@ export async function sendDepositPaymentReceivedNotification(
       "Next action: record deposit protection details in RentSimple.",
     ].join("\n")
 
-    await transporter.sendMail({
-      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+    const delivery = await sendEmail({
+      fromName: "RentSimple Notifications",
       to: params.toEmail,
       subject,
       text,
     })
+
+    if (delivery.status !== "sent") {
+      console.warn(`Email notification not sent: ${delivery.detail}`)
+      return false
+    }
 
     return true
   } catch (error) {
@@ -507,24 +386,7 @@ type DepositProtectedNotificationParams = {
 }
 
 export async function sendDepositProtectedNotification(params: DepositProtectedNotificationParams): Promise<boolean> {
-  const smtpConfig = getSmtpConfig()
-
-  if (!smtpConfig) {
-    console.warn("SMTP not configured - cannot send deposit protected notification")
-    return false
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.port === 465,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-    })
-
     const subject = `Deposit protection confirmed for ${params.propertyAddress}`
     const text = [
       `Hello ${params.tenantName},`,
@@ -539,12 +401,17 @@ export async function sendDepositProtectedNotification(params: DepositProtectedN
       "You can review the latest details and documents in your RentSimple dashboard.",
     ].filter(Boolean).join("\n")
 
-    await transporter.sendMail({
-      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+    const delivery = await sendEmail({
+      fromName: "RentSimple Notifications",
       to: params.toEmail,
       subject,
       text,
     })
+
+    if (delivery.status !== "sent") {
+      console.warn(`Email notification not sent: ${delivery.detail}`)
+      return false
+    }
 
     return true
   } catch (error) {
@@ -568,24 +435,7 @@ type GuarantorReferenceRequestNotificationParams = {
 export async function sendGuarantorReferenceRequestNotification(
   params: GuarantorReferenceRequestNotificationParams,
 ): Promise<boolean> {
-  const smtpConfig = getSmtpConfig()
-
-  if (!smtpConfig) {
-    console.warn("SMTP not configured - cannot send guarantor reference request notification")
-    return false
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.port === 465,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-    })
-
     const subject = `Guarantor check request for ${params.applicantName}`
     const text = [
       `Hello ${params.refereeName},`,
@@ -604,12 +454,17 @@ export async function sendGuarantorReferenceRequestNotification(
       "Please confirm whether you are prepared to act as guarantor for this applicant.",
     ].join("\n")
 
-    await transporter.sendMail({
-      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+    const delivery = await sendEmail({
+      fromName: "RentSimple Notifications",
       to: params.toEmail,
       subject,
       text,
     })
+
+    if (delivery.status !== "sent") {
+      console.warn(`Email notification not sent: ${delivery.detail}`)
+      return false
+    }
 
     return true
   } catch (error) {
@@ -632,24 +487,7 @@ type GuarantorDeclarationCopyNotificationParams = {
 export async function sendGuarantorDeclarationCopyNotification(
   params: GuarantorDeclarationCopyNotificationParams,
 ): Promise<boolean> {
-  const smtpConfig = getSmtpConfig()
-
-  if (!smtpConfig) {
-    console.warn("SMTP not configured - cannot send guarantor declaration copy")
-    return false
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.port === 465,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-    })
-
     const subject = `Signed guarantor declaration for ${params.applicantName}`
     const text = [
       `Hello ${params.refereeName},`,
@@ -667,8 +505,8 @@ export async function sendGuarantorDeclarationCopyNotification(
       "RentSimple",
     ].join("\n")
 
-    await transporter.sendMail({
-      from: formatMailbox(smtpConfig.from, "RentSimple Notifications"),
+    const delivery = await sendEmail({
+      fromName: "RentSimple Notifications",
       to: params.toEmail,
       subject,
       text,
@@ -680,6 +518,11 @@ export async function sendGuarantorDeclarationCopyNotification(
         },
       ],
     })
+
+    if (delivery.status !== "sent") {
+      console.warn(`Email notification not sent: ${delivery.detail}`)
+      return false
+    }
 
     return true
   } catch (error) {
@@ -704,23 +547,7 @@ type EscalationNotificationParams = {
  * Send escalation notification for overdue case stages
  */
 export async function sendEscalationNotification(params: EscalationNotificationParams): Promise<boolean> {
-  const smtpConfig = getSmtpConfig()
-  if (!smtpConfig) {
-    console.warn("SMTP not configured - cannot send escalation notification")
-    return false
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.port === 465,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-    })
-
     const dueDate = new Date(params.dueAt)
     const now = new Date()
     const daysOverdue = Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
@@ -765,12 +592,17 @@ export async function sendEscalationNotification(params: EscalationNotificationP
       </html>
     `
 
-    await transporter.sendMail({
-      from: formatMailbox(smtpConfig.from, "RentSimple Cases"),
+    const delivery = await sendEmail({
+      fromName: "RentSimple Cases",
       to: params.recipientEmail,
       subject,
       html,
     })
+
+    if (delivery.status !== "sent") {
+      console.warn(`Email notification not sent: ${delivery.detail}`)
+      return false
+    }
 
     return true
   } catch (error) {
@@ -802,27 +634,7 @@ type SiteVisitInviteDeliveryResult = {
 export async function sendSiteVisitMeetingInviteNotification(
   params: SiteVisitInviteNotificationParams,
 ): Promise<SiteVisitInviteDeliveryResult> {
-  const smtpConfig = getSmtpConfig()
-
-  if (!smtpConfig) {
-    console.warn("SMTP not configured - cannot send site visit invite notification")
-    return {
-      sent: false,
-      error: "SMTP is not configured on this environment.",
-    }
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.port === 465,
-      auth: {
-        user: smtpConfig.user,
-        pass: smtpConfig.pass,
-      },
-    })
-
     const formattedSchedule = params.scheduledAt
       ? new Date(params.scheduledAt).toLocaleString("en-GB")
       : "to be confirmed"
@@ -847,42 +659,32 @@ export async function sendSiteVisitMeetingInviteNotification(
       .filter(Boolean)
       .join("\n")
 
-    const delivery = await transporter.sendMail({
-      from: formatMailbox(smtpConfig.from, "RentSimple Viewings"),
+    const delivery = await sendEmail({
+      fromName: "RentSimple Viewings",
       to: params.toEmail,
       subject,
       text,
+      tag: "site-visit-invite",
     })
 
-    const accepted = (delivery.accepted ?? []).map((value) => String(value).trim().toLowerCase())
-    const rejected = (delivery.rejected ?? []).map((value) => String(value).trim().toLowerCase())
-    const normalizedTarget = params.toEmail.trim().toLowerCase()
-    const targetAccepted = accepted.includes(normalizedTarget)
-    const targetRejected = rejected.includes(normalizedTarget)
-
-    if (!targetAccepted || targetRejected) {
-      const reason = targetRejected
-        ? `Recipient rejected by SMTP provider: ${params.toEmail}`
-        : `SMTP did not confirm recipient acceptance: ${params.toEmail}`
-
+    if (delivery.status !== "sent") {
+      console.warn(`Site visit invite notification not sent: ${delivery.detail}`)
       return {
         sent: false,
-        error: reason,
+        error: delivery.detail,
         messageId: delivery.messageId,
-        accepted,
-        rejected,
       }
     }
 
     return {
       sent: true,
       messageId: delivery.messageId,
-      accepted,
-      rejected,
+      accepted: [params.toEmail.trim().toLowerCase()],
+      rejected: [],
     }
   } catch (error) {
     console.error("Error sending site visit invite notification:", error)
-    const detail = error instanceof Error && error.message ? error.message : "Unknown SMTP delivery error."
+    const detail = error instanceof Error && error.message ? error.message : "Unknown email delivery error."
 
     return {
       sent: false,

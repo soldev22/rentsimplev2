@@ -4,8 +4,8 @@ RentSimple can now attempt outbound tenant notifications when a staff user recor
 
 For email routing, the platform now resolves ownership from the tenancy property's `ownerId`:
 
-- If the landlord has a transactional email address configured, the tenant email uses the platform SMTP sender, routes replies to that landlord transactional address, and copies the landlord's registered onboarding email when it differs.
-- If no landlord transactional address is configured, the tenant email uses the platform SMTP sender and routes replies to the landlord's registered onboarding email.
+- If the landlord has a transactional email address configured, the tenant email uses the platform sender, routes replies to that landlord transactional address, and copies the landlord's registered onboarding email when it differs.
+- If no landlord transactional address is configured, the tenant email uses the platform sender and routes replies to the landlord's registered onboarding email.
 - If no landlord email can be resolved at all, the platform sender is used as a fallback.
 
 Admins can now assign a landlord transactional email address from the user management screen. That address is the app transaction address for tenant correspondence, while the landlord's registered onboarding email remains the audit copy destination.
@@ -16,12 +16,35 @@ SMS remains direct to the tenant phone number; landlord visibility for SMS comes
 
 ## Supported outbound channels
 
-- `email` via SMTP
-- `sms` via Twilio
+- `email` via the shared sender in `lib/server/email.ts` (Postmark, Azure Communication Services or SMTP)
+- `sms` via Twilio (`lib/server/sms.ts`)
 
 Other communication channels remain log-only and are still recorded in the conversation thread.
 
+All platform email (sign-in and verification emails, Landlord welcome and terms emails, site-visit invites, case and tenancy notifications) goes through `sendEmail` in `lib/server/email.ts`.
+
+## Email provider selection
+
+The first configured provider is used, in this order:
+
+1. Postmark (recommended)
+2. Azure Communication Services Email (being retired by Microsoft; kept for transition)
+3. SMTP
+
+Only one provider is attempted per message. If it fails, the send is reported as `failed` and there is no automatic fallback, to avoid duplicate emails.
+
 ## Optional environment variables
+
+### Email via Postmark
+
+- `POSTMARK_SERVER_TOKEN` - Server API token
+- `POSTMARK_FROM` - verified sender address, for example `noreply@rentsimple.co.uk`
+- `POSTMARK_MESSAGE_STREAM` - optional, defaults to `outbound`
+
+### Email via Azure Communication Services
+
+- `ACS_EMAIL_CONNECTION_STRING` or `ACS_EMAIL_ENDPOINT` (managed identity)
+- `ACS_EMAIL_SENDER`
 
 ### Email via SMTP
 
@@ -31,13 +54,13 @@ Other communication channels remain log-only and are still recorded in the conve
 - `SMTP_PASS`
 - `SMTP_FROM`
 
-For shared hosting SMTP providers such as Hosting UK, the app now always sends with `SMTP_FROM` as the real SMTP `From` address and uses the landlord transactional or registered email in `Reply-To` instead of trying to spoof arbitrary `From` mailboxes.
+Every provider sends from the platform `From` address and puts the Landlord transactional or registered email in `Reply-To`, rather than spoofing arbitrary `From` mailboxes.
 
 ### SMS via Twilio
 
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
-- `TWILIO_FROM_NUMBER`
+- `TWILIO_MESSAGING_SERVICE_SID` (preferred) or `TWILIO_FROM_NUMBER`
 
 If the relevant provider settings are missing, the communication entry is still saved and the notification is marked as `skipped`.
 
@@ -53,3 +76,4 @@ Current unit coverage focuses on:
 
 - notification preparation rules for outbound email and SMS
 - tenancy log text formatting
+- Postmark, SMTP and Twilio request handling

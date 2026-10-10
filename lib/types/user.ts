@@ -98,6 +98,7 @@ export type AuthUser = {
   accountErasureRequestedAt?: string
   termsAcceptedAt?: string
   termsVersion?: string
+  termsReagreeRequestedAt?: string
   role: UserRole
   approval_status: ApprovalStatus
   createdAt: string

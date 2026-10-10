@@ -1,75 +1,15 @@
 import "server-only"
 
-import nodemailer from "nodemailer"
+import { sendEmail } from "@/lib/server/email"
 
 type AuthEmailResult = {
   status: "sent" | "skipped" | "failed"
   detail: string
 }
 
-function getSmtpConfig() {
-  const host = process.env.SMTP_HOST?.trim()
-  const port = Number(process.env.SMTP_PORT ?? "587")
-  const user = process.env.SMTP_USER?.trim()
-  const pass = process.env.SMTP_PASS?.trim()
-  const from = process.env.SMTP_FROM?.trim()
-
-  if (!host || !user || !pass || !from || !Number.isFinite(port)) {
-    return null
-  }
-
-  return { host, port, user, pass, from }
-}
-
 async function sendAuthEmail(to: string, subject: string, text: string): Promise<AuthEmailResult> {
-  const config = getSmtpConfig()
-
-  if (!config) {
-    return {
-      status: "skipped",
-      detail: "SMTP configuration is missing.",
-    }
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.port === 465,
-    auth: {
-      user: config.user,
-      pass: config.pass,
-    },
-  })
-
-  try {
-    await transporter.sendMail({
-      from: config.from,
-      to,
-      subject,
-      text,
-    })
-
-    return {
-      status: "sent",
-      detail: `Delivered using the platform SMTP sender ${config.from}.`,
-    }
-  } catch (error) {
-    const metadata: { code?: string; errorName: string; responseCode?: number } = {
-      errorName: error instanceof Error ? error.name : "UnknownError",
-    }
-    if (typeof error === "object" && error !== null) {
-      const code = Reflect.get(error, "code")
-      const responseCode = Reflect.get(error, "responseCode")
-      if (typeof code === "string") metadata.code = code
-      if (typeof responseCode === "number") metadata.responseCode = responseCode
-    }
-    console.error("Authentication email delivery failed.", metadata)
-
-    return {
-      status: "failed",
-      detail: error instanceof Error ? error.message : "Unable to send email.",
-    }
-  }
+  const result = await sendEmail({ to, subject, text, fromName: "RentSimple", tag: "account" })
+  return { status: result.status, detail: result.detail }
 }
 
 export async function sendVerificationEmail(to: string, verificationUrl: string) {
@@ -132,6 +72,29 @@ export async function sendLandlordWelcomeEmail(to: string, firstName: string, te
       "",
       "Before you can use your Landlord dashboard, please read and accept our Landlord terms:",
       termsUrl,
+      "",
+      "If you have any questions, just reply to this email and our team will be happy to help.",
+      "",
+      "The RentSimple team",
+    ].join("\n"),
+  )
+}
+
+export async function sendLandlordTermsUpdatedEmail(to: string, firstName: string, termsUrl: string) {
+  const greetingName = firstName.trim() || "there"
+
+  return sendAuthEmail(
+    to,
+    "We've updated our Landlord terms - please review and accept",
+    [
+      `Hi ${greetingName},`,
+      "",
+      "We've updated the RentSimple Landlord terms.",
+      "",
+      "Please read the updated terms and accept them to keep using your Landlord dashboard:",
+      termsUrl,
+      "",
+      "You'll also be asked to review them the next time you sign in.",
       "",
       "If you have any questions, just reply to this email and our team will be happy to help.",
       "",

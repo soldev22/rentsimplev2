@@ -4,6 +4,7 @@ import { buildLandlordTerms } from "@/lib/landlord-terms-content"
 import {
   LANDLORD_TERMS_IS_PLACEHOLDER,
   LANDLORD_TERMS_VERSION,
+  isLandlordTermsReagreement,
   needsLandlordTermsAcceptance,
 } from "@/lib/landlord-terms"
 import { listPropertiesForUser } from "@/lib/server/properties"
@@ -32,6 +33,7 @@ export default async function LandlordTermsPage() {
       displayName={`${user.first_name} ${user.last_name}`.trim() || user.email}
       alreadyAccepted={!needsLandlordTermsAcceptance(user)}
       acceptedAt={user.termsAcceptedAt}
+      isReagreement={isLandlordTermsReagreement(user)}
       version={LANDLORD_TERMS_VERSION}
       isPlaceholder={LANDLORD_TERMS_IS_PLACEHOLDER}
       sections={buildLandlordTerms({ landlord: user, properties })}

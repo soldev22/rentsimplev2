@@ -17,7 +17,13 @@ import {
   normalizeEmail,
 } from "@/lib/auth"
 import { LANDLORD_TERMS_VERSION } from "@/lib/landlord-terms"
-import { sendEmailChangeVerificationEmail, sendLandlordWelcomeEmail, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/server/auth-email"
+import {
+  sendEmailChangeVerificationEmail,
+  sendLandlordTermsUpdatedEmail,
+  sendLandlordWelcomeEmail,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from "@/lib/server/auth-email"
 import { consumeAuthChallenge, createAuthChallenge } from "@/lib/server/auth-security"
 import {
   getApplicationCommunicationsContainer,
@@ -755,12 +761,84 @@ export async function acceptLandlordTerms(user: AuthUser) {
     ...storedUser,
     termsAcceptedAt: now,
     termsVersion: LANDLORD_TERMS_VERSION,
+    termsReagreeRequestedAt: undefined,
     updatedAt: now,
   }
 
   await writeStoredUser(updatedUser)
 
   return sanitizeUser(updatedUser)
+}
+
+async function requestTermsReagreementForStoredLandlord(storedUser: StoredUser, appOrigin: string) {
+  const now = new Date().toISOString()
+  const updatedUser: StoredUser = {
+    ...storedUser,
+    termsReagreeRequestedAt: now,
+    updatedAt: now,
+  }
+
+  await writeStoredUser(updatedUser)
+
+  const termsUrl = new URL("/landlord/terms", appOrigin).toString()
+  const delivery = await sendLandlordTermsUpdatedEmail(storedUser.email, storedUser.first_name, termsUrl)
+
+  return {
+    user: sanitizeUser(updatedUser),
+    email: {
+      ...delivery,
+      developmentTermsUrl: process.env.NODE_ENV === "production" ? undefined : termsUrl,
+    },
+  }
+}
+
+export async function requireLandlordTermsReagreementForAdmin(adminUser: AuthUser, userId: string, appOrigin: string) {
+  assertAdmin(adminUser)
+
+  const storedUser = await readStoredUserById(userId)
+
+  if (!storedUser) {
+    return null
+  }
+
+  if (storedUser.role !== "landlord") {
+    throw new Error("NotLandlord")
+  }
+
+  return requestTermsReagreementForStoredLandlord(storedUser, appOrigin)
+}
+
+export async function requireAllLandlordsTermsReagreementForAdmin(adminUser: AuthUser, appOrigin: string) {
+  assertAdmin(adminUser)
+
+  const container = await getUsersContainer()
+  const landlords = await fetchAllQueryInBatches<StoredUser>(container, {
+    query: "SELECT * FROM c WHERE c.role = @role",
+    parameters: [{ name: "@role", value: "landlord" }],
+  })
+
+  const users: AuthUser[] = []
+  const failedEmails: string[] = []
+  let emailsSent = 0
+
+  for (const storedUser of landlords) {
+    const result = await requestTermsReagreementForStoredLandlord(storedUser, appOrigin)
+    users.push(result.user)
+
+    if (result.email.status === "sent") {
+      emailsSent += 1
+    } else {
+      failedEmails.push(storedUser.email)
+    }
+  }
+
+  return {
+    users,
+    total: landlords.length,
+    emailsSent,
+    failedEmails,
+    developmentTermsUrl: process.env.NODE_ENV === "production" ? undefined : new URL("/landlord/terms", appOrigin).toString(),
+  }
 }
 
 export async function sendLandlordWelcomeForUser(user: Pick<AuthUser, "email" | "first_name">, appOrigin: string) {
