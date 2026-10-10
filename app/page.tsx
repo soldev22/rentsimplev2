@@ -210,25 +210,6 @@ export default function HomePage() {
           </dl>
         </div>
       </section>
-
-      <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm md:p-12">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Maintenance, managed</p>
-          <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">Fix it once. Prove it forever.</h2>
-          <p className="mt-4 text-slate-600">Bring your properties, your tenants, and your builders into one place.</p>
-          <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-            <Link href="/login?mode=register" className="brand-button rounded-xl px-5 py-3 text-sm font-semibold">
-              Create account
-            </Link>
-            <Link href="/login" className="brand-outline-button rounded-xl px-5 py-3 text-sm font-semibold">
-              Sign in
-            </Link>
-            <Link href="/properties" className="px-3 py-3 text-sm font-semibold text-cyan-700 hover:text-cyan-900">
-              Looking for a home? →
-            </Link>
-          </div>
-        </div>
-      </section>
     </div>
   )
 }
