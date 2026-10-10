@@ -43,7 +43,8 @@ function getPostmarkConfig() {
     return null
   }
 
-  return { serverToken, from, messageStream }
+  const mailbox = parseMailbox(from)
+  return { serverToken, from: mailbox.address, defaultFromName: mailbox.name, messageStream }
 }
 
 function getAcsConfig() {
@@ -69,7 +70,8 @@ function getSmtpConfig() {
     return null
   }
 
-  return { host, port, user, pass, from }
+  const mailbox = parseMailbox(from)
+  return { host, port, user, pass, from: mailbox.address, defaultFromName: mailbox.name }
 }
 
 export function getConfiguredEmailProvider(): EmailProvider | null {
@@ -81,6 +83,12 @@ export function getConfiguredEmailProvider(): EmailProvider | null {
 
 export function getPlatformFromAddress(): string | null {
   return getPostmarkConfig()?.from ?? getAcsConfig()?.sender ?? getSmtpConfig()?.from ?? null
+}
+
+function parseMailbox(value: string) {
+  const match = value.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/)
+  if (match) return { name: match[1].trim() || undefined, address: match[2].trim() }
+  return { name: undefined, address: value.trim() }
 }
 
 function formatMailbox(address: string, name?: string) {
@@ -121,7 +129,7 @@ async function sendWithPostmark(
   message: OutboundEmail,
 ): Promise<EmailDeliveryResult> {
   const payload: Record<string, unknown> = {
-    From: formatMailbox(config.from, message.fromName),
+    From: formatMailbox(config.from, message.fromName || config.defaultFromName),
     To: message.to,
     Subject: message.subject,
     MessageStream: config.messageStream,
@@ -257,7 +265,7 @@ async function sendWithSmtp(
 
   try {
     const delivery = await transporter.sendMail({
-      from: formatMailbox(config.from, message.fromName),
+      from: formatMailbox(config.from, message.fromName || config.defaultFromName),
       sender: config.from,
       to: message.to,
       cc: message.cc && message.cc.length > 0 ? message.cc : undefined,

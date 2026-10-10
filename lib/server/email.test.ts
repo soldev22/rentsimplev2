@@ -105,6 +105,22 @@ describe("sendEmail", () => {
     })
   })
 
+  it("accepts a configured Postmark sender that already includes a display name", async () => {
+    vi.stubEnv("POSTMARK_SERVER_TOKEN", "pm-token")
+    vi.stubEnv("POSTMARK_FROM", "RentSimple <admin@rentsimple.co.uk>")
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ErrorCode: 0, Message: "OK", MessageID: "pm-456" }),
+    })
+
+    await sendEmail({ fromName: "RentSimple Team", to: "landlord@example.com", subject: "Hi", text: "Hi" })
+    await sendEmail({ to: "landlord@example.com", subject: "Hi", text: "Hi" })
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).From).toBe('"RentSimple Team" <admin@rentsimple.co.uk>')
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).From).toBe('"RentSimple" <admin@rentsimple.co.uk>')
+  })
+
   it("reports a Postmark rejection as failed without falling back", async () => {
     vi.stubEnv("POSTMARK_SERVER_TOKEN", "pm-token")
     vi.stubEnv("POSTMARK_FROM", "no-reply@rentsimple.co.uk")
