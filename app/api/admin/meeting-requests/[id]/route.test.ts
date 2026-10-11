@@ -52,6 +52,21 @@ describe("admin meeting request API", () => {
     expect((await PATCH(new Request("http://localhost", { method: "PATCH", body: "{" }), context)).status).toBe(400)
     expect(mocks.update).not.toHaveBeenCalled()
   })
+  it("validates and normalizes local appointment times at the API boundary", async () => {
+    expect((await PATCH(request({ ...body, appointment: { date: "2026-10-12", startTime: "10:00", endTime: "10:30", location: " Office " } }), context)).status).toBe(200)
+    expect(mocks.update).toHaveBeenCalledWith(admin, id, expect.objectContaining({
+      appointment: { startAt: "2026-10-12T09:00:00.000Z", endAt: "2026-10-12T09:30:00.000Z", timeZone: "Europe/London", location: "Office" },
+    }))
+    mocks.update.mockClear()
+    expect((await PATCH(request({ ...body, appointment: { date: "2026-10-12", startTime: "11:00", endTime: "10:30" } }), context)).status).toBe(400)
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+  it("reports missing appointment details without falsely confirming", async () => {
+    mocks.update.mockResolvedValue({ kind: "invalid", error: "Set a meeting date and start/end times before confirming." })
+    const response = await PATCH(request(), context)
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining("start/end") })
+  })
   it.each([["conflict", 409], ["not_found", 404], ["unchanged", 400]])("handles %s updates", async (kind, status) => {
     mocks.update.mockResolvedValue({ kind })
     expect((await PATCH(request(), context)).status).toBe(status)

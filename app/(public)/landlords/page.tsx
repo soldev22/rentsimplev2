@@ -170,7 +170,7 @@ export default function LandlordsPage() {
       <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
         <SectionHeading kicker="The difference" title="A typical agent vs RentSimple." />
         <div className="mt-10 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full min-w-[36rem] text-left text-sm">
+          <table className="w-full min-w-xl text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-[0.16em] text-slate-500">
               <tr>
                 <th scope="col" className="px-6 py-4 font-semibold">

@@ -1,4 +1,5 @@
 import type { AuditEventRecord } from "@/lib/types/audit"
+import { validateAppointment, type MeetingAppointment } from "@/lib/diary"
 
 export const MEETING_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
 export const MEETING_TIMES = ["morning", "afternoon", "evening"] as const
@@ -28,6 +29,7 @@ export type MeetingRequest = MeetingRequestInput & {
   auditEvents: AuditEventRecord[]
   emailReplyToken?: string
   emailMessages?: MeetingEmailMessage[]
+  appointment?: MeetingAppointment
 }
 
 export type MeetingEmailMessage = {
@@ -122,6 +124,7 @@ export type MeetingRequestUpdate = {
   status: MeetingRequest["status"]
   note: string
   expectedUpdatedAt: string
+  appointment?: MeetingAppointment
 }
 
 export function validateMeetingRequestUpdate(value: unknown): MeetingRequestUpdate | null {
@@ -130,5 +133,7 @@ export function validateMeetingRequestUpdate(value: unknown): MeetingRequestUpda
       (value.note !== undefined && typeof value.note !== "string")) return null
   const note = typeof value.note === "string" ? value.note.trim() : ""
   if (note.length > 2000) return null
-  return { status: value.status, note, expectedUpdatedAt: value.expectedUpdatedAt }
+  const appointment = value.appointment === undefined ? undefined : validateAppointment(value.appointment)
+  if (appointment === null) return null
+  return { status: value.status, note, expectedUpdatedAt: value.expectedUpdatedAt, ...(appointment ? { appointment } : {}) }
 }

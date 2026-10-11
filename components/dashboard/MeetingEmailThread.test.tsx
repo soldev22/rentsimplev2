@@ -32,6 +32,14 @@ describe("meeting email thread UI", () => {
     expect(html).toContain("Sending failed")
     expect(html).toContain("attachment(s) were not imported")
     expect(html).toContain("admin@example.com")
+    const panels = html.match(/<li\b[^>]*>[\s\S]*?<\/li>/g)!
+    expect(panels).toHaveLength(2)
+    expect(panels[0]).toContain("border-yellow-300 bg-yellow-100")
+    expect(panels[0]).toContain("From prospect: Test Landlord")
+    expect(panels[0]).not.toContain("bg-blue-50")
+    expect(panels[1]).toContain("border-blue-200 bg-blue-50")
+    expect(panels[1]).toContain("From RentSimple: admin@example.com")
+    expect(panels[1]).not.toContain("bg-yellow-100")
   })
   it("disables sending and explains missing configuration", () => {
     const html = renderToStaticMarkup(<MeetingEmailThread request={request} configurationError="Configure Postmark inbound" />)

@@ -21,11 +21,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const input = validateMeetingRequestUpdate(body)
-    if (!input) return NextResponse.json({ error: "Choose a valid status and enter a note of at most 2000 characters." }, { status: 400 })
+    if (!input) return NextResponse.json({ error: "Choose a valid status, keep notes to 2000 characters, and enter a valid date with end time after start time. Times use Europe/London; avoid ambiguous or nonexistent clock-change times." }, { status: 400 })
     const result = await updateMeetingRequest(user, id, input)
     if (result.kind === "not_found") return NextResponse.json({ error: "Meeting request not found." }, { status: 404 })
     if (result.kind === "conflict") return NextResponse.json({ error: "This request has changed. Refresh before saving." }, { status: 409 })
-    if (result.kind === "unchanged") return NextResponse.json({ error: "Change the status or add a note before saving." }, { status: 400 })
+    if (result.kind === "invalid") return NextResponse.json({ error: result.error }, { status: 400 })
+    if (result.kind === "unchanged") return NextResponse.json({ error: "Change the status, meeting details or add a note before saving." }, { status: 400 })
     return NextResponse.json({ request: result.request, warning: result.warning })
   } catch (error) {
     const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined

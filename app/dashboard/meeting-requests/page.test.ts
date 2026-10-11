@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { AuthUser } from "@/lib/types/user"
 
-const mocks = vi.hoisted(() => ({ session: vi.fn(), list: vi.fn() }))
+const mocks = vi.hoisted(() => ({ session: vi.fn(), list: vi.fn(), get: vi.fn() }))
 vi.mock("server-only", () => ({}))
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`) } }))
 vi.mock("@/lib/server/session", () => ({ getSessionUser: mocks.session }))
@@ -9,7 +9,7 @@ vi.mock("@/lib/server/cosmos", () => ({}))
 vi.mock("@/lib/server/audit", () => ({}))
 vi.mock("@/lib/server/meeting-requests", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/server/meeting-requests")>()
-  return { ...original, listMeetingRequests: mocks.list }
+  return { ...original, listMeetingRequests: mocks.list, getMeetingRequest: mocks.get }
 })
 import MeetingRequestsPage from "@/app/dashboard/meeting-requests/page"
 
@@ -40,5 +40,12 @@ describe("meeting request dashboard access", () => {
     mocks.list.mockRejectedValue(new Error("test reached authorized storage"))
     await expect(MeetingRequestsPage(props)).rejects.toThrow("test reached authorized storage")
     expect(mocks.list).toHaveBeenCalledWith(admin, 1)
+  })
+  it("opens diary-linked meetings by ID rather than assuming they are on the first page", async () => {
+    const id = "11111111-1111-4111-8111-111111111111"
+    mocks.get.mockResolvedValue(null)
+    await MeetingRequestsPage({ searchParams: Promise.resolve({ request: id }) })
+    expect(mocks.get).toHaveBeenCalledWith(admin, id)
+    expect(mocks.list).not.toHaveBeenCalled()
   })
 })

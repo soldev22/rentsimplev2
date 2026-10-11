@@ -73,9 +73,9 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
           </div>
         </div>
 
-        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+        <section className="overflow-hidden rounded-4xl border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
           <div className="grid gap-0 lg:grid-cols-[minmax(0,1.15fr)_380px]">
-            <div className="relative min-h-[320px] bg-slate-200 md:min-h-[440px]">
+            <div className="relative min-h-80 bg-slate-200 md:min-h-110">
               {heroImage ? (
                 <>
                   <Image
@@ -85,7 +85,7 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
                     className="object-cover"
                     unoptimized
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/10 to-transparent" />
+                  <div className="absolute inset-0 bg-linear-to-t from-slate-950/75 via-slate-950/10 to-transparent" />
                   <div className="absolute inset-x-0 bottom-0 p-6 text-white md:p-8">
                     <div className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100 backdrop-blur-sm">
                       {property.type}
@@ -95,7 +95,7 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
                   </div>
                 </>
               ) : (
-                <div className="brand-shell-surface flex h-full min-h-[320px] flex-col justify-end p-6 md:min-h-[440px] md:p-8">
+                <div className="brand-shell-surface flex h-full min-h-80 flex-col justify-end p-6 md:min-h-110 md:p-8">
                   <div className="inline-flex w-fit rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100">
                     {property.type}
                   </div>

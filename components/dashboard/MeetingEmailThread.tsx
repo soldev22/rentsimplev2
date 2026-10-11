@@ -82,8 +82,8 @@ export default function MeetingEmailThread({ request, configurationError }: { re
       {(request.emailMessages || []).length ? (
         <ol className="mt-4 space-y-3">
           {(request.emailMessages || []).map((message) => (
-            <li key={message.id} className={`rounded-lg border p-4 ${message.direction === "inbound" ? "border-slate-200 bg-slate-50" : "border-blue-200 bg-blue-50"}`}>
-              <p className="text-sm font-semibold">{message.direction === "inbound" ? "Prospect" : message.performedBy || "RentSimple"} &middot; {statusLabels[message.status]}</p>
+            <li key={message.id} className={`rounded-lg border p-4 ${message.direction === "inbound" ? "border-yellow-300 bg-yellow-100" : "border-blue-200 bg-blue-50"}`}>
+              <p className="text-sm font-semibold">{message.direction === "inbound" ? `From prospect: ${request.firstName} ${request.lastName}` : `From RentSimple: ${message.performedBy || "RentSimple"}`} &middot; {statusLabels[message.status]}</p>
               <p className="mt-1 text-xs text-slate-500">{new Date(message.createdAt).toLocaleString("en-GB", { timeZone: "Europe/London" })}</p>
               <h4 className="mt-2 font-semibold">{message.subject || "(No subject)"}</h4>
               <p className="mt-2 whitespace-pre-wrap break-words text-sm">{message.text}</p>

@@ -14,7 +14,7 @@ function CountList({ title, counts }: { title: string; counts: Array<{ label: st
         <ul className="mt-3 divide-y divide-slate-100">
           {counts.map(({ label, count }) => (
             <li key={label} className="flex items-center justify-between gap-3 py-2 text-sm">
-              <span className="break-words text-slate-600">{label.replaceAll("_", " ")}</span>
+              <span className="wrap-break-word text-slate-600">{label.replaceAll("_", " ")}</span>
               <span className="font-semibold tabular-nums text-slate-900">{count.toLocaleString()}</span>
             </li>
           ))}

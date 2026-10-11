@@ -55,7 +55,17 @@ Approved Global admins manage requests at [/dashboard/meeting-requests](app/dash
 
 Each meeting request has its own expandable panel. Approved Global admins can permanently delete a request after confirming; deletion includes its internal notes and embedded status history. Version checks prevent deleting a request changed since the page loaded. Deletion does not send a cancellation notification to the prospect.
 
+### Shared Global admin diary
+
+Approved Global admins can open `/dashboard/diary` for day, Monday-to-Sunday week and month views, date navigation and links back to individual meeting requests (including requests outside the first list page). Set a meeting date, start time and end time before confirming; location/video link is optional. Input and display use `Europe/London`, stored as UTC instants with the time zone. Invalid dates, end-before-start and ambiguous/nonexistent UK clock-change times are rejected; choose a different time around those clock changes. Appointments currently start and finish on the same UK date, from 2000 through 2099.
+
+The diary is a date-bounded projection of the existing meeting records, not a second collection: saving confirmation and appointment details is one ETag-protected write. Rescheduling changes the same diary entry; cancelled/new requests are excluded, completed meetings remain visible as history, and deletion removes the entry with the request. Appointment and status changes are audited. Previously confirmed requests without a schedule remain stored and are flagged in the diary for manual scheduling. Email conversations/internal notes are not included in diary query results.
+
+This first version does not send invitations, sync Outlook, block overlapping appointments, assign staff, create standalone appointments or support recurring events. Confirming a meeting only adds it to the RentSimple diary; use the existing email composer to tell the prospect.
+
 ### Two-way meeting email
+
+Incoming prospect emails use yellow panels with the prospect's name; outgoing RentSimple emails use blue panels with the sending actor. Sender labels distinguish direction without relying on colour alone.
 
 Each meeting panel includes an email conversation and composer for approved Global admins. Messages are sent to the prospect's stored email address, never a caller-supplied recipient. Incoming messages are accepted only when the sender matches the prospect and the opaque per-meeting reply token matches. Email does not automatically change the meeting status or confirm a booking. Use **Refresh replies** to load new messages.
 
