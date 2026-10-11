@@ -4,6 +4,8 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
+import { MeetingRequestButton, MeetingRequestProvider } from "@/components/forms/MeetingRequestPanel"
+import { CONTACT_PHONE, CONTACT_PHONE_HREF } from "@/lib/public-config"
 
 export default function AppChrome({
   children,
@@ -63,9 +65,10 @@ export default function AppChrome({
   }
 
   return (
+    <MeetingRequestProvider key={pathname}>
     <div className="flex min-h-screen flex-col bg-slate-50">
       <header className="brand-shell-surface border-b border-white/10 shadow-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
           <Link href="/" className="min-w-0">
             <span className="brand-lockup">
               <span className="brand-lockup-mark">
@@ -86,20 +89,19 @@ export default function AppChrome({
             </h1>
           </Link>
 
-          <div className="flex items-center gap-3">
-            {!isAuthenticated && !isLoginRoute && pathname !== "/landlords" ? (
-              <Link href="/landlords" className="hidden rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 sm:inline-block">
-                For Landlords
-              </Link>
-            ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <a href={CONTACT_PHONE_HREF} className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold text-white hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              Call {CONTACT_PHONE}
+            </a>
+            <MeetingRequestButton className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-sky-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" />
             {!isHomeRoute && !isPropertiesRoute && !isLoginRoute ? (
               <Link href="/properties" className="rounded-lg border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20">
                 Search properties
               </Link>
             ) : null}
-            {!isAuthenticated && !isHomeRoute ? (
+            {!isAuthenticated ? (
               <Link href="/login" className="brand-nav-button brand-nav-button-solid px-4 py-2 text-sm font-semibold">
-                Login
+                Login / Register
               </Link>
             ) : null}
             {isAuthenticated ? (
@@ -152,8 +154,12 @@ export default function AppChrome({
               Approval status
             </Link>
           </div>
+          <a href={CONTACT_PHONE_HREF} className="whitespace-nowrap font-semibold text-white hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+            Call {CONTACT_PHONE}
+          </a>
         </div>
       </footer>
     </div>
+    </MeetingRequestProvider>
   )
 }

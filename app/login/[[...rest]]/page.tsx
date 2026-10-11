@@ -6,10 +6,12 @@ import type { ChangeEvent, FormEvent } from "react"
 import { useEffect, useState } from "react"
 
 import { getDefaultDashboardPath, type AuthUser } from "@/lib/auth"
+import { isRegistrationRole, REGISTRATION_ROLE_LABELS, type RegistrationRole } from "@/lib/registration-roles"
 
 type AuthMode = "login" | "register" | "forgot" | "reset" | "verify" | "verify-request" | "confirm-email-change"
 
 type FormState = {
+  requestedRole: RegistrationRole | ""
   firstName: string
   lastName: string
   mobile: string
@@ -60,12 +62,14 @@ export default function LoginPage() {
   const verifyRequestHref = `/login?mode=verify-request${redirectQuery}`
   const loginHref = redirectToParam ? `/login?redirectTo=${encodeURIComponent(redirectToParam)}` : "/login"
   const isRegistrationMode = mode === "register"
+  const requestedRoleParam = searchParams.get("role")
   const isForgotPasswordMode = mode === "forgot"
   const isResetPasswordMode = mode === "reset"
   const isEmailChangeMode = mode === "confirm-email-change"
   const isVerifyMode = mode === "verify" || isEmailChangeMode
   const isVerifyRequestMode = mode === "verify-request"
   const [formState, setFormState] = useState<FormState>({
+    requestedRole: isRegistrationRole(requestedRoleParam) ? requestedRoleParam : "",
     firstName: "",
     lastName: "",
     mobile: "",
@@ -183,6 +187,12 @@ export default function LoginPage() {
 
   function handleInputChange(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = event.target
+    if (name === "requestedRole") {
+      if (value === "" || isRegistrationRole(value)) {
+        setFormState((current) => ({ ...current, requestedRole: value }))
+      }
+      return
+    }
 
     setFormState((current) => ({
       ...current,
@@ -213,6 +223,10 @@ export default function LoginPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
+    if (isRegistrationMode && !isRegistrationRole(formState.requestedRole)) {
+      setErrorMessage("Please select a registration type.")
+      return
+    }
     setIsSubmitting(true)
     setErrorMessage(null)
     setSuccessMessage(null)
@@ -247,6 +261,7 @@ export default function LoginPage() {
                 mobile: formState.mobile,
                 email: formState.email,
                 password: formState.password,
+                requestedRole: formState.requestedRole,
               }
             : isForgotPasswordMode || isVerifyRequestMode
               ? {
@@ -372,6 +387,24 @@ export default function LoginPage() {
                   </div>
                 ) : null}
               </div>
+            ) : null}
+
+            {isRegistrationMode ? (
+              <label className="block text-sm font-medium text-slate-700">
+                Registration type
+                <select
+                  name="requestedRole"
+                  value={formState.requestedRole}
+                  onChange={handleInputChange}
+                  required
+                  className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-sky-500"
+                >
+                  <option value="" disabled>Select your registration type</option>
+                  {Object.entries(REGISTRATION_ROLE_LABELS).map(([role, label]) => (
+                    <option key={role} value={role}>{label}</option>
+                  ))}
+                </select>
+              </label>
             ) : null}
 
             {isRegistrationMode ? (

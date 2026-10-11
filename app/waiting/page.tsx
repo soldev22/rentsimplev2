@@ -1,5 +1,6 @@
 import { getUserRole, isPendingVerification } from "@/lib/auth"
 import { getSessionUser } from "@/lib/server/session"
+import { isLandlordApplication } from "@/lib/registration-roles"
 import WaitingClient from "./waiting-client"
 
 type WaitingStageState = "complete" | "active" | "next"
@@ -55,8 +56,8 @@ export default async function WaitingPage() {
       displayName={displayName}
       role={role}
       awaitingVerification={awaitingVerification}
+      landlordApplication={isLandlordApplication(user)}
       stageItems={stageItems}
     />
   )
 }
-

@@ -3,6 +3,7 @@
 import { useDeferredValue, useState, useTransition } from "react"
 
 import type { ApprovalStatus, AuthUser, UserRole } from "@/lib/auth"
+import { isLandlordApplication } from "@/lib/registration-roles"
 
 type AgentOption = {
   id: string
@@ -93,8 +94,10 @@ function formatPreferredContactMethods(methods: AuthUser["applicantProfile"] ext
   return Array.isArray(methods) && methods.length > 0 ? methods.join(", ") : "Not set"
 }
 
-function sortUsers(users: AuthUser[]) {
-  return [...users].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+export function sortUsers(users: AuthUser[]) {
+  return [...users].sort((left, right) =>
+    Number(isLandlordApplication(right)) - Number(isLandlordApplication(left)) ||
+    Date.parse(right.createdAt) - Date.parse(left.createdAt))
 }
 
 function getNotificationSummary(user: AuthUser) {
@@ -235,14 +238,15 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
     persistUserUpdate(user, `Updated ${getFullName(user)}.`)
   }
 
-  function approveUserAsApplicant(user: AuthUser) {
+  function approveUser(user: AuthUser) {
+    const role = isLandlordApplication(user) ? "landlord" : "applicant"
     persistUserUpdate(
       {
         ...user,
-        role: "applicant",
+        role,
         approval_status: "approved",
       },
-      `Approved ${getFullName(user)} as an applicant.`,
+      `Approved ${getFullName(user)} as a ${role}.`,
     )
   }
 
@@ -695,6 +699,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
                     <div className="text-lg font-semibold text-slate-900">{getFullName(user)}</div>
+                    {isLandlordApplication(user) ? <span className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-900">Landlord application</span> : null}
                     <div className="mt-1 text-sm text-slate-600">{user.email}</div>
                     <div className="mt-1 text-sm text-slate-500">{user.mobile || "No mobile number"}</div>
                   </div>
@@ -706,11 +711,11 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={() => approveUserAsApplicant(user)}
-                    disabled={isPending && savingEmail === user.email}
+                    onClick={() => approveUser(user)}
+                    disabled={user.approval_status === "pending_verification" || (isPending && savingEmail === user.email)}
                     className="brand-button rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {isPending && savingEmail === user.email ? "Approving..." : "Approve as applicant"}
+                    {isPending && savingEmail === user.email ? "Approving..." : isLandlordApplication(user) ? "Approve as Landlord" : "Approve as applicant"}
                   </button>
                   <button
                     type="button"
@@ -832,6 +837,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                 <tr key={user.email} className="align-top">
                   <td className="px-4 py-4">
                     <div className="space-y-2">
+                      {isLandlordApplication(user) ? <span className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-900">Landlord application</span> : null}
                       <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         First name
                         <input

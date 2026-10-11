@@ -4,6 +4,7 @@ import { getClientIpAddress, registerRateLimitAttempt } from "@/lib/server/auth-
 import { assessRegistration, getDeviceFingerprint, hashRegistrationIdentifier } from "@/lib/server/registration-authenticity"
 import { countOtherDeviceAccounts, countRecentRegistrationAttempts, recordRegistrationAttempt } from "@/lib/server/registration-attempts"
 import { createUser, sendVerificationForUser } from "@/lib/server/users"
+import { isRegistrationRole } from "@/lib/registration-roles"
 
 async function atRegistrationStage<T>(stage: string, operation: () => Promise<T>): Promise<T> {
   try {
@@ -23,8 +24,13 @@ async function handleRegistration(request: Request) {
     lastName?: string
     mobile?: string
     website?: string
+    requestedRole?: unknown
   }
 
+  if (body.requestedRole !== undefined && !isRegistrationRole(body.requestedRole)) {
+    return NextResponse.json({ error: "Please select a valid registration type." }, { status: 400 })
+  }
+  const requestedRole = isRegistrationRole(body.requestedRole) ? body.requestedRole : undefined
   if (!body.email?.trim() || !body.password || !body.firstName?.trim() || !body.lastName?.trim()) {
     return NextResponse.json(
       { error: "First name, last name, email, and password are required." },
@@ -134,6 +140,7 @@ async function handleRegistration(request: Request) {
     firstName,
     lastName,
     mobile,
+    requestedRole,
   }))
 
   if (!user || error) {

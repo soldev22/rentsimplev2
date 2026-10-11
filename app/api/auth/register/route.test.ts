@@ -116,6 +116,24 @@ describe("registration route", () => {
     }))
   })
 
+  it.each(["applicant", "landlord", "agent", "tenant", "builder"])("forwards the selected %s registration type", async (requestedRole) => {
+    const response = await POST(new Request("http://localhost/api/auth/register", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firstName: "Test", lastName: "User", email: "new@example.com", password: "Password123!", requestedRole }),
+    }))
+    expect(response.status).toBe(201)
+    expect(mocks.createUser).toHaveBeenCalledWith(expect.objectContaining({ requestedRole }))
+  })
+
+  it.each(["admin", "unallocated", "invalid", 123, null])("rejects invalid registration type %s", async (requestedRole) => {
+    const response = await POST(new Request("http://localhost/api/auth/register", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firstName: "Test", lastName: "User", email: "new@example.com", password: "Password123!", requestedRole }),
+    }))
+    expect(response.status).toBe(400)
+    expect(mocks.createUser).not.toHaveBeenCalled()
+  })
+
   it.each([
     ["sent", "Your account was created. Check your inbox and spam folder for the verification email."],
     ["skipped", "Your account was created, but verification email delivery is not configured. Please contact support."],

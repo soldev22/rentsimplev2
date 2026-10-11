@@ -100,6 +100,7 @@ export type AuthUser = {
   termsVersion?: string
   termsReagreeRequestedAt?: string
   role: UserRole
+  requestedRole?: Exclude<UserRole, "admin" | "unallocated">
   approval_status: ApprovalStatus
   createdAt: string
   updatedAt: string

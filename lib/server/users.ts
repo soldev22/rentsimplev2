@@ -17,6 +17,7 @@ import {
   normalizeEmail,
 } from "@/lib/auth"
 import { LANDLORD_TERMS_VERSION } from "@/lib/landlord-terms"
+import { isRegistrationRole, type RegistrationRole } from "@/lib/registration-roles"
 import {
   sendEmailChangeVerificationEmail,
   sendLandlordTermsUpdatedEmail,
@@ -48,6 +49,7 @@ type StoredUser = AuthUser & {
   sessionTokenHash?: string
   sessionExpiresAt?: string
   emailVerifiedAt?: string
+  landlordApplicationNotifiedAt?: string
   failedLoginAttempts?: number
   lastFailedLoginAt?: string
   lockoutUntil?: string
@@ -78,6 +80,7 @@ function sanitizeUser(user: StoredUser): AuthUser {
     sessionTokenHash: _sessionTokenHash,
     sessionExpiresAt: _sessionExpiresAt,
     emailVerifiedAt: _emailVerifiedAt,
+    landlordApplicationNotifiedAt: _landlordApplicationNotifiedAt,
     failedLoginAttempts: _failedLoginAttempts,
     lastFailedLoginAt: _lastFailedLoginAt,
     lockoutUntil: _lockoutUntil,
@@ -315,11 +318,14 @@ export async function createUser(input: {
   firstName: string
   lastName: string
   mobile: string
-  requestedRole?: "applicant"
+  requestedRole?: RegistrationRole
 }) {
+  if (input.requestedRole !== undefined && !isRegistrationRole(input.requestedRole)) {
+    return { user: null, error: "Please select a valid registration type." }
+  }
   const normalizedEmail = normalizeEmail(input.email)
   const existingUser = await readStoredUser(normalizedEmail)
-  const requestedRole = input.requestedRole === "applicant" ? "applicant" : "unallocated"
+  const requestedRole = input.requestedRole === "landlord" ? "unallocated" : input.requestedRole ?? "unallocated"
   const requestedApprovalStatus: ApprovalStatus = "pending_verification"
 
   if (existingUser && (!hasLocalPassword(existingUser) || existingUser.approval_status === "pending_verification")) {
@@ -330,6 +336,7 @@ export async function createUser(input: {
       last_name: input.lastName.trim(),
       mobile: input.mobile.trim(),
       role: requestedRole,
+      requestedRole: input.requestedRole,
       approval_status: requestedApprovalStatus,
       updatedAt: new Date().toISOString(),
       passwordHash: hashPassword(input.password),
@@ -356,6 +363,7 @@ export async function createUser(input: {
     last_name: input.lastName.trim(),
     mobile: input.mobile.trim(),
     role: requestedRole,
+    requestedRole: input.requestedRole,
     approval_status: requestedApprovalStatus,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -456,12 +464,39 @@ export async function verifyUserEmail(token: string) {
     return { user: null, error: "InvalidOrExpiredToken" as const }
   }
 
-  storedUser.approval_status = getPostVerificationApprovalStatus(storedUser.role)
-  storedUser.emailVerifiedAt = new Date().toISOString()
-  storedUser.updatedAt = new Date().toISOString()
-  await writeStoredUser(storedUser)
+  const container = await getUsersContainer()
+  const item = container.item(storedUser.id, storedUser.id)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { resource, etag } = await item.read<StoredUser>()
+    if (!resource) return { user: null, error: "InvalidOrExpiredToken" as const }
+    if (resource.emailVerifiedAt) return { user: sanitizeUser(resource), error: null }
 
-  return { user: sanitizeUser(storedUser), error: null }
+    const timestamp = new Date().toISOString()
+    const notifyAdmins = resource.requestedRole === "landlord" && !resource.landlordApplicationNotifiedAt
+    const updatedUser: StoredUser = {
+      ...resource,
+      approval_status: getPostVerificationApprovalStatus(resource.role),
+      emailVerifiedAt: timestamp,
+      updatedAt: timestamp,
+      ...(notifyAdmins ? { landlordApplicationNotifiedAt: timestamp } : {}),
+    }
+    try {
+      await item.replace(updatedUser, { accessCondition: { type: "IfMatch", condition: etag } })
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === 412 && attempt < 2) continue
+      throw error
+    }
+    if (notifyAdmins) {
+      try {
+        const { sendLandlordApplicationNotifications } = await import("@/lib/server/landlord-application-notifications")
+        await sendLandlordApplicationNotifications(sanitizeUser(updatedUser))
+      } catch (error) {
+        console.error("Landlord application notifications failed.", { userId: updatedUser.id, error })
+      }
+    }
+    return { user: sanitizeUser(updatedUser), error: null }
+  }
+  throw new Error("Unable to save email verification.")
 }
 
 export async function requestPasswordReset(email: string, appOrigin: string) {
@@ -630,15 +665,24 @@ export async function listUsersForAdminPage(user: AuthUser, options?: PageOption
 
   const container = await getUsersContainer()
   const { page, pageSize, offset } = normalizePageOptions(options, { defaultPageSize: 25, maxPageSize: 100 })
-  const [{ resources: countRows }, { resources }] = await Promise.all([
+  const applicationFilter = 'c.requestedRole = "landlord" AND c.role = "unallocated" AND c.approval_status != "approved"'
+  const [{ resources: countRows }, { resources: applicationCountRows }] = await Promise.all([
     container.items.query<number>({ query: "SELECT VALUE COUNT(1) FROM c" }).fetchAll(),
-    container.items
-      .query<StoredUser>({
-        query: `SELECT * FROM c ORDER BY c.createdAt DESC OFFSET ${offset} LIMIT ${pageSize}`,
-      })
-      .fetchAll(),
+    container.items.query<number>({ query: `SELECT VALUE COUNT(1) FROM c WHERE ${applicationFilter}` }).fetchAll(),
   ])
-
+  const applicationCount = applicationCountRows[0] ?? 0
+  const applicationLimit = Math.min(pageSize, Math.max(0, applicationCount - offset))
+  const otherLimit = pageSize - applicationLimit
+  const otherFilter = `NOT IS_DEFINED(c.requestedRole) OR NOT (${applicationFilter})`
+  const pages = await Promise.all([
+    applicationLimit > 0
+      ? container.items.query<StoredUser>({ query: `SELECT * FROM c WHERE ${applicationFilter} ORDER BY c.createdAt DESC OFFSET ${offset} LIMIT ${applicationLimit}` }).fetchAll()
+      : Promise.resolve({ resources: [] as StoredUser[] }),
+    otherLimit > 0
+      ? container.items.query<StoredUser>({ query: `SELECT * FROM c WHERE ${otherFilter} ORDER BY c.createdAt DESC OFFSET ${Math.max(0, offset - applicationCount)} LIMIT ${otherLimit}` }).fetchAll()
+      : Promise.resolve({ resources: [] as StoredUser[] }),
+  ])
+  const resources = pages.flatMap((result) => result.resources)
   return buildPaginatedResult(resources.map(sanitizeUser), countRows[0] ?? 0, page, pageSize)
 }
 

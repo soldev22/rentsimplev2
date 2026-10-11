@@ -155,4 +155,21 @@ describe("sendEmail", () => {
     expect(result.provider).toBe("smtp")
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it("reports pending Postmark approval and logs safe provider metadata", async () => {
+    vi.stubEnv("POSTMARK_SERVER_TOKEN", "pm-token")
+    vi.stubEnv("POSTMARK_FROM", "no-reply@rentsimple.co.uk")
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({ ErrorCode: 412, Message: "Account is pending approval" }),
+    })
+
+    const result = await sendEmail({ to: "landlord@example.com", subject: "Meeting request", text: "Received" })
+
+    expect(result).toMatchObject({ status: "failed", provider: "postmark", detail: "Postmark rejected the email: Account is pending approval" })
+    expect(console.error).toHaveBeenCalledWith('Email delivery failed. {"provider":"postmark","errorName":"UnknownError","code":412,"statusCode":422}')
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("pm-token")
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("landlord@example.com")
+  })
 })

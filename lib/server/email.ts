@@ -96,7 +96,7 @@ function formatMailbox(address: string, name?: string) {
   return trimmedName ? `"${trimmedName}" <${address}>` : address
 }
 
-function htmlToPlainText(html: string) {
+export function htmlToPlainText(html: string) {
   return html
     .replace(/<(br|\/p|\/div|\/h[1-6]|\/li)\s*\/?>/gi, "\n")
     .replace(/<[^>]+>/g, "")
@@ -121,7 +121,7 @@ function logEmailFailure(provider: EmailProvider, error: unknown) {
     if (typeof responseCode === "number") metadata.responseCode = responseCode
     if (typeof statusCode === "number") metadata.statusCode = statusCode
   }
-  console.error("Email delivery failed.", metadata)
+  console.error(`Email delivery failed. ${JSON.stringify(metadata)}`)
 }
 
 async function sendWithPostmark(

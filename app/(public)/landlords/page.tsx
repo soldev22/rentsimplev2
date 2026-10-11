@@ -1,4 +1,7 @@
 import type { Metadata } from "next"
+import LandlordContactActions from "@/components/forms/LandlordContactActions"
+import { LANDLORD_VIDEO_URL } from "@/lib/public-config"
+import EarlyBirdOffer from "@/components/layout/EarlyBirdOffer"
 
 export const metadata: Metadata = {
   title: "For Landlords | RentSimple",
@@ -85,9 +88,29 @@ export default function LandlordsPage() {
               RentSimple manages rental properties and nothing else. Our own maintenance team takes care of the small jobs at low prices, and we keep every property compliant and documented, so you&apos;re covered when it matters.
             </p>
             <p className="mt-6 text-sm text-slate-500">No sales. No contractor chasing. No missing paperwork.</p>
+            <div className="mt-8">
+              <LandlordContactActions />
+            </div>
           </div>
         </div>
       </section>
+
+      {LANDLORD_VIDEO_URL ? (
+        <div className="mx-auto max-w-6xl px-6 py-8">
+          <iframe
+            src={LANDLORD_VIDEO_URL}
+            title="RentSimple Landlord onboarding"
+            loading="lazy"
+            className="aspect-video w-full rounded-2xl border-0"
+            sandbox="allow-scripts allow-same-origin allow-presentation"
+            allow="fullscreen; picture-in-picture"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+          />
+        </div>
+      ) : null}
+
+      <EarlyBirdOffer />
 
       <section className="mx-auto max-w-6xl px-6 py-16 md:py-20">
         <SectionHeading kicker="Why Landlords choose RentSimple" title="Three promises. No small print." />
@@ -186,6 +209,11 @@ export default function LandlordsPage() {
           </div>
         </div>
       </section>
+      <div className="border-t border-slate-200 bg-slate-50">
+        <div className="mx-auto max-w-6xl px-6 py-6">
+          <LandlordContactActions />
+        </div>
+      </div>
     </div>
   )
 }

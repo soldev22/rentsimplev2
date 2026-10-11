@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { CONTACT_PHONE, CONTACT_PHONE_HREF } from "@/lib/public-config";
 
 type WaitingStageState = "complete" | "active" | "next";
 type WaitingStageItem = {
@@ -15,6 +16,7 @@ type WaitingClientProps = {
   displayName: string;
   role: string;
   awaitingVerification: boolean;
+  landlordApplication?: boolean;
   stageItems: WaitingStageItem[];
 };
 
@@ -22,6 +24,7 @@ export default function WaitingClient({
   displayName,
   role,
   awaitingVerification,
+  landlordApplication = false,
   stageItems,
 }: WaitingClientProps) {
   const router = useRouter();
@@ -87,14 +90,21 @@ export default function WaitingClient({
           {awaitingVerification ? "Email Verification" : "Approval Queue"}
         </p>
         <h1 className="mb-4 mt-3 text-center text-3xl font-semibold text-slate-900">
-          {awaitingVerification ? "Verify Your Email" : "Account Pending Approval"}
+          {awaitingVerification ? "Verify Your Email" : landlordApplication ? "We're reviewing your application" : "Account Pending Approval"}
         </h1>
 
         <p className="text-center text-slate-600">
           {awaitingVerification
             ? "Your account has been created, but you must verify your email before you can sign in. Return to the login screen if you need to request another verification email."
-            : "Your account has been created. An administrator will assign your role shortly."}
+            : landlordApplication
+              ? "Your Landlord application is awaiting review. We'll contact you about the next steps."
+              : "Your account has been created. An administrator will assign your role shortly."}
         </p>
+        {landlordApplication ? (
+          <p className="mt-4 text-center text-slate-600">
+            For help with your Landlord application, call <a href={CONTACT_PHONE_HREF} className="font-semibold text-cyan-800 underline">{CONTACT_PHONE}</a>.
+          </p>
+        ) : null}
 
         <div className="mt-6 flex justify-center">
           <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700">

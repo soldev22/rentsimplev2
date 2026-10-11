@@ -6,7 +6,7 @@ import type { ItemDefinition } from "@azure/cosmos"
 import { getAuthSecurityContainer } from "@/lib/server/cosmos"
 
 type AuthChallengeKind = "verification" | "password_reset" | "guarantor_reference" | "site_visit_confirmation" | "email_change"
-type AuthRateLimitAction = "login" | "register" | "forgot_password" | "verify_request" | "change_email"
+type AuthRateLimitAction = "login" | "register" | "forgot_password" | "verify_request" | "change_email" | "meeting_request" | "meeting_email"
 type AuthRateLimitScope = "ip" | "email" | "device"
 
 type AuthChallengeRecord = {

@@ -24,6 +24,7 @@ const registrationReviewsContainerId = process.env.COSMOSDB_REGISTRATION_REVIEWS
 const maintenanceContainerId = process.env.COSMOSDB_MAINTENANCE_CONTAINER?.trim() || "maintenance"
 const casesContainerId = process.env.COSMOSDB_CASES_CONTAINER?.trim() || "cases"
 const caseMessagesContainerId = process.env.COSMOSDB_CASE_MESSAGES_CONTAINER?.trim() || "case-messages"
+const meetingRequestsContainerId = process.env.COSMOSDB_MEETING_REQUESTS_CONTAINER?.trim() || "meeting-requests"
 
 export function hasCosmosConfiguration() {
   return Boolean(endpoint)
@@ -183,4 +184,8 @@ export async function getRegistrationAttemptsContainer(): Promise<Container> {
 
 export async function getRegistrationReviewsContainer(): Promise<Container> {
   return createContainerIfNeeded({ id: registrationReviewsContainerId, partitionKeyPath: "/attemptId" })
+}
+
+export async function getMeetingRequestsContainer(): Promise<Container> {
+  return createContainerIfNeeded({ id: meetingRequestsContainerId, partitionKeyPath: "/id" })
 }

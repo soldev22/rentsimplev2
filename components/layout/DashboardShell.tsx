@@ -68,6 +68,7 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
           ...(displayRole === "admin"
             ? [
                 { name: "Users", href: "/dashboard/users" },
+                { name: "Meeting Requests", href: "/dashboard/meeting-requests" },
                 { name: "Audit Log", href: "/dashboard/audit" },
               ]
             : []),

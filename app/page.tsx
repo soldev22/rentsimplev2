@@ -1,5 +1,7 @@
 import Image from "next/image"
 import Link from "next/link"
+import { MeetingRequestButton } from "@/components/forms/MeetingRequestPanel"
+import EarlyBirdOffer from "@/components/layout/EarlyBirdOffer"
 
 const highlights = ["Tenant reporting with photos", "Competing builder bids", "Accreditation checks", "Deadline alerts"]
 
@@ -61,6 +63,9 @@ export default function HomePage() {
               RentSimple only manages rental properties, so every Landlord gets our full attention. Our own maintenance team fixes the small jobs fast and keeps costs low, and every property we manage is kept insurance-compliant, so that in the event of a claim you have the strongest possible chance of it being successful.
             </p>
             <p className="mt-6 text-sm font-semibold text-slate-700">Lower costs. Fewer headaches. Cover you can count on.</p>
+            <div className="mt-6">
+              <MeetingRequestButton className="rounded-lg bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700" />
+            </div>
             <Link href="/landlords" className="mt-6 inline-block text-sm font-semibold text-cyan-700 hover:text-cyan-900">
               Why Landlords choose us →
             </Link>
@@ -86,6 +91,8 @@ export default function HomePage() {
           </figure>
         </div>
       </section>
+
+      <EarlyBirdOffer />
 
       <section className="border-y border-slate-200 bg-slate-50" aria-label="Maintenance features">
         <ul className="mx-auto grid max-w-6xl gap-3 px-6 py-5 text-sm font-medium text-slate-700 sm:grid-cols-2 lg:grid-cols-4">
@@ -210,6 +217,12 @@ export default function HomePage() {
           </dl>
         </div>
       </section>
+      <div className="border-t border-slate-200 bg-blue-700">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-5">
+          <p className="font-semibold text-white">Let&apos;s talk about your rental properties.</p>
+          <MeetingRequestButton className="rounded-lg bg-white px-5 py-3 font-semibold text-blue-900 hover:bg-sky-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white" />
+        </div>
+      </div>
     </div>
   )
 }
