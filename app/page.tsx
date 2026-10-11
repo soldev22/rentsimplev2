@@ -58,7 +58,7 @@ export default function HomePage() {
               <span className="text-blue-700">Your time, back.</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-              RentSimple only manages rental properties, so every Landlord gets our full attention. Our own maintenance team fixes the small jobs fast and keeps costs low, and every property we manage is kept insurance-compliant, giving you the strongest possible chance of a successful claim.
+              RentSimple only manages rental properties, so every Landlord gets our full attention. Our own maintenance team fixes the small jobs fast and keeps costs low, and every property we manage is kept insurance-compliant, so that in the event of a claim you have the strongest possible chance of it being successful.
             </p>
             <p className="mt-6 text-sm font-semibold text-slate-700">Lower costs. Fewer headaches. Cover you can count on.</p>
             <Link href="/landlords" className="mt-6 inline-block text-sm font-semibold text-cyan-700 hover:text-cyan-900">

@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 export const metadata: Metadata = {
   title: "For Landlords | RentSimple",
   description:
-    "RentSimple only manages rental properties. Our own maintenance team keeps small jobs simple and prices low, and our compliance records give your insurance claims the best possible chance of success.",
+    "RentSimple only manages rental properties. Our own maintenance team keeps small jobs simple and prices low, and our compliance records mean that if you ever need to claim, you have the best possible chance of success.",
 }
 
 const pillars = [
@@ -121,8 +121,8 @@ export default function LandlordsPage() {
         <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 md:grid-cols-2 md:items-center md:py-20">
           <SectionHeading
             kicker="Insurance compliance"
-            title="When you need to claim, the evidence is already there."
-            intro="An insurance claim can depend on proving the property was safe and well maintained. We keep every RentSimple property compliant and fully documented, so your claim has the best possible chance of success."
+            title="If you ever need to claim, the evidence is already there."
+            intro="An insurance claim can depend on proving the property was safe and well maintained. We keep every RentSimple property compliant and fully documented, so if you ever need to claim, you have the best possible chance of success."
           />
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm" aria-label="Example insurance evidence checklist">
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em]">
