@@ -51,7 +51,7 @@ export default function HomePage() {
       <section className="bg-white">
         <div className="relative mx-auto grid max-w-6xl gap-10 px-6 py-16 md:py-24 lg:grid-cols-[1.4fr_1fr] lg:items-center">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Rental property management, nothing else</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Rental property management. Pure and simple.</p>
             <h1 className="mt-4 text-4xl font-bold leading-tight text-slate-900 sm:text-5xl">
               Your rental, protected.
               <br />

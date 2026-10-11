@@ -82,7 +82,7 @@ export default function AppChrome({
               </p>
             </span>
             <h1 className="text-lg font-semibold text-white">
-              Property management, refined.
+              Property management, redefined.
             </h1>
           </Link>
 
