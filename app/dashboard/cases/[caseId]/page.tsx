@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import type { PropertyCase } from "@/lib/auth"
+import { canDelete, type PropertyCase, type UserRole } from "@/lib/auth"
 import type { DampInspectionReport } from "@/lib/types/case"
 import CaseMessageThread from "@/components/cases/CaseMessageThread"
 import CaseInviteManager from "@/components/cases/CaseInviteManager"
@@ -81,6 +81,8 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
   const [error, setError] = useState<string | null>(null)
   const [completingStageId, setCompletingStageId] = useState<string | null>(null)
   const [currentUserEmail, setCurrentUserEmail] = useState<string>("")
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole>("unallocated")
+  const allowDeletion = currentUserRole !== "unallocated" && canDelete({ role: currentUserRole })
   const [showReportForm, setShowReportForm] = useState(false)
   const [pendingStageId, setPendingStageId] = useState<string | null>(null)
   const [sendingReportId, setSendingReportId] = useState<string | null>(null)
@@ -98,6 +100,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
         if (isMounted && userRes.ok) {
           const userData = await userRes.json()
           setCurrentUserEmail(userData.email)
+          setCurrentUserRole(userData.displayRole)
         }
 
         if (!propertyId) {
@@ -479,6 +482,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
           caseId={case_.id}
           propertyId={case_.propertyId}
           currentUserEmail={currentUserEmail}
+          allowDeletion={allowDeletion}
           onMessageAdded={() => {
             // Refresh case message count if needed
           }}
@@ -490,7 +494,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
         <CaseInviteManager
           caseId={case_.id}
           propertyId={case_.propertyId}
-          currentUserRole="landlord"
+          currentUserRole={currentUserRole}
         />
       )}
 
@@ -500,6 +504,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
           caseId={case_.id}
           propertyId={case_.propertyId}
           readOnly={false}
+          allowDeletion={allowDeletion}
         />
       )}
 

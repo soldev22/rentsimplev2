@@ -9,6 +9,7 @@ vi.mock("next/navigation", () => ({
 
 import AppChrome from "./AppChrome"
 import HomePage from "@/app/page"
+import { PUBLIC_NAV_LINKS, TRADING_ADDRESS } from "@/lib/public-config"
 
 describe("public header account access", () => {
   beforeEach(() => { mocks.pathname = "/" })
@@ -33,5 +34,28 @@ describe("public header account access", () => {
     expect(html.match(/aria-label="Early bird offer"/g)).toHaveLength(1)
     expect(html).toContain("up to 50% off for the lifetime of your tenancy")
     expect(html).toContain('href="tel:+447739870670"')
+  })
+  it.each([false, true])("links all public information pages in both navigation areas when authenticated=%s", (isAuthenticated) => {
+    mocks.pathname = "/team"
+    const html = renderToStaticMarkup(<AppChrome isAuthenticated={isAuthenticated}>Page content</AppChrome>)
+    const header = html.split("</header>")[0]
+    const footer = html.split("<footer")[1]
+    for (const { label, href } of PUBLIC_NAV_LINKS) {
+      expect(header).toContain(`href="${href}"`)
+      expect(footer).toContain(`href="${href}"`)
+      expect(header).toContain(label)
+      expect(footer).toContain(label)
+    }
+    expect(header).toMatch(/<a\b(?=[^>]*href="\/team")(?=[^>]*aria-current="page")[^>]*>/)
+    expect(header).not.toContain("<h1")
+    expect(footer).toContain(TRADING_ADDRESS)
+    expect(footer).toContain('href="/privacy"')
+    expect(footer).not.toContain(">Pricing<")
+    expect(footer).not.toContain(">Support<")
+  })
+  it("keeps the public navigation out of dashboard pages", () => {
+    mocks.pathname = "/dashboard/platform"
+    const html = renderToStaticMarkup(<AppChrome isAuthenticated>Dashboard content</AppChrome>)
+    expect(html).toBe("Dashboard content")
   })
 })

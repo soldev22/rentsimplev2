@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const role = getUserRole(user)
-    if (!["landlord", "agent", "admin"].includes(role)) {
+    if (!["landlord", "agent", "admin", "user"].includes(role)) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
     }
 

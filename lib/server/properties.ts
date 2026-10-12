@@ -21,6 +21,7 @@ import { AUDIT_ACTION_TYPES } from "@/lib/types/audit"
 import { writeAuditEvent, writeAuditEvents } from "@/lib/server/audit"
 import { getPropertiesContainer } from "@/lib/server/cosmos"
 import { deletePropertyImageAssets } from "@/lib/server/blob"
+import { canManagePlatform, assertCanDelete, assertPreservesRecords } from "@/lib/auth"
 import {
   buildPaginatedResult,
   fetchQueryPageWithContinuation,
@@ -108,7 +109,7 @@ export type PropertyInput = {
 async function getAccessibleLandlordIds(user: AuthUser, selectedLandlordId?: string) {
   const role = getUserRole(user)
 
-  if (role === "admin") {
+  if (canManagePlatform(user)) {
     return selectedLandlordId?.trim() ? new Set([selectedLandlordId.trim().toLowerCase()]) : null
   }
 
@@ -134,8 +135,9 @@ async function getAccessibleLandlordIds(user: AuthUser, selectedLandlordId?: str
 
 async function canAccessPropertyForUser(user: AuthUser, property: PropertyRecord) {
   const role = getUserRole(user)
+  if (role === "user" && !canManagePlatform(user)) return false
 
-  if (role === "admin") {
+  if (canManagePlatform(user)) {
     return true
   }
 
@@ -158,7 +160,7 @@ async function canAccessPropertyForUser(user: AuthUser, property: PropertyRecord
 async function resolvePropertyOwnerIdForCreate(user: AuthUser, requestedOwnerId?: string) {
   const role = getUserRole(user)
 
-  if (role === "admin") {
+  if (canManagePlatform(user)) {
     return requestedOwnerId?.trim().toLowerCase() || user.id
   }
 
@@ -186,7 +188,7 @@ async function resolvePropertyOwnerIdForUpdate(user: AuthUser, requestedOwnerId:
   const role = getUserRole(user)
   const normalizedRequestedOwnerId = requestedOwnerId.trim().toLowerCase()
 
-  if (role === "admin") {
+  if (canManagePlatform(user)) {
     return normalizedRequestedOwnerId
   }
 
@@ -572,7 +574,7 @@ async function seedIfEmpty() {
 }
 
 function assertAdmin(user: AuthUser) {
-  if (getUserRole(user) !== "admin") {
+  if (!canManagePlatform(user)) {
     throw new Error("Forbidden")
   }
 }
@@ -585,7 +587,7 @@ export async function listPropertiesForUser(user: AuthUser, landlordId?: string)
   const role = getUserRole(user)
   const accessibleLandlordIds = await getAccessibleLandlordIds(user, landlordId)
   const querySpec =
-    role === "admin" || role === "agent" || role === "landlord"
+    canManagePlatform(user) || role === "agent" || role === "landlord"
       ? {
           query: "SELECT * FROM c ORDER BY c.address",
         }
@@ -598,11 +600,11 @@ export async function listPropertiesForUser(user: AuthUser, landlordId?: string)
 
   const normalizedProperties = resources.map(normalizePropertyRecord)
 
-  if (role === "admin" && accessibleLandlordIds === null) {
+  if (canManagePlatform(user) && accessibleLandlordIds === null) {
     return normalizedProperties
   }
 
-  if (role === "admin" || role === "agent") {
+  if (canManagePlatform(user) || role === "agent") {
     return normalizedProperties.filter((property) => accessibleLandlordIds?.has(property.ownerId))
   }
 
@@ -634,10 +636,10 @@ export async function listPropertiesForUserPage(user: AuthUser, landlordId?: str
 }
 
 async function buildPropertyOwnerFilter(user: AuthUser, landlordId: string | undefined, role: ReturnType<typeof getUserRole>) {
-  if (role === "admin" || role === "agent") {
+  if (canManagePlatform(user) || role === "agent") {
     const accessibleLandlordIds = await getAccessibleLandlordIds(user, landlordId)
 
-    if (role === "admin" && accessibleLandlordIds === null) {
+    if (canManagePlatform(user) && accessibleLandlordIds === null) {
       return {
         whereClause: "",
         parameters: [] as Array<{ name: string; value: string }>,
@@ -909,11 +911,12 @@ export async function updateProperty(user: AuthUser, propertyId: string, input: 
   nextProperty.longDescription = nextProperty.longDescription || nextProperty.description
   nextProperty.description = nextProperty.longDescription
   assertRequiredPropertyFields(nextProperty)
+  assertPreservesRecords(user, property.includedItems ?? [], nextProperty.includedItems ?? [], (item) => item.id)
 
   const container = await getPropertiesContainer()
   if (nextOwnerId !== property.ownerId) {
-    await container.item(property.id, property.ownerId).delete()
     await container.items.create(nextProperty)
+    await container.item(property.id, property.ownerId).delete()
   } else {
     await container.item(nextProperty.id, nextProperty.ownerId).replace(nextProperty)
   }
@@ -928,6 +931,7 @@ export async function updateProperty(user: AuthUser, propertyId: string, input: 
 }
 
 export async function deletePropertyForUser(user: AuthUser, propertyId: string) {
+  assertCanDelete(user)
   const property = await getPropertyById(propertyId)
 
   if (!property) {
@@ -1169,6 +1173,8 @@ export async function updatePropertyCompliance(
   normalizedCompliance.id = complianceId
 
   const currentCompliance = normalizePropertyComplianceArray(property.compliance)
+  const previousCompliance = currentCompliance.find((record) => record.id === complianceId)
+  assertPreservesRecords(user, previousCompliance?.documents ?? [], normalizedCompliance.documents ?? [], (document) => document.blobName || document.url)
   const nextCompliance = currentCompliance.map((c) => (c.id === complianceId ? normalizedCompliance : c))
 
   const nextProperty: PropertyRecord = {
@@ -1204,6 +1210,7 @@ export async function removePropertyCompliance(
   propertyId: string,
   complianceId: string,
 ) {
+  assertCanDelete(user)
   const property = await getPropertyById(propertyId)
 
   if (!property) {
@@ -1273,6 +1280,7 @@ export async function addPropertyImage(user: AuthUser, propertyId: string, image
 }
 
 export async function removePropertyImage(user: AuthUser, propertyId: string, blobName: string) {
+  assertCanDelete(user)
   const property = await getPropertyById(propertyId)
 
   if (!property) {
@@ -1311,6 +1319,7 @@ export async function reviewPropertyImageForAdmin(
   action: "approve" | "reject",
 ) {
   assertAdmin(user)
+  if (action !== "approve") assertCanDelete(user)
 
   const property = await getPropertyById(propertyId)
 

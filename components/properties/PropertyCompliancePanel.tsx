@@ -223,12 +223,14 @@ export function buildComplianceSummaryRows(property: PropertyRecord): Compliance
 type PropertyCompliancePanelProps = {
   property: PropertyRecord
   canManage: boolean
+  allowDeletion?: boolean
   onPropertyUpdate: (updated: PropertyRecord) => void
 }
 
 export default function PropertyCompliancePanel({
   property,
   canManage,
+  allowDeletion = true,
   onPropertyUpdate,
 }: PropertyCompliancePanelProps) {
   const [isEditMode, setIsEditMode] = useState(false)
@@ -782,7 +784,7 @@ export default function PropertyCompliancePanel({
                             <a href={getComplianceDocumentUrl(property.id, document)} target="_blank" rel="noopener noreferrer" className="underline">
                               {document.fileName}
                             </a>
-                            {canManage && record ? (
+                            {canManage && allowDeletion && record ? (
                               <button
                                 type="button"
                                 disabled={isPending}

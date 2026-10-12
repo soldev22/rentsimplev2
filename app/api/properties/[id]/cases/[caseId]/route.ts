@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSessionUser } from "@/lib/server/session"
+import { canDelete } from "@/lib/auth"
 import { canManageProperties } from "@/lib/auth"
 import { getPropertyForUser } from "@/lib/server/properties"
 import { getCaseById, updateCaseInDb, archiveCaseInDb } from "@/lib/server/cases"
@@ -87,6 +88,7 @@ export async function DELETE(
 ) {
   try {
     const user = await getSessionUser()
+    if (user && !canDelete(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

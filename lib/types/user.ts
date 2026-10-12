@@ -1,4 +1,4 @@
-export type UserRole = "unallocated" | "admin" | "agent" | "landlord" | "tenant" | "applicant" | "builder"
+export type UserRole = "unallocated" | "admin" | "user" | "agent" | "landlord" | "tenant" | "applicant" | "builder"
 
 export type ApprovalStatus = "pending_verification" | "pending_approval" | "approved"
 
@@ -100,7 +100,7 @@ export type AuthUser = {
   termsVersion?: string
   termsReagreeRequestedAt?: string
   role: UserRole
-  requestedRole?: Exclude<UserRole, "admin" | "unallocated">
+  requestedRole?: Exclude<UserRole, "admin" | "user" | "unallocated">
   approval_status: ApprovalStatus
   createdAt: string
   updatedAt: string

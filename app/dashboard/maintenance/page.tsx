@@ -54,7 +54,7 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
     : 25
   const [pagedIssues, reportableProperties] = await Promise.all([
     listMaintenanceIssuesForUserPage(user, { page, pageSize }),
-    role === "tenant" || role === "admin" || role === "agent" || role === "landlord"
+    role === "tenant" || role === "admin" || role === "user" || role === "agent" || role === "landlord"
       ? listReportableMaintenanceProperties(user)
       : Promise.resolve([]),
   ])

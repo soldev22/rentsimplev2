@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
+import Link from "next/link"
 
-import { getUserRole, isPendingApproval } from "@/lib/auth"
+import { getUserRole, isPendingApproval, isPendingVerification } from "@/lib/auth"
 import { getPlatformDashboardSummary } from "@/lib/server/platform-dashboard"
 import { getSessionUser } from "@/lib/server/session"
 
@@ -30,10 +31,12 @@ function EntityCard({
   title,
   total,
   statuses,
+  href,
 }: {
   title: string
   total: number
   statuses: Array<{ label: string; count: number }>
+  href?: string
 }) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -45,6 +48,9 @@ function EntityCard({
       <div className="pt-4">
         <CountList title="Current status" counts={statuses} />
       </div>
+      {href ? <Link href={href} className="mt-4 inline-block rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">
+        Manage meeting requests
+      </Link> : null}
     </article>
   )
 }
@@ -56,11 +62,11 @@ export default async function PlatformDashboardPage() {
     redirect("/login")
   }
 
-  if (isPendingApproval(user)) {
+  if (isPendingApproval(user) || isPendingVerification(user)) {
     redirect("/waiting")
   }
 
-  if (getUserRole(user) !== "admin") {
+  if (!["admin", "user"].includes(getUserRole(user))) {
     redirect("/dashboard")
   }
 
@@ -69,7 +75,7 @@ export default async function PlatformDashboardPage() {
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-700">Global admin</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-700">{user.role === "user" ? "User" : "Global admin"}</p>
         <h1 className="mt-2 text-3xl font-bold text-slate-900">Platform overview</h1>
         <p className="mt-2 text-sm text-slate-600">
           Current totals and status breakdowns across the platform&apos;s operational records.
@@ -92,6 +98,16 @@ export default async function PlatformDashboardPage() {
         <EntityCard title="Applications" {...summary.applications} />
         <EntityCard title="Maintenance issues" {...summary.maintenanceIssues} />
         <EntityCard title="Cases" {...summary.cases} />
+        <EntityCard title="Meeting requests" {...summary.meetingRequests} href="/dashboard/meeting-requests" />
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-slate-600">CRM</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Track Suspect, Prospect and Allocated contacts matched to meeting requests and registered accounts by email.
+          </p>
+          <Link href="/dashboard/crm" className="mt-4 inline-block rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">
+            Open CRM
+          </Link>
+        </article>
       </section>
 
       <p className="text-right text-xs text-slate-500">

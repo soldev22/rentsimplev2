@@ -31,9 +31,23 @@ NEXT_PUBLIC_BASE_URL=https://your-public-domain.example
 
 Use [BACKLOG.md](BACKLOG.md) to track deferred work, legal/compliance follow-ups, and items to revisit.
 
+## Public information pages
+
+Public visitors can open About us (`/about`), Services (`/services`), Meet the team (`/team`), FAQs (`/faqs`) and Contact (`/contact`) from both the header and footer. Shared navigation, phone details and the trading address are maintained in `lib/public-config.ts`: The Crown Hub, Main Street, Thornton, KY1 4AF. The Contact page links to Google Maps without embedding a third-party map and asks visitors to arrange a time before visiting.
+
+The team page currently introduces the team's approach and links to contact; add only verified names, roles, biographies and approved photos when available. These pages do not invent opening hours, fees, accreditations or staff profiles. Meeting buttons reuse the existing request panel; requesting a meeting is not a confirmed booking.
+
 ## Public registration types
 
-Public signup offers Applicant, Landlord, Agent, Tenant and Builder, derived from `UserRole` through the shared registration-role labels. Global admin and the internal unallocated role are not selectable. Both the registration API and user creation validate the selection. All new accounts still require email verification; Applicants become approved after verification, while other roles await approval. Older callers that omit `requestedRole` retain the existing unallocated workflow.
+Public signup offers Applicant, Landlord, Agent, Tenant and Builder, derived from `UserRole` through the shared registration-role labels. Global admin, User and the internal unallocated role are not selectable. Both the registration API and user creation validate the selection. All new accounts still require email verification; Applicants become approved after verification, while other roles await approval. Older callers that omit `requestedRole` retain the existing unallocated workflow.
+
+### Internal User role
+
+`user` is an internal platform role displayed as **User**, distinct from `admin` (**Global admin**). An Applicant registers normally and verifies their email; a Global admin can then assign User and approve access in `/dashboard/users`. Promotion requires a verified email. Approved Users land on `/dashboard/platform` and have platform-wide visibility and management of properties, applications, accounts, maintenance, cases, meeting requests, diary and audit history.
+
+Only Global admins may assign account roles or approval, change login email through account management, require terms re-agreement, impersonate another account or reset workspace data. Users may edit other account details, assignments and notification settings. Users cannot delete or erase accounts, applications, properties, images, compliance certificates, verification/deposit documents, maintenance photos, cases, messages or invites. Document replacement, image rejection, invite decline and replacement lists that remove included items, contacts, reference requests, communications or document references are also denied server-side. Workflow activation that would promote an Applicant to Tenant must be performed by an existing authorized role, not a User; existing Landlord/Agent behavior is unchanged.
+
+Authorization uses shared platform-management, account-role-management and deletion capabilities in `lib/auth.ts`, with resource-scope checks retained for other roles. The UI hides or disables restricted actions; server handlers and management services enforce them independently. Users cannot be created by public registration, bootstrap an administrator, or elevate through workflow role assignment.
 
 Landlord signup stores `requestedRole: "landlord"` while the actual role remains `unallocated`, initially pending verification and then pending approval. Only explicit Global admin role assignment and approval grant Landlord access. The waiting page displays Landlord application wording and the shared contact phone. Pending Landlord applications are prioritised across Users pane pages and labelled "Landlord application".
 
@@ -51,7 +65,9 @@ Requests are stored in `meeting-requests`, partitioned by `/id`. Override the co
 
 Postmark must approve the sender account before it can send to external recipient domains. A pending account can reject confirmation emails with HTTP 422 / Postmark error 412 even when its token and sender are configured. Resolve this in Postmark; do not bypass it by changing the requester address. Safe provider/status/error-code metadata is included in server logs.
 
-Approved Global admins manage requests at [/dashboard/meeting-requests](app/dashboard/meeting-requests/page.tsx), with 50 requests per page, internal notes and optimistic concurrency checks. Each status change stores an audit entry atomically in the request and mirrors it to the existing platform audit log. If the mirror fails, the dashboard reports a warning and the request's own status history remains intact. Notes/status history are internal and are not returned by the public submission endpoint.
+Approved Global admins and Users manage requests at [/dashboard/meeting-requests](app/dashboard/meeting-requests/page.tsx), with 50 requests per page, internal notes and optimistic concurrency checks. Each status change stores an audit entry atomically in the request and mirrors it to the existing platform audit log. If the mirror fails, the dashboard reports a warning and the request's own status history remains intact. Notes/status history are internal and are not returned by the public submission endpoint.
+
+The Global admin platform overview includes a **Meeting requests** panel with total requests, current status counts and a **Manage meeting requests** link. Counts refresh when the dashboard loads; only status fields are queried, not contact details or email content. The panel and management screen are restricted to approved Global admins.
 
 Each meeting request has its own expandable panel. Approved Global admins can permanently delete a request after confirming; deletion includes its internal notes and embedded status history. Version checks prevent deleting a request changed since the page loaded. Deletion does not send a cancellation notification to the prospect.
 
@@ -61,7 +77,9 @@ Approved Global admins can open `/dashboard/diary` for day, Monday-to-Sunday wee
 
 The diary is a date-bounded projection of the existing meeting records, not a second collection: saving confirmation and appointment details is one ETag-protected write. Rescheduling changes the same diary entry; cancelled/new requests are excluded, completed meetings remain visible as history, and deletion removes the entry with the request. Appointment and status changes are audited. Previously confirmed requests without a schedule remain stored and are flagged in the diary for manual scheduling. Email conversations/internal notes are not included in diary query results.
 
-This first version does not send invitations, sync Outlook, block overlapping appointments, assign staff, create standalone appointments or support recurring events. Confirming a meeting only adds it to the RentSimple diary; use the existing email composer to tell the prospect.
+This first version does not send automatic invitations, sync Outlook, block overlapping appointments, assign staff, create standalone appointments or support recurring events. Confirming a meeting only adds it to the RentSimple diary. Select **Use meeting details** in the panel's email composer to prepare a friendly, editable message with the currently selected date, UK start/end times, meeting type and optional location/video link. Review the wording and select **Send email** to send it through the existing tracked Postmark conversation. Internal notes are never included. Preparing or sending an email does not save the appointment; use **Save changes** to persist it and update the diary. Replacing a non-empty draft requires confirmation, and an unresolved send attempt cannot be replaced.
+
+If meeting save/delete/email actions report that the meeting API is unavailable, restart the local development server (or deploy a fresh build), then refresh the panel. Newly added routes may not be registered in an already-running development server. Expired sessions require signing in again. Unexpected responses are reported explicitly, and unconfirmed writes should be checked by refreshing before retrying.
 
 ### Two-way meeting email
 
@@ -84,6 +102,22 @@ Messages and reply tokens are embedded in the existing request record with ETag-
 Outbound drafts are saved as `sending` before contacting Postmark, then updated to `sent`, `failed` or `skipped`. The attempt ID is idempotent: repeating a request checks that attempt without sending another copy. A crashed or ambiguous send can remain `sending`; check Postmark before sending a new attempt. `sent` means accepted by the provider, not confirmed inbox delivery; delivery/bounce webhooks are not part of this feature. Failed attempts remain visible and can be followed by a new manually initiated message. Outbound admin attempts are limited to 20 per hour per Global admin via the existing rate limiter. Conversation records include actor and time; internal notes are never sent.
 
 Postmark setup references: [Inbound parsing and plus addressing](https://postmarkapp.com/developer/user-guide/inbound/parse-an-email), [Inbound webhook settings and payload](https://postmarkapp.com/developer/webhooks/inbound-webhook), [Webhook authentication](https://postmarkapp.com/developer/webhooks/webhooks-overview).
+
+### CRM contacts and stages
+
+Approved Global admins and Users open [/dashboard/crm](app/dashboard/crm/page.tsx) from the dashboard navigation or the **CRM** card on the platform overview. It is a basic stage/contact view, not campaigns, tasks or accounting. Access uses the existing `canManagePlatform` capability plus approved status; signed-out visitors go to `/login` and other roles to `/dashboard`. The APIs are `GET`/`POST /api/admin/crm/contacts` and `PATCH /api/admin/crm/contacts/[id]`; there is no delete.
+
+Stages are derived from stored facts and cannot be set directly (requests containing `stage`, `status`, `role` or `approval_status` are rejected). Each contact shows the reasons for its stage:
+
+- **Suspect**: a manually added contact, or meeting requests that are only new, confirmed or cancelled.
+- **Prospect**: at least one linked meeting is or was marked done (status `done` or a done entry in its status history). Booking or rescheduling a later meeting does not remove this.
+- **Allocated**: an account exists with the same normalized email, regardless of email verification, approval or role. This takes priority over Prospect.
+
+Contacts, meeting requests and accounts are matched only by normalized (trimmed, lower-case) email, never by name. Existing meeting enquiries appear automatically and are merged with a manual contact for the same email, so no duplicate contact is shown; linked meeting request IDs (with links to the meeting panel) and account IDs are listed. Accounts without a contact or meeting are not listed. Account matching assumes stored account emails are already normalized, as registration does.
+
+Manual contacts store first/last name (80), email (254), company (120), town (80) and an internal note (2000). The ID is derived from the normalized email, so adding the same email twice returns a 409 duplicate. Email cannot be changed after creation. Updates require the `updatedAt` version loaded with the page and use ETag checks; a stale edit returns 409. Changes are mirrored to the platform audit log; if the mirror fails the save still succeeds and a warning is shown. The CRM reads accounts through a projection (ID, email, role, approval status, created date) and never reads or changes passwords, registration, verification, approval or roles. Being in any CRM stage never grants access.
+
+Manual contacts are stored in `crm-contacts`, partitioned by `/id`. Override the container name with `COSMOSDB_CRM_CONTACTS_CONTAINER`. The list is merged in memory without pagination.
 
 ## API Pagination
 

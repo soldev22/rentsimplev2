@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 import { getPropertyForUser } from "@/lib/server/properties"
 import { updatePropertyCompliance } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
+import { canDelete } from "@/lib/auth"
 import { getBlobServiceClient } from "@/lib/server/blob"
 import { canManageProperties, type ComplianceDocument } from "@/lib/auth"
 
@@ -49,6 +50,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function DELETE(request: Request, context: RouteContext) {
   const user = await getSessionUser()
+  if (user && !canDelete(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   if (!canManageProperties(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 

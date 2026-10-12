@@ -3,6 +3,7 @@
 import { useDeferredValue, useState, useTransition } from "react"
 
 import type { ApprovalStatus, AuthUser, UserRole } from "@/lib/auth"
+import { canManageAccountRoles, canDelete } from "@/lib/auth"
 import { isLandlordApplication } from "@/lib/registration-roles"
 
 type AgentOption = {
@@ -15,6 +16,7 @@ type AdminUserManagerProps = {
   initialUsers: AuthUser[]
   initialAgents: AgentOption[]
   currentUserEmail: string
+  currentUserRole?: UserRole
 }
 
 type FeedbackState = {
@@ -41,7 +43,8 @@ const roleOptions: Array<{ value: UserRole; label: string }> = [
   { value: "landlord", label: "Landlord" },
   { value: "agent", label: "Agent" },
   { value: "builder", label: "Builder" },
-  { value: "admin", label: "Admin" },
+  { value: "admin", label: "Global admin" },
+  { value: "user", label: "User" },
 ]
 
 const approvalOptions: Array<{ value: ApprovalStatus; label: string }> = [
@@ -58,6 +61,7 @@ function getFullName(user: AuthUser) {
 function getRoleBadgeClass(role: UserRole) {
   switch (role) {
     case "admin":
+    case "user":
       return "bg-slate-900 text-white"
     case "landlord":
       return "bg-blue-100 text-blue-900"
@@ -111,7 +115,9 @@ function getNotificationSummary(user: AuthUser) {
   }
 }
 
-export default function AdminUserManager({ initialUsers, initialAgents, currentUserEmail }: AdminUserManagerProps) {
+export default function AdminUserManager({ initialUsers, initialAgents, currentUserEmail, currentUserRole = "admin" }: AdminUserManagerProps) {
+  const canChangeAccess = canManageAccountRoles({ role: currentUserRole })
+  const allowDeletion = canDelete({ role: currentUserRole })
   const [users, setUsers] = useState(() => sortUsers(initialUsers))
   const [agents] = useState(initialAgents)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
@@ -172,12 +178,14 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
           },
           body: JSON.stringify({
             userId: user.id,
-            ...(nextEmail ? { newEmail: nextEmail } : {}),
+            ...(nextEmail && canChangeAccess ? { newEmail: nextEmail } : {}),
             first_name: user.first_name,
             last_name: user.last_name,
             mobile: user.mobile,
-            role: user.role,
-            approval_status: user.role === "unallocated" ? "pending_approval" : user.approval_status,
+            ...(canChangeAccess ? {
+              role: user.role,
+              approval_status: user.role === "unallocated" ? "pending_approval" : user.approval_status,
+            } : {}),
             managedByAgentId: user.role === "landlord" ? user.managedByAgentId ?? null : null,
             notificationProfile:
               user.role === "landlord"
@@ -626,10 +634,10 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Admin</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">{currentUserRole === "user" ? "User" : "Global admin"}</p>
             <h1 className="mt-2 text-3xl font-bold text-slate-900">User management</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              Review accounts, approve access, and assign the role each person needs in RentSimple.
+              {canChangeAccess ? "Review accounts, approve access, and assign the role each person needs in RentSimple." : "Review and manage accounts. Only Global admins can change roles, approval or login email; Users cannot delete records."}
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -649,7 +657,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
         </div>
       </section>
 
-      <section className="rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
+      {allowDeletion ? <section className="rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-700">Testing reset</p>
@@ -668,9 +676,9 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
             {isResettingWorkspace ? "Resetting..." : "Reset test data"}
           </button>
         </div>
-      </section>
+      </section> : null}
 
-      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+      {canChangeAccess ? <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-700">Approval queue</p>
@@ -740,7 +748,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
             ))}
           </div>
         )}
-      </section>
+      </section> : null}
 
       {feedback ? (
         <div
@@ -771,7 +779,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
             <button
               type="button"
               onClick={requestAllLandlordsTermsReagreement}
-              disabled={isPending && requestingReagreement === "all"}
+              disabled={!canChangeAccess || (isPending && requestingReagreement === "all")}
               className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isPending && requestingReagreement === "all" ? "Requesting..." : "Ask all Landlords to re-agree to terms"}
@@ -873,7 +881,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                           const value = event.target.value
                           setEmailDrafts((current) => ({ ...current, [user.id]: value }))
                         }}
-                        disabled={isCurrentAdmin && !canEditProfile}
+                        disabled={!canChangeAccess || (isCurrentAdmin && !canEditProfile)}
                       />
                     </label>
                     {user.pendingEmail ? (
@@ -922,7 +930,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-500"
                       value={user.role}
                       onChange={(event) => handleFieldChange(user.email, "role", event.target.value)}
-                      disabled={isCurrentAdmin}
+                      disabled={isCurrentAdmin || !canChangeAccess}
                     >
                       {roleOptions.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -1012,7 +1020,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-500"
                       value={user.role === "unallocated" ? "pending_approval" : user.approval_status}
                       onChange={(event) => handleFieldChange(user.email, "approval_status", event.target.value)}
-                      disabled={user.role === "unallocated" || isCurrentAdmin}
+                      disabled={user.role === "unallocated" || isCurrentAdmin || !canChangeAccess}
                     >
                       {approvalOptions.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -1035,7 +1043,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                       <button
                         type="button"
                         onClick={() => actAsUser(user)}
-                        disabled={isCurrentAdmin || (isPending && switchingEmail === user.email)}
+                        disabled={!canChangeAccess || isCurrentAdmin || (isPending && switchingEmail === user.email)}
                         className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {isCurrentAdmin ? "Current admin" : isPending && switchingEmail === user.email ? "Switching..." : "Act as"}
@@ -1055,7 +1063,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                         <button
                           type="button"
                           onClick={() => requestTermsReagreement(user)}
-                          disabled={Boolean(user.termsReagreeRequestedAt) || (isPending && requestingReagreement === user.id)}
+                          disabled={!canChangeAccess || Boolean(user.termsReagreeRequestedAt) || (isPending && requestingReagreement === user.id)}
                           title={
                             user.termsReagreeRequestedAt
                               ? `Re-agreement requested ${new Date(user.termsReagreeRequestedAt).toLocaleDateString()}`
@@ -1078,7 +1086,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                         <button
                           type="button"
                           onClick={() => deleteUser(user)}
-                          disabled={isCurrentAdmin || (isPending && savingEmail === user.email)}
+                          disabled={!allowDeletion || isCurrentAdmin || (isPending && savingEmail === user.email)}
                           className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isCurrentAdmin ? "Protected" : isPending && savingEmail === user.email ? "Deleting..." : "Delete"}
@@ -1088,7 +1096,7 @@ export default function AdminUserManager({ initialUsers, initialAgents, currentU
                         <button
                           type="button"
                           onClick={() => completeApplicantAccountErasure(user)}
-                          disabled={isPending && savingEmail === user.email}
+                          disabled={!allowDeletion || (isPending && savingEmail === user.email)}
                           className="rounded-md bg-rose-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isPending && savingEmail === user.email ? "Erasing..." : "Complete account erasure"}

@@ -13,6 +13,8 @@ type PropertyManagerProps = {
   initialProperties: PropertyRecord[]
   canManage: boolean
   isAdmin: boolean
+  canReviewImages?: boolean
+  allowDeletion?: boolean
   landlordOptions?: Array<{
     id: string
     fullName: string
@@ -202,6 +204,8 @@ export default function PropertyManager({
   initialProperties,
   canManage,
   isAdmin,
+  canReviewImages = isAdmin,
+  allowDeletion = true,
   landlordOptions = [],
   canAssignOwner = false,
   defaultOwnerId,
@@ -266,7 +270,7 @@ export default function PropertyManager({
   const editorPreviewUrls = useObjectUrls(editorImageFiles)
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!canReviewImages) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPendingImageReviews([])
       return
@@ -289,7 +293,7 @@ export default function PropertyManager({
     return () => {
       isMounted = false
     }
-  }, [isAdmin])
+  }, [canReviewImages])
 
   useEffect(() => {
     if (!isCreatePanelOpen) {
@@ -574,7 +578,7 @@ export default function PropertyManager({
       setCreateImageFiles([])
       setEditorImageFiles([])
 
-      if (isAdmin && createImageFiles.length > 0) {
+      if (canReviewImages && createImageFiles.length > 0) {
         try {
           const reviews = await fetchPendingPropertyImageReviews()
           setPendingImageReviews(reviews)
@@ -691,7 +695,7 @@ export default function PropertyManager({
       )
       setEditorImageFiles([])
 
-      if (isAdmin) {
+      if (canReviewImages) {
         try {
           const reviews = await fetchPendingPropertyImageReviews()
           setPendingImageReviews(reviews)
@@ -822,7 +826,7 @@ export default function PropertyManager({
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{message}</div>
       ) : null}
 
-      {isAdmin ? (
+      {canReviewImages ? (
         <section className="order-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -880,7 +884,7 @@ export default function PropertyManager({
                       <button
                         type="button"
                         className="rounded-md border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-700"
-                        disabled={isPending}
+                        disabled={isPending || !allowDeletion}
                         onClick={() => handlePendingImageReview(review.propertyId, review.image.id, "reject")}
                       >
                         Reject and delete
@@ -1738,7 +1742,7 @@ export default function PropertyManager({
                         <button
                           type="button"
                           className="rounded-md border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-700"
-                          disabled={isPending}
+                          disabled={isPending || !allowDeletion}
                           onClick={handleDelete}
                         >
                           Delete property
@@ -1778,7 +1782,7 @@ export default function PropertyManager({
                       images={selectedProperty.images}
                       canManage={canManage}
                       isPending={isPending}
-                      onRemove={handleImageDelete}
+                      onRemove={allowDeletion ? handleImageDelete : undefined}
                       onSetCover={handleSetCoverImage}
                     />
                   )}
@@ -1815,6 +1819,7 @@ export default function PropertyManager({
                 <PropertyIncludedItemsPanel
                   property={selectedProperty}
                   canManage={canManage}
+                  allowDeletion={allowDeletion}
                   onPropertyUpdate={(updated) => {
                     setProperties((current) =>
                       current.map((p) => (p.id === updated.id ? updated : p)),

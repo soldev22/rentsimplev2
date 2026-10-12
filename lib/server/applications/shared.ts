@@ -1,4 +1,5 @@
 import "server-only"
+import { canManagePlatform } from "@/lib/auth"
 
 import { randomUUID } from "node:crypto"
 
@@ -1284,7 +1285,7 @@ export async function getApplicationById(id: string) {
 export async function canAccessApplicationForReviewer(user: AuthUser, application: TenancyApplicationRecord) {
   const role = getUserRole(user)
 
-  if (role === "admin") {
+  if (canManagePlatform(user)) {
     return true
   }
 

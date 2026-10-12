@@ -83,7 +83,7 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
     redirect("/waiting")
   }
 
-  if (getUserRole(user) !== "admin") {
+  if (!["admin", "user"].includes(getUserRole(user))) {
     redirect("/dashboard")
   }
 

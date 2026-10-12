@@ -7,6 +7,7 @@ type CaseMessageThreadProps = {
   caseId: string
   propertyId: string
   currentUserEmail: string
+  allowDeletion?: boolean
   onMessageAdded?: () => void
 }
 
@@ -41,6 +42,7 @@ export default function CaseMessageThread({
   caseId,
   propertyId,
   currentUserEmail,
+  allowDeletion = true,
   onMessageAdded,
 }: CaseMessageThreadProps) {
   const [messages, setMessages] = useState<CaseMessage[]>([])
@@ -153,6 +155,7 @@ export default function CaseMessageThread({
                       {isOwn && (
                         <button
                           onClick={() => handleDeleteMessage(message.id)}
+                          disabled={!allowDeletion}
                           className="text-xs text-slate-600 hover:text-red-600 transition-colors"
                           title="Delete message"
                         >

@@ -7,6 +7,7 @@ type CaseAttachmentManagerProps = {
   caseId: string
   propertyId: string
   readOnly?: boolean
+  allowDeletion?: boolean
 }
 
 const ALLOWED_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "jpg", "jpeg", "png", "gif", "txt", "csv"]
@@ -53,7 +54,7 @@ function formatDate(dateString: string): string {
   })
 }
 
-export default function CaseAttachmentManager({ caseId, propertyId, readOnly = false }: CaseAttachmentManagerProps) {
+export default function CaseAttachmentManager({ caseId, propertyId, readOnly = false, allowDeletion = true }: CaseAttachmentManagerProps) {
   const [attachments, setAttachments] = useState<CaseAttachment[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -165,7 +166,7 @@ export default function CaseAttachmentManager({ caseId, propertyId, readOnly = f
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 text-sm">{error}</div>}
 
       {/* Upload section */}
-      {!readOnly && (
+      {!readOnly && allowDeletion && (
         <div className="mb-6 p-4 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50">
           <div className="flex items-center justify-center">
             <input

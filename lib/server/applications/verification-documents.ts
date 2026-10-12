@@ -1,4 +1,5 @@
 import "server-only"
+import { canManagePlatform, assertCanDelete } from "@/lib/auth"
 
 import { randomUUID } from "node:crypto"
 
@@ -35,6 +36,7 @@ export async function uploadVerificationDocumentForApplication(
   replaceDocumentId?: string,
 ) {
   assertReviewer(user)
+  if (replaceDocumentId) assertCanDelete(user)
 
   if (!isValidTenancyVerificationDocumentCategory(category)) {
     throw new Error("InvalidVerificationCategory")
@@ -46,9 +48,7 @@ export async function uploadVerificationDocumentForApplication(
     return null
   }
 
-  const role = getUserRole(user)
-
-  if (role !== "admin") {
+  if (!canManagePlatform(user)) {
     const accessibleProperties = await listPropertiesForUser(user)
     const hasAccess = accessibleProperties.some((property) => property.id === existingApplication.propertyId)
 
@@ -171,6 +171,7 @@ export async function getVerificationDocumentForApplication(user: AuthUser, appl
 }
 
 export async function deleteVerificationDocumentForApplication(user: AuthUser, applicationId: string, documentId: string) {
+  assertCanDelete(user)
   assertReviewer(user)
 
   const application = await getApplicationById(applicationId)

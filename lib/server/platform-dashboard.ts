@@ -6,6 +6,7 @@ import {
   getApplicationsContainer,
   getCasesContainer,
   getMaintenanceContainer,
+  getMeetingRequestsContainer,
   getPropertiesContainer,
   getUsersContainer,
 } from "@/lib/server/cosmos"
@@ -30,6 +31,7 @@ export type PlatformDashboardSummary = {
   applications: PlatformEntitySummary
   maintenanceIssues: PlatformEntitySummary
   cases: PlatformEntitySummary
+  meetingRequests: PlatformEntitySummary
 }
 
 type GroupedCount = {
@@ -68,15 +70,16 @@ async function getEntitySummary(container: Container, field: FieldName): Promise
 }
 
 export async function getPlatformDashboardSummary(): Promise<PlatformDashboardSummary> {
-  const [users, properties, applications, maintenance, cases] = await Promise.all([
+  const [users, properties, applications, maintenance, cases, meetingRequests] = await Promise.all([
     getUsersContainer(),
     getPropertiesContainer(),
     getApplicationsContainer(),
     getMaintenanceContainer(),
     getCasesContainer(),
+    getMeetingRequestsContainer(),
   ])
 
-  const [accounts, propertySummary, applicationSummary, maintenanceSummary, caseSummary] =
+  const [accounts, propertySummary, applicationSummary, maintenanceSummary, caseSummary, meetings] =
     await Promise.all([
       users.items.query<GroupedCount>({
         query: "SELECT c.role, c.approval_status FROM c",
@@ -85,6 +88,10 @@ export async function getPlatformDashboardSummary(): Promise<PlatformDashboardSu
       getEntitySummary(applications, "status"),
       getEntitySummary(maintenance, "status"),
       getEntitySummary(cases, "status"),
+      meetingRequests.items.query<GroupedCount>({
+        query: "SELECT c.status FROM c WHERE c.type = @type",
+        parameters: [{ name: "@type", value: "meeting_request" }],
+      }).fetchAll(),
     ])
   const accountTotal = accounts.resources.length
 
@@ -98,5 +105,9 @@ export async function getPlatformDashboardSummary(): Promise<PlatformDashboardSu
     applications: applicationSummary,
     maintenanceIssues: maintenanceSummary,
     cases: caseSummary,
+    meetingRequests: {
+      total: meetings.resources.length,
+      statuses: normalizeCounts(meetings.resources, "status", meetings.resources.length),
+    },
   }
 }

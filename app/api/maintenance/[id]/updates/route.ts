@@ -31,7 +31,7 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Account pending approval" }, { status: 403 })
   }
 
-  if (!["tenant", "admin", "agent", "landlord", "builder"].includes(getUserRole(user))) {
+  if (!["tenant", "admin", "user", "agent", "landlord", "builder"].includes(getUserRole(user))) {
     return NextResponse.json({ error: "Your account cannot add maintenance updates." }, { status: 403 })
   }
 

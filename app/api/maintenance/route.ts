@@ -7,6 +7,7 @@ import {
   listMaintenanceIssuesForUserPage,
 } from "@/lib/server/maintenance"
 import { getSessionUser } from "@/lib/server/session"
+import { canManagePlatform } from "@/lib/auth"
 
 export async function GET(request: Request) {
   const user = await getSessionUser()
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
   }
 
   const role = getUserRole(user)
-  if (role !== "tenant" && role !== "admin" && role !== "agent" && role !== "landlord") {
+  if (role !== "tenant" && !canManagePlatform(user) && role !== "agent" && role !== "landlord") {
     return NextResponse.json({ error: "You do not have permission to raise maintenance issues." }, { status: 403 })
   }
 

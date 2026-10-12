@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
 
 import { getSessionUser } from "@/lib/server/session"
+import { canDelete } from "@/lib/auth"
 import { isPendingApproval, getUserRole } from "@/lib/auth"
 import { getMaintenanceContainer } from "@/lib/server/cosmos"
 import { uploadToBlob, getBlobUrl } from "@/lib/server/blob"
@@ -96,6 +97,7 @@ export async function POST(request: Request, context: RouteContext) {
 
 export async function DELETE(request: Request, context: RouteContext) {
   const user = await getSessionUser()
+  if (user && !canDelete(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

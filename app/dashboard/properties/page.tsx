@@ -57,7 +57,7 @@ export default async function PropertiesPage({ searchParams }: PropertiesPagePro
     : 10
   const [pagedProperties, landlords] = await Promise.all([
     listPropertiesForUserPage(user, landlordId, { page, pageSize }),
-    role === "admin" || role === "agent" ? listLandlordDirectoryForUser(user) : Promise.resolve([]),
+    role === "admin" || role === "user" || role === "agent" ? listLandlordDirectoryForUser(user) : Promise.resolve([]),
   ])
   const bulkUploadHref = landlordId
     ? `/dashboard/landlord/bulk-upload?landlordId=${encodeURIComponent(landlordId)}`
@@ -65,11 +65,11 @@ export default async function PropertiesPage({ searchParams }: PropertiesPagePro
 
   return (
     <div className="space-y-6">
-      {role === "admin" || role === "agent" ? (
+      {role === "admin" || role === "user" || role === "agent" ? (
         <LandlordScopePicker
           landlords={landlords}
           selectedLandlordId={landlordId}
-          allLabel={role === "admin" ? "All landlords" : "All managed landlords"}
+          allLabel={role === "admin" || role === "user" ? "All landlords" : "All managed landlords"}
         />
       ) : null}
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -130,12 +130,14 @@ export default async function PropertiesPage({ searchParams }: PropertiesPagePro
         initialProperties={pagedProperties.items}
         canManage={canManageProperties(user)}
         isAdmin={role === "admin"}
+        canReviewImages={role === "admin" || role === "user"}
+        allowDeletion={role !== "user"}
         landlordOptions={landlords}
-        canAssignOwner={role === "admin" || role === "agent"}
+        canAssignOwner={role === "admin" || role === "user" || role === "agent"}
         defaultOwnerId={landlordId ?? landlords[0]?.id ?? user.id}
         defaultEditPropertyId={edit}
       />
-      {(role === "landlord" || role === "agent" || role === "admin") && (
+      {(role === "landlord" || role === "agent" || role === "admin" || role === "user") && (
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
             <span>Need to import multiple properties in one go?</span>

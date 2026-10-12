@@ -74,9 +74,9 @@ export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnB
   const pageSize = Number.isFinite(Number(pageSizeParam))
     ? Math.min(100, Math.max(10, Math.floor(Number(pageSizeParam))))
     : 25
-  const landlords = role === "admin" || role === "agent" ? await listLandlordDirectoryForUser(user) : []
+  const landlords = role === "admin" || role === "user" || role === "agent" ? await listLandlordDirectoryForUser(user) : []
   const effectiveLandlordId =
-    role === "admin" || role === "agent"
+    role === "admin" || role === "user" || role === "agent"
       ? landlordId && landlords.some((landlord) => landlord.id === landlordId)
         ? landlordId
         : undefined
@@ -95,11 +95,11 @@ export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnB
 
   return (
     <div className="space-y-6">
-      {role === "admin" || role === "agent" ? (
+      {role === "admin" || role === "user" || role === "agent" ? (
         <LandlordScopePicker
           landlords={landlords}
           selectedLandlordId={effectiveLandlordId}
-          allLabel={role === "admin" ? "All landlords" : "All managed landlords"}
+          allLabel={role === "admin" || role === "user" ? "All landlords" : "All managed landlords"}
         />
       ) : null}
 
@@ -174,6 +174,7 @@ export default async function WithdrawnBookingsPage({ searchParams }: WithdrawnB
           initialAuditEventsByApplicationId={Object.fromEntries(auditEventsByApplicationId)}
           currentUserDisplayName={`${user.first_name} ${user.last_name}`.trim() || user.email}
           isAdmin={role === "admin"}
+          allowDeletion={role !== "user"}
           screeningScoreConfig={user.screeningScoreConfig}
           canRequestCreditReport={role === "landlord"}
         />

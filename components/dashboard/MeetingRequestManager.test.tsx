@@ -38,5 +38,7 @@ describe("meeting request accordion", () => {
     expect(html).toContain('value="Office"')
     expect(html.match(/required=""/g)?.length).toBeGreaterThanOrEqual(3)
     expect(html).toContain("Saving does not send an email invitation.")
+    expect(html).toContain("Use meeting details")
+    expect(html).toContain("No email is sent until you select Send email.")
   })
 })

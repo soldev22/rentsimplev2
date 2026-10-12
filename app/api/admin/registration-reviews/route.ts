@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { getUserRole } from "@/lib/auth"
+import { getUserRole, canManagePlatform } from "@/lib/auth"
 import { getSessionUser } from "@/lib/server/session"
 import {
   getRegistrationAttempt,
@@ -15,8 +15,9 @@ async function requireAdmin() {
 }
 
 export async function GET() {
-  const user = await requireAdmin()
+  const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!canManagePlatform(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   try {
     return NextResponse.json({ attempts: await listRegistrationReviews() })

@@ -1,6 +1,6 @@
 import type { AuthUser, UserRole } from "@/lib/types/user"
 
-export type RegistrationRole = Exclude<UserRole, "admin" | "unallocated">
+export type RegistrationRole = Exclude<UserRole, "admin" | "user" | "unallocated">
 
 export const REGISTRATION_ROLE_LABELS = {
   applicant: "Applicant",

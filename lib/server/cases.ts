@@ -433,6 +433,7 @@ export async function completeCaseStage(
  * Archive a case (soft delete - nothing is ever truly deleted)
  */
 export async function archivePropertyCase(user: AuthUser, case_: PropertyCase, reason: string) {
+  if (user.role === "user") throw new Error("Forbidden")
   if (!canManageProperties(user)) {
     throw new Error("Forbidden: must have property management permission")
   }

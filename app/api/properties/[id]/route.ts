@@ -5,6 +5,7 @@ import type { PropertyIncludedItem } from "@/lib/auth"
 import type { PropertyLettingPreferences } from "@/lib/auth"
 import { deletePropertyForUser, getPropertyForUser, updateProperty } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
+import { canDelete } from "@/lib/auth"
 
 type RouteContext = {
   params: Promise<{
@@ -96,6 +97,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 export async function DELETE(_request: Request, context: RouteContext) {
   const user = await getSessionUser()
+  if (user && !canDelete(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

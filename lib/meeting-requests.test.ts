@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { validateMeetingRequest, validateMeetingRequestUpdate } from "@/lib/meeting-requests"
+import { meetingEmailDraft, validateMeetingEmail, validateMeetingRequest, validateMeetingRequestUpdate, type MeetingRequest } from "@/lib/meeting-requests"
 
 const valid = {
   firstName: " Taylor ", lastName: " Landlord ", phone: "07739 870670",
@@ -17,6 +17,40 @@ describe("meeting request validation", () => {
         email: "taylor@example.com", numberOfProperties: 2, town: "Glasgow",
         preferredDays: ["Mon", "Sat"], preferredTime: "morning", meetingType: "phone", notes: "Please call first.",
       },
+    })
+  })
+  describe("meeting email drafts", () => {
+    const request: MeetingRequest = {
+      ...valid, preferredDays: ["Mon"], preferredTime: "morning", meetingType: "video",
+      firstName: "Taylor", notes: "Private prospect notes",
+      id: "one", type: "meeting_request", status: "new",
+      createdAt: "2026-10-11T09:00:00.000Z", updatedAt: "2026-10-11T09:00:00.000Z",
+      adminNotes: [{ text: "Private admin note", performedBy: "admin", createdAt: "" }], auditEvents: [],
+    }
+    it("includes a friendly greeting, exact UK date/times, meeting type and link without private notes", () => {
+      const draft = meetingEmailDraft(request, {
+        startAt: "2026-10-12T09:00:00.000Z", endAt: "2026-10-12T09:30:00.000Z",
+        timeZone: "Europe/London", location: "https://example.com/meeting",
+      })
+      expect(draft.subject).toBe("Your RentSimple meeting details")
+      expect(draft.text).toContain("Hi Taylor,")
+      expect(draft.text).toContain("Monday, 12 October 2026")
+      expect(draft.text).toContain("10:00 - 10:30 (UK time, Europe/London)")
+      expect(draft.text).toContain("Meeting type: Video meeting")
+      expect(draft.text).toContain("https://example.com/meeting")
+      expect(draft.text).toContain("Please reply")
+      expect(draft.text).not.toContain("Private")
+      expect(validateMeetingEmail({ ...draft, id: "11111111-1111-4111-8111-111111111111" })).not.toBeNull()
+    })
+    it.each(["phone", "in person"] as const)("handles winter times and optional locations for %s meetings", (meetingType) => {
+      const draft = meetingEmailDraft({ ...request, meetingType }, {
+        startAt: "2026-12-14T10:00:00.000Z", endAt: "2026-12-14T10:30:00.000Z",
+        timeZone: "Europe/London", location: "",
+      })
+      expect(draft.text).toContain("Monday, 14 December 2026")
+      expect(draft.text).toContain("10:00 - 10:30")
+      expect(draft.text).toContain(meetingType === "phone" ? "Phone call" : "In-person meeting")
+      expect(draft.text).not.toContain("Location or video link:")
     })
   })
   it.each([null, [], "text", 42])("rejects a non-object body (%j)", (value) => {

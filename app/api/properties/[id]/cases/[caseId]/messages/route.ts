@@ -42,7 +42,7 @@ export async function POST(
     const message: CaseMessage = {
       id: randomUUID(),
       caseId,
-      senderRole: senderRole || "landlord",
+      senderRole: user.role === "user" ? "user" : senderRole || "landlord",
       senderEmail: user.email,
       senderName: getDisplayName(user) || user.email,
       content,

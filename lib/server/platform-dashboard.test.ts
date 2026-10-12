@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getApplicationsContainer: vi.fn(),
   getMaintenanceContainer: vi.fn(),
   getCasesContainer: vi.fn(),
+  getMeetingRequestsContainer: vi.fn(),
   queries: [] as string[],
 }))
 
@@ -16,6 +17,7 @@ vi.mock("@/lib/server/cosmos", () => ({
   getApplicationsContainer: mocks.getApplicationsContainer,
   getMaintenanceContainer: mocks.getMaintenanceContainer,
   getCasesContainer: mocks.getCasesContainer,
+  getMeetingRequestsContainer: mocks.getMeetingRequestsContainer,
 }))
 
 import { getPlatformDashboardSummary } from "@/lib/server/platform-dashboard"
@@ -25,7 +27,7 @@ function createContainer(total: number, fields: Record<string, Array<string | un
     items: {
       query: ({ query }: { query: string }) => {
         mocks.queries.push(query)
-        const fieldsInQuery = query.match(/^SELECT (.+) FROM c$/)?.[1]
+        const fieldsInQuery = query.match(/^SELECT (.+) FROM c(?: WHERE c\.type = @type)?$/)?.[1]
         if (!fieldsInQuery) {
           throw new Error(`Unexpected platform dashboard query: ${query}`)
         }
@@ -69,6 +71,9 @@ describe("platform dashboard summary", () => {
     mocks.getCasesContainer.mockResolvedValue(createContainer(2, {
       status: ["open", "archived"],
     }))
+    mocks.getMeetingRequestsContainer.mockResolvedValue(createContainer(5, {
+      status: ["new", "new", "confirmed", "done", "cancelled"],
+    }))
   })
 
   it("counts records by projected status fields without GROUP BY queries", async () => {
@@ -105,6 +110,25 @@ describe("platform dashboard summary", () => {
       { label: "archived", count: 1 },
       { label: "open", count: 1 },
     ])
+    expect(summary.meetingRequests).toEqual({
+      total: 5,
+      statuses: [
+        { label: "new", count: 2 },
+        { label: "cancelled", count: 1 },
+        { label: "confirmed", count: 1 },
+        { label: "done", count: 1 },
+      ],
+    })
+    expect(mocks.queries).toContain("SELECT c.status FROM c WHERE c.type = @type")
+    expect(mocks.queries.every((query) => !query.includes("SELECT *"))).toBe(true)
     expect(mocks.queries.every((query) => !query.includes("GROUP BY"))).toBe(true)
+  })
+  it("reports an empty meeting request collection without inventing counts", async () => {
+    mocks.getMeetingRequestsContainer.mockResolvedValue(createContainer(0, {}))
+    expect((await getPlatformDashboardSummary()).meetingRequests).toEqual({ total: 0, statuses: [] })
+  })
+  it("surfaces meeting request storage errors", async () => {
+    mocks.getMeetingRequestsContainer.mockRejectedValue(new Error("Meeting storage unavailable"))
+    await expect(getPlatformDashboardSummary()).rejects.toThrow("Meeting storage unavailable")
   })
 })

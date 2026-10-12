@@ -24,7 +24,7 @@ export default async function MeetingRequestsPage({ searchParams }: { searchPara
       <p className="text-sm text-slate-600">Prospective Landlord enquiries, newest first. Agree the details directly, then enter the date and start/end times before confirming. Confirmed meetings appear in the <Link href="/dashboard/diary" className="underline">shared diary</Link>.</p>
       {params.request !== undefined && !focusedId ? <p role="alert" className="text-sm text-red-700">Invalid meeting reference. Showing all meeting requests.</p> : null}
       {focusedId ? <Link href="/dashboard/meeting-requests" className="block text-sm text-cyan-800 underline">All meeting requests</Link> : null}
-      {requests.length ? <MeetingRequestManager requests={requests} emailConfigurationError={getMeetingEmailConfigurationError()} expanded={Boolean(focusedId)} /> : <p className="rounded-xl border border-slate-200 bg-white p-6">{focusedId ? "Meeting request not found." : "No meeting requests on this page."}</p>}
+      {requests.length ? <MeetingRequestManager requests={requests} emailConfigurationError={getMeetingEmailConfigurationError()} expanded={Boolean(focusedId)} allowDeletion={user.role !== "user"} /> : <p className="rounded-xl border border-slate-200 bg-white p-6">{focusedId ? "Meeting request not found." : "No meeting requests on this page."}</p>}
       {!focusedId ? <nav aria-label="Meeting request pages" className="flex items-center gap-4 text-sm">
         {page > 1 ? <Link href={`/dashboard/meeting-requests?page=${page - 1}`} className="text-cyan-800 underline">Previous</Link> : null}
         <span>Page {page} of {totalPages}</span>

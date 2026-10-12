@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
 import { MeetingRequestButton, MeetingRequestProvider } from "@/components/forms/MeetingRequestPanel"
-import { CONTACT_PHONE, CONTACT_PHONE_HREF } from "@/lib/public-config"
+import { CONTACT_PHONE, CONTACT_PHONE_HREF, PUBLIC_NAV_LINKS, TRADING_ADDRESS } from "@/lib/public-config"
 
 export default function AppChrome({
   children,
@@ -30,7 +30,9 @@ export default function AppChrome({
   function getDesignationLabel(role: string) {
     switch (role) {
       case "admin":
-        return "Administrator"
+        return "Global admin"
+      case "user":
+        return "User"
       case "agent":
         return "Agent"
       case "landlord":
@@ -84,9 +86,9 @@ export default function AppChrome({
                 RentSimple
               </p>
             </span>
-            <h1 className="text-lg font-semibold text-white">
+            <p className="text-lg font-semibold text-white">
               Property management, redefined.
-            </h1>
+            </p>
           </Link>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -125,26 +127,25 @@ export default function AppChrome({
               </>
             ) : null}
           </div>
+          <nav aria-label="Main navigation" className="flex w-full flex-wrap gap-1 border-t border-white/20 pt-3">
+            {PUBLIC_NAV_LINKS.map(({ label, href }) => <Link key={href} href={href}
+              aria-current={pathname === href ? "page" : undefined}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${pathname === href ? "bg-white text-blue-900" : "text-white hover:bg-white/10"}`}>
+              {label}
+            </Link>)}
+          </nav>
         </div>
       </header>
 
       <main className="flex-1">{children}</main>
 
       <footer className="brand-shell-surface border-t border-white/10 shadow-sm">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-5 text-sm text-slate-200 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-4">
-            <Link href="/" className="hover:text-white">
-              About
-            </Link>
-            <Link href="/landlords" className="hover:text-white">
-              For Landlords
-            </Link>
-            <Link href="/" className="hover:text-white">
-              Pricing
-            </Link>
-            <Link href="/" className="hover:text-white">
-              Support
-            </Link>
+        <div className="mx-auto grid max-w-6xl gap-6 px-6 py-8 text-sm text-slate-200 md:grid-cols-[2fr_1fr]">
+          <nav aria-label="Footer navigation" className="flex flex-wrap content-start items-center gap-4">
+            {PUBLIC_NAV_LINKS.map(({ label, href }) => <Link key={href} href={href} className="hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">{label}</Link>)}
+            <Link href="/properties" className="hover:text-white">Search properties</Link>
+            <Link href="/meet" className="hover:text-white">Request a meeting</Link>
+            <Link href="/privacy" className="hover:text-white">Meeting request privacy</Link>
             {!isHomeRoute ? (
               <Link href="/login" className="hover:text-white">
                 Access portal
@@ -153,10 +154,14 @@ export default function AppChrome({
             <Link href="/waiting" className="hover:text-white">
               Approval status
             </Link>
+          </nav>
+          <div className="space-y-3">
+            <p className="font-semibold text-white">Our trading location</p>
+            <address className="not-italic leading-6">{TRADING_ADDRESS}</address>
+            <a href={CONTACT_PHONE_HREF} className="inline-block whitespace-nowrap font-semibold text-white hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              Call {CONTACT_PHONE}
+            </a>
           </div>
-          <a href={CONTACT_PHONE_HREF} className="whitespace-nowrap font-semibold text-white hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-            Call {CONTACT_PHONE}
-          </a>
         </div>
       </footer>
     </div>

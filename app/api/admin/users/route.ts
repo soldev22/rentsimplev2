@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getSessionUser } from "@/lib/server/session"
+import { canDelete, canManagePlatform, canManageAccountRoles } from "@/lib/auth"
 import { deleteUserForAdmin, eraseApplicantAccountForAdmin, getUserByEmail, getUserById, listAgentsForAdmin, listUsersForAdmin, sendLandlordWelcomeForUser, updateUserForAdmin } from "@/lib/server/users"
 
 async function resolveTargetUserId(body: { userId?: string; email?: string }) {
@@ -54,7 +55,7 @@ export async function PATCH(request: Request) {
       first_name?: string
       last_name?: string
       mobile?: string
-      role?: "unallocated" | "admin" | "agent" | "landlord" | "tenant" | "applicant" | "builder"
+      role?: "unallocated" | "admin" | "user" | "agent" | "landlord" | "tenant" | "applicant" | "builder"
       approval_status?: "pending_verification" | "pending_approval" | "approved"
       managedByAgentId?: string | null
       notificationProfile?: {
@@ -63,8 +64,11 @@ export async function PATCH(request: Request) {
       } | null
     }
 
-    if ((!body.userId?.trim() && !body.email?.trim()) || !body.role || !body.approval_status) {
-      return NextResponse.json({ error: "userId, role, and approval_status are required." }, { status: 400 })
+    if (!canManagePlatform(user) || (!canManageAccountRoles(user) && (body.role !== undefined || body.approval_status !== undefined || body.newEmail !== undefined))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+    if (!body.userId?.trim() && !body.email?.trim()) {
+      return NextResponse.json({ error: "userId is required." }, { status: 400 })
     }
 
     const targetUserId = await resolveTargetUserId(body)
@@ -105,6 +109,10 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "You cannot remove your own admin access from this screen." }, { status: 400 })
     }
 
+    if (error instanceof Error && ["InvalidRole", "InvalidApprovalStatus", "EmailVerificationRequired"].includes(error.message)) {
+      return NextResponse.json({ error: error.message === "EmailVerificationRequired" ? "Verify the account email before assigning User." : "Invalid role or approval status." }, { status: 400 })
+    }
+
     if (error instanceof Error && error.message === "InvalidEmail") {
       return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 })
     }
@@ -119,6 +127,7 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   const user = await getSessionUser()
+  if (user && !canDelete(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

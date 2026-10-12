@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { isRecord, validateMeetingEmail, type MeetingRequest } from "@/lib/meeting-requests"
+import { MeetingResponseError, readMeetingResponse } from "@/lib/meeting-api"
 
 const statusLabels = {
   received: "Received",
@@ -12,7 +13,12 @@ const statusLabels = {
   skipped: "Not sent",
 }
 
-export default function MeetingEmailThread({ request, configurationError }: { request: MeetingRequest; configurationError?: string | null }) {
+export default function MeetingEmailThread({ request, configurationError, prepareMeetingEmail, preparingDisabled }: {
+  request: MeetingRequest
+  configurationError?: string | null
+  prepareMeetingEmail?: () => { subject: string; text: string } | null
+  preparingDisabled?: boolean
+}) {
   const router = useRouter()
   const [subject, setSubject] = useState("Your RentSimple meeting")
   const [text, setText] = useState("")
@@ -39,8 +45,7 @@ export default function MeetingEmailThread({ request, configurationError }: { re
       const response = await fetch(`/api/admin/meeting-requests/${request.id}/emails`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
       })
-      const payload: unknown = await response.json()
-      if (!isRecord(payload)) throw new Error("Invalid server response")
+      const payload = await readMeetingResponse(response)
       if (!response.ok) {
         if (response.status < 500) setAttempt(null)
         setFailed(true)
@@ -63,9 +68,9 @@ export default function MeetingEmailThread({ request, configurationError }: { re
       }
       router.refresh()
     } catch (error) {
-      console.error("Meeting email submission failed.", { errorName: error instanceof Error ? error.name : "UnknownError" })
+      console.error("Meeting email submission failed.", { errorName: error instanceof Error ? error.name : "UnknownError", status: error instanceof MeetingResponseError ? error.status : undefined })
       setFailed(true)
-      setFeedback("Unable to confirm delivery. Refresh the thread. Retrying unchanged will check this attempt without sending a duplicate.")
+      setFeedback(error instanceof MeetingResponseError ? error.message : "Unable to confirm delivery. Refresh the thread. Retrying unchanged will check this attempt without sending a duplicate.")
     } finally {
       inFlight.current = false
       setSending(false)
@@ -95,6 +100,19 @@ export default function MeetingEmailThread({ request, configurationError }: { re
       {configurationError ? <p role="alert" className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{configurationError}</p> : null}
       <form onSubmit={send} className="mt-5 space-y-3">
         <fieldset disabled={sending || Boolean(configurationError)} className="space-y-3 disabled:opacity-60">
+          {prepareMeetingEmail ? <div>
+            <button type="button" disabled={Boolean(attempt) || preparingDisabled} onClick={() => {
+              if (inFlight.current || attempt) return
+              if (text.trim() && !window.confirm("Replace your current email draft with the selected meeting details?")) return
+              const draft = prepareMeetingEmail()
+              if (!draft) return
+              setSubject(draft.subject)
+              setText(draft.text)
+              setFailed(false)
+              setFeedback("Meeting details added. Review the message, then select Send email. Preparing or sending an email does not save the appointment; use Save changes above to update the diary.")
+            }} className="rounded-lg border border-blue-300 px-4 py-2 font-semibold text-blue-700 hover:bg-blue-50">Use meeting details</button>
+            <p className="mt-2 text-sm text-slate-600">Creates an editable email from the date, times and location selected above. No email is sent until you select Send email.</p>
+          </div> : null}
           <label className="block text-sm font-semibold" htmlFor={`${request.id}-email-subject`}>Subject</label>
           <input id={`${request.id}-email-subject`} value={subject} onChange={(event) => setSubject(event.target.value)} readOnly={Boolean(attempt)} required maxLength={200} className="w-full rounded-lg border border-slate-300 p-2" />
           <label className="block text-sm font-semibold" htmlFor={`${request.id}-email-text`}>Message to prospect</label>

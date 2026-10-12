@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { getSessionUser } from "@/lib/server/session"
+import { canDelete } from "@/lib/auth"
 import {
   addPropertyCompliance,
   updatePropertyCompliance,
@@ -82,6 +83,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
 
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
+  if (user && !canDelete(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }

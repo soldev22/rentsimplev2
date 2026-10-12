@@ -1,4 +1,5 @@
 import "server-only"
+import { canManagePlatform } from "@/lib/auth"
 
 import { randomUUID } from "node:crypto"
 
@@ -136,7 +137,7 @@ export async function getMaintenanceIssueForUpdate(user: AuthUser, issueId: stri
     return issue
   }
 
-  if (role === "admin" || role === "agent" || role === "landlord") {
+  if (canManagePlatform(user) || role === "agent" || role === "landlord") {
     const accessiblePropertyIds = await getAccessiblePropertyIds(user)
 
     if (!accessiblePropertyIds?.has(issue.propertyId)) {
@@ -422,7 +423,7 @@ export async function listMaintenanceIssuesForUserByContinuation(
 
 export async function listReportableMaintenanceProperties(user: AuthUser) {
   const role = getUserRole(user)
-  if (role !== "tenant" && role !== "admin" && role !== "agent" && role !== "landlord") {
+  if (role !== "tenant" && !canManagePlatform(user) && role !== "agent" && role !== "landlord") {
     throw new Error("Forbidden")
   }
 
@@ -441,7 +442,7 @@ export async function listReportableMaintenanceProperties(user: AuthUser) {
 
 export async function createMaintenanceIssue(user: AuthUser, input: CreateMaintenanceIssueInput) {
   const role = getUserRole(user)
-  if (role !== "tenant" && role !== "admin" && role !== "agent" && role !== "landlord") {
+  if (role !== "tenant" && !canManagePlatform(user) && role !== "agent" && role !== "landlord") {
     throw new Error("Forbidden")
   }
 
@@ -545,7 +546,7 @@ export async function addMaintenanceBid(user: AuthUser, issueId: string, input: 
 export async function updateMaintenanceIssue(user: AuthUser, issueId: string, input: UpdateMaintenanceIssueInput) {
   const role = getUserRole(user)
 
-  if (role !== "admin" && role !== "agent" && role !== "landlord") {
+  if (!canManagePlatform(user) && role !== "agent" && role !== "landlord") {
     throw new Error("Forbidden")
   }
 

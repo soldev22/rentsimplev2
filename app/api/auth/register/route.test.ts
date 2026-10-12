@@ -59,6 +59,15 @@ describe("registration route", () => {
     })
   })
 
+  it.each(["user", "admin", "unallocated"])("rejects public selection of internal role %s", async (requestedRole) => {
+    const response = await POST(new Request("http://localhost/api/auth/register", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firstName: "Test", lastName: "Account", email: "new@example.com", password: "Password123!", requestedRole }),
+    }))
+    expect(response.status).toBe(400)
+    expect(mocks.createUser).not.toHaveBeenCalled()
+  })
+
   it("returns a readable JSON error when a registration dependency fails", async () => {
     mocks.registerRateLimitAttempt.mockRejectedValue(Object.assign(new Error("sensitive detail"), { code: 503 }))
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})

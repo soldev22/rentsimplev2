@@ -1,4 +1,5 @@
 import "server-only"
+import { assertCanDelete } from "@/lib/auth"
 
 import { randomUUID } from "node:crypto"
 
@@ -580,6 +581,7 @@ export async function uploadDepositDocumentForApplication(
   file: File,
   replaceDocumentId?: string,
 ) {
+  if (replaceDocumentId) assertCanDelete(user)
   const existingApplication = await getApplicationById(applicationId)
 
   if (!existingApplication) {
@@ -708,6 +710,7 @@ export async function getDepositDocumentForApplication(user: AuthUser, applicati
 }
 
 export async function deleteDepositDocumentForApplication(user: AuthUser, applicationId: string, documentId: string) {
+  assertCanDelete(user)
   assertReviewer(user)
 
   const application = await getApplicationById(applicationId)

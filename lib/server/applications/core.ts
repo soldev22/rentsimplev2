@@ -1,4 +1,5 @@
 import "server-only"
+import { canManagePlatform, canDelete, assertPreservesRecords } from "@/lib/auth"
 
 import { randomUUID } from "node:crypto"
 
@@ -192,7 +193,7 @@ export async function listApplicationsForReviewPage(
         : ""
   const statusParameters = statusFilter ? [{ name: "@withdrawnStatus", value: "withdrawn" }] : []
 
-  if (role === "admin" && !landlordId) {
+  if (canManagePlatform(user) && !landlordId) {
     const countQuery = statusWhereClause ? `SELECT VALUE COUNT(1) FROM c WHERE${statusWhereClause}` : "SELECT VALUE COUNT(1) FROM c"
     const dataQuery = statusWhereClause
       ? `SELECT * FROM c WHERE${statusWhereClause} ORDER BY c.createdAt DESC OFFSET ${offset} LIMIT ${pageSize}`
@@ -250,7 +251,7 @@ export async function listApplicationsForReviewByContinuation(
   const container = await getApplicationsContainer()
   const role = getUserRole(user)
 
-  if (role === "admin" && !landlordId) {
+  if (canManagePlatform(user) && !landlordId) {
     const page = await fetchQueryPageWithContinuation<TenancyApplicationRecord>(
       container,
       {
@@ -625,6 +626,20 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
     },
   }
 
+  if (!canDelete(user)) {
+    if (nextApplication.currentStage === "post_move_in" && existingApplication.status !== "active_tenant") {
+      throw new Error("Forbidden")
+    }
+    assertPreservesRecords(user, existingApplication.referencingInstruction.referees, nextApplication.referencingInstruction.referees, (record) => record.id)
+    assertPreservesRecords(user, existingApplication.referencingInstruction.referenceRequests, nextApplication.referencingInstruction.referenceRequests, (record) => record.id)
+    assertPreservesRecords(user, existingApplication.referencingInstruction.verificationDocuments, nextApplication.referencingInstruction.verificationDocuments, (record) => record.blobName)
+    assertPreservesRecords(user, existingApplication.postMoveInManagement.communicationEntries, nextApplication.postMoveInManagement.communicationEntries, (record) => record.id)
+    for (const key of ["offerLetter", "leaseDocument", "supportingLegalDocuments"] as const) {
+      const previousUrl = existingApplication.tenancyAgreement[key].url
+      const nextUrl = nextApplication.tenancyAgreement[key].url
+      if (previousUrl && previousUrl !== nextUrl) throw new Error("Forbidden")
+    }
+  }
   const existingCommunicationIds = new Set(existingApplication.postMoveInManagement.communicationEntries.map((entry) => entry.id))
   nextApplication.postMoveInManagement.communicationEntries = await Promise.all(
     nextApplication.postMoveInManagement.communicationEntries.map((entry) =>
@@ -741,7 +756,9 @@ export async function updateApplicationForReviewer(user: AuthUser, applicationId
 
   if (nextApplication.currentStage === "post_move_in") {
     nextApplication.status = "active_tenant"
-    await setUserRoleForWorkflow(nextApplication.applicantEmail, "tenant", "approved")
+    if (user.role !== "user") {
+      await setUserRoleForWorkflow(nextApplication.applicantEmail, "tenant", "approved", user)
+    }
   }
 
   const container = await getApplicationsContainer()

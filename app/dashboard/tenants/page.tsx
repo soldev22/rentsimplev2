@@ -34,18 +34,18 @@ export default async function TenantsPage({ searchParams }: TenantsPageProps) {
   const { landlordId } = await searchParams
   const [applications, landlords] = await Promise.all([
     listApplicationsForReview(user, landlordId),
-    role === "admin" || role === "agent" ? listLandlordDirectoryForUser(user) : Promise.resolve([]),
+    role === "admin" || role === "user" || role === "agent" ? listLandlordDirectoryForUser(user) : Promise.resolve([]),
   ])
 
   const activeTenants = applications.filter((application) => application.status === "active_tenant")
 
   return (
     <div className="space-y-6">
-      {role === "admin" || role === "agent" ? (
+      {role === "admin" || role === "user" || role === "agent" ? (
         <LandlordScopePicker
           landlords={landlords}
           selectedLandlordId={landlordId}
-          allLabel={role === "admin" ? "All landlords" : "All managed landlords"}
+          allLabel={role === "admin" || role === "user" ? "All landlords" : "All managed landlords"}
         />
       ) : null}
 

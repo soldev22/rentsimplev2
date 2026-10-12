@@ -46,4 +46,11 @@ describe("meeting email thread UI", () => {
     expect(html).toContain('disabled=""')
     expect(html).toContain("Configure Postmark inbound")
   })
+  it("offers an explicit meeting draft action without sending automatically", () => {
+    const prepareMeetingEmail = vi.fn()
+    const html = renderToStaticMarkup(<MeetingEmailThread request={request} prepareMeetingEmail={prepareMeetingEmail} />)
+    expect(html).toContain("Use meeting details")
+    expect(html).toContain("No email is sent until you select Send email.")
+    expect(prepareMeetingEmail).not.toHaveBeenCalled()
+  })
 })

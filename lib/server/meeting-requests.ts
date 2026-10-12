@@ -1,4 +1,5 @@
 import "server-only"
+import { canManagePlatform, assertCanDelete } from "@/lib/auth"
 
 import { randomBytes, randomUUID } from "node:crypto"
 import type { AuthUser } from "@/lib/types/user"
@@ -9,7 +10,7 @@ import { writeAuditEvent } from "@/lib/server/audit"
 import { diaryRange, type DiaryEntry, type DiaryView } from "@/lib/diary"
 
 export function canManageMeetingRequests(user: AuthUser | null): user is AuthUser {
-  return user?.role === "admin" && user.approval_status === "approved"
+  return canManagePlatform(user) && user?.approval_status === "approved"
 }
 
 function requireAdmin(user: AuthUser) {
@@ -125,6 +126,7 @@ export async function updateMeetingRequest(user: AuthUser, id: string, input: Me
 }
 
 export async function deleteMeetingRequest(user: AuthUser, id: string, expectedUpdatedAt: string) {
+  assertCanDelete(user)
   requireAdmin(user)
   const item = (await getMeetingRequestsContainer()).item(id, id)
   const { resource: current } = await item.read<MeetingRequest>()

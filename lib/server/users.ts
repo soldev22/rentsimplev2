@@ -18,6 +18,7 @@ import {
 } from "@/lib/auth"
 import { LANDLORD_TERMS_VERSION } from "@/lib/landlord-terms"
 import { isRegistrationRole, type RegistrationRole } from "@/lib/registration-roles"
+import { canManagePlatform, canManageAccountRoles } from "@/lib/auth"
 import {
   sendEmailChangeVerificationEmail,
   sendLandlordTermsUpdatedEmail,
@@ -168,9 +169,13 @@ function hasLocalPassword(user: StoredUser | null) {
 }
 
 function assertAdmin(user: AuthUser) {
-  if (getUserRole(user) !== "admin") {
+  if (!canManageAccountRoles(user)) {
     throw new Error("Forbidden")
   }
+}
+
+function assertPlatformManager(user: AuthUser) {
+  if (!canManagePlatform(user)) throw new Error("Forbidden")
 }
 
 function assertApplicant(user: AuthUser) {
@@ -328,6 +333,9 @@ export async function createUser(input: {
   const requestedRole = input.requestedRole === "landlord" ? "unallocated" : input.requestedRole ?? "unallocated"
   const requestedApprovalStatus: ApprovalStatus = "pending_verification"
 
+  if (existingUser && (existingUser.role === "admin" || existingUser.role === "user")) {
+    return { user: null, error: "An account with this email already exists. Try logging in instead." }
+  }
   if (existingUser && (!hasLocalPassword(existingUser) || existingUser.approval_status === "pending_verification")) {
     const updatedUser: StoredUser = {
       ...existingUser,
@@ -661,7 +669,7 @@ export async function listUsersForAdmin(user: AuthUser) {
 }
 
 export async function listUsersForAdminPage(user: AuthUser, options?: PageOptions) {
-  assertAdmin(user)
+  assertPlatformManager(user)
 
   const container = await getUsersContainer()
   const { page, pageSize, offset } = normalizePageOptions(options, { defaultPageSize: 25, maxPageSize: 100 })
@@ -693,7 +701,7 @@ export async function listUsersForAdminByContinuation(
     maxItemCount?: number
   },
 ) {
-  assertAdmin(user)
+  assertPlatformManager(user)
 
   const container = await getUsersContainer()
   const page = await fetchQueryPageWithContinuation<StoredUser>(
@@ -725,7 +733,11 @@ export async function updateUserForAdmin(
     notificationProfile?: Partial<NotificationProfileDefaults> | null
   },
 ) {
-  assertAdmin(adminUser)
+  assertPlatformManager(adminUser)
+  if (!canManageAccountRoles(adminUser) && (input.role !== undefined || input.approval_status !== undefined || input.email !== undefined)) {
+    // Changing a privileged account's login email would also grant indirect access.
+    throw new Error("Forbidden")
+  }
 
   const storedUser = await readStoredUserById(userId)
 
@@ -733,7 +745,7 @@ export async function updateUserForAdmin(
     return null
   }
 
-  const isSelf = storedUser.id === adminUser.id
+  const isSelf = storedUser.id === adminUser.id && canManageAccountRoles(adminUser)
 
   if (isSelf && input.role && input.role !== "admin") {
     throw new Error("CannotChangeOwnAdminRole")
@@ -761,7 +773,21 @@ export async function updateUserForAdmin(
   }
 
   const emailChanged = nextEmail !== previousEmail
-  const managedInput = normalizeManagedUserInput(input)
+  if (input.role !== undefined && !["unallocated", "admin", "user", "agent", "landlord", "tenant", "applicant", "builder"].includes(input.role)) {
+    throw new Error("InvalidRole")
+  }
+  if (input.approval_status !== undefined && !["pending_verification", "pending_approval", "approved"].includes(input.approval_status)) {
+    throw new Error("InvalidApprovalStatus")
+  }
+  if (input.role === "user" && !storedUser.emailVerifiedAt) {
+    throw new Error("EmailVerificationRequired")
+  }
+  const managedInput = normalizeManagedUserInput({
+    role: input.role ?? storedUser.role,
+    approval_status: input.approval_status ?? storedUser.approval_status,
+    managedByAgentId: input.managedByAgentId === undefined ? storedUser.managedByAgentId : input.managedByAgentId,
+    notificationProfile: input.notificationProfile === undefined ? storedUser.notificationProfile : input.notificationProfile,
+  })
   const nextLandlordAccountId = managedInput.role === "landlord" ? getLandlordAccountId(storedUser) : undefined
   const updatedUser: StoredUser = {
     ...storedUser,
@@ -896,7 +922,7 @@ export async function sendLandlordWelcomeForUser(user: Pick<AuthUser, "email" | 
 }
 
 export async function resendLandlordWelcomeForAdmin(adminUser: AuthUser, userId: string, appOrigin: string) {
-  assertAdmin(adminUser)
+  assertPlatformManager(adminUser)
 
   const storedUser = await readStoredUserById(userId)
 
@@ -962,7 +988,7 @@ async function listAllUsers() {
 export async function listLandlordDirectoryForUser(user: AuthUser) {
   const role = getUserRole(user)
 
-  if (role !== "admin" && role !== "agent" && role !== "landlord") {
+  if (!canManagePlatform(user) && role !== "agent" && role !== "landlord") {
     throw new Error("Forbidden")
   }
 
@@ -975,7 +1001,7 @@ export async function listLandlordDirectoryForUser(user: AuthUser) {
         return false
       }
 
-      if (role === "admin") {
+      if (canManagePlatform(user)) {
         return true
       }
 
@@ -994,7 +1020,7 @@ export async function listLandlordDirectoryForUser(user: AuthUser) {
 }
 
 export async function listAgentsForAdmin(user: AuthUser) {
-  assertAdmin(user)
+  assertPlatformManager(user)
 
   const users = await listAllUsers()
 
@@ -1008,7 +1034,8 @@ export async function listAgentsForAdmin(user: AuthUser) {
     .sort((left, right) => left.fullName.localeCompare(right.fullName))
 }
 
-export async function setUserRoleForWorkflow(email: string, role: UserRole, approval_status: ApprovalStatus = "approved") {
+export async function setUserRoleForWorkflow(email: string, role: UserRole, approval_status: ApprovalStatus = "approved", actor?: AuthUser) {
+  if (actor?.role === "user" || role === "user" || role === "admin") throw new Error("Forbidden")
   const normalizedEmail = normalizeEmail(email)
   const storedUser = await readStoredUser(normalizedEmail)
 

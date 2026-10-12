@@ -114,19 +114,47 @@ export function getUserRole(user: Pick<AuthUser, "role"> | null | undefined) {
   return user?.role ?? "unallocated"
 }
 
+export function canManagePlatform(user: (Pick<AuthUser, "role"> & Partial<Pick<AuthUser, "approval_status">>) | null | undefined) {
+  return user?.role === "admin" || (user?.role === "user" && user.approval_status === "approved")
+}
+
+export function canManageAccountRoles(user: Pick<AuthUser, "role"> | null | undefined) {
+  return user?.role === "admin"
+}
+
+// Resource-specific authorization still applies; Users never receive deletion rights.
+export function canDelete(user: Pick<AuthUser, "role"> | null | undefined) {
+  return Boolean(user) && user?.role !== "user"
+}
+
+export function assertCanDelete(user: Pick<AuthUser, "role"> | null | undefined) {
+  if (!canDelete(user)) throw new Error("Forbidden")
+}
+
+export function assertPreservesRecords<T>(
+  user: Pick<AuthUser, "role">,
+  current: readonly T[],
+  next: readonly T[],
+  key: (record: T) => string,
+) {
+  if (!canDelete(user) && current.some((record) => !next.some((candidate) => key(candidate) === key(record)))) {
+    throw new Error("Forbidden")
+  }
+}
+
 export function canManageProperties(user: Pick<AuthUser, "role"> | null | undefined) {
   const role = getUserRole(user)
-  return role === "admin" || role === "agent" || role === "landlord"
+  return canManagePlatform(user) || role === "agent" || role === "landlord"
 }
 
 export function canReviewTenancyApplications(user: Pick<AuthUser, "role"> | null | undefined) {
   const role = getUserRole(user)
-  return role === "admin" || role === "agent" || role === "landlord"
+  return canManagePlatform(user) || role === "agent" || role === "landlord"
 }
 
 export function canAccessMaintenance(user: Pick<AuthUser, "role"> | null | undefined) {
   const role = getUserRole(user)
-  return role === "admin" || role === "agent" || role === "landlord" || role === "tenant" || role === "builder"
+  return canManagePlatform(user) || role === "agent" || role === "landlord" || role === "tenant" || role === "builder"
 }
 
 export function isPendingApproval(user: Pick<AuthUser, "role" | "approval_status"> | null | undefined) {
@@ -144,6 +172,7 @@ export function getDefaultDashboardPath(user: Pick<AuthUser, "role" | "approval_
 
   switch (getUserRole(user)) {
     case "admin":
+    case "user":
       return "/dashboard/platform"
     case "agent":
       return "/dashboard/agent"

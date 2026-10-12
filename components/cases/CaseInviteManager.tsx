@@ -6,7 +6,7 @@ import type { ContractorInvite } from "@/lib/auth"
 type CaseInviteManagerProps = {
   caseId: string
   propertyId: string
-  currentUserRole: "landlord" | "agent" | "admin"
+  currentUserRole: "landlord" | "agent" | "admin" | "user" | "unallocated" | "tenant" | "applicant" | "builder"
 }
 
 function getStatusBadgeColor(status: string): string {
@@ -144,7 +144,7 @@ export default function CaseInviteManager({ caseId, propertyId, currentUserRole 
     return <div className="text-center py-6 text-slate-600">Loading invites...</div>
   }
 
-  const isPropertyManager = ["landlord", "agent", "admin"].includes(currentUserRole)
+  const isPropertyManager = ["landlord", "agent", "admin", "user"].includes(currentUserRole)
 
   return (
     <div className="bg-white rounded-lg border border-slate-200 p-6">
@@ -241,7 +241,7 @@ export default function CaseInviteManager({ caseId, propertyId, currentUserRole 
                 </p>
               </div>
 
-              {isPropertyManager && invite.status === "pending" && (
+              {isPropertyManager && currentUserRole !== "user" && invite.status === "pending" && (
                 <button
                   onClick={() => handleRevokeInvite(invite.id)}
                   disabled={revoking === invite.id}

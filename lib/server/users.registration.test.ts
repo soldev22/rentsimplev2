@@ -115,6 +115,26 @@ describe("Landlord registration and verification", () => {
     expect(mocks.notify).not.toHaveBeenCalled()
   })
 
+  it("requires verification and a Global admin for promotion to internal User", async () => {
+    const registered = (await createUser({ ...input, requestedRole: "applicant" })).user!
+    const admin: AuthUser = { ...registered, id: "admin", role: "admin", approval_status: "approved" }
+    await expect(updateUserForAdmin(admin, registered.id, { role: "user", approval_status: "approved" })).rejects.toThrow("EmailVerificationRequired")
+    await verifyUserEmail("token")
+    const promoted = (await updateUserForAdmin(admin, registered.id, { role: "user", approval_status: "approved" }))!
+    expect(promoted.role).toBe("user")
+    expect(mocks.records.get(registered.id)?.role).toBe("user")
+    expect(getDefaultDashboardPath(promoted)).toBe("/dashboard/platform")
+    expect((await listUsersForAdminPage(promoted)).items.some((account) => account.id === promoted.id)).toBe(true)
+    await expect(updateUserForAdmin(promoted, promoted.id, { role: "admin" })).rejects.toThrow("Forbidden")
+    await expect(updateUserForAdmin(promoted, promoted.id, { approval_status: "approved" })).rejects.toThrow("Forbidden")
+    const updated = await updateUserForAdmin(promoted, promoted.id, { first_name: "Internal" })
+    expect(updated).toMatchObject({ first_name: "Internal", role: "user", approval_status: "approved" })
+    expect(mocks.records.get(promoted.id)?.first_name).toBe("Internal")
+    // @ts-expect-error Internal roles must be rejected even when supplied by runtime callers.
+    expect((await createUser({ ...input, requestedRole: "user" })).user).toBeNull()
+    expect((await createUser({ ...input, requestedRole: "tenant" })).user).toBeNull()
+  })
+
   it("prioritises Landlord applications across page boundaries, preserving all older records without requestedRole", async () => {
     const registered = (await createUser(input)).user!
     const admin: AuthUser = { ...registered, id: "admin", role: "admin", approval_status: "approved" }

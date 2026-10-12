@@ -48,6 +48,35 @@ export type MeetingEmailMessage = {
 
 export type MeetingEmailInput = { id: string; subject: string; text: string }
 
+export function meetingEmailDraft(request: MeetingRequest, appointment: MeetingAppointment) {
+  const date = new Intl.DateTimeFormat("en-GB", {
+    timeZone: appointment.timeZone, weekday: "long", day: "numeric", month: "long", year: "numeric",
+  }).format(new Date(appointment.startAt))
+  const time = new Intl.DateTimeFormat("en-GB", {
+    timeZone: appointment.timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  })
+  const meetingType = { phone: "Phone call", video: "Video meeting", "in person": "In-person meeting" }[request.meetingType]
+  return {
+    subject: "Your RentSimple meeting details",
+    text: [
+      `Hi ${request.firstName},`,
+      "",
+      "Thank you for your interest in RentSimple. We look forward to speaking with you about your properties and how we can help.",
+      "",
+      "Here are the details for our meeting:",
+      `Date: ${date}`,
+      `Time: ${time.format(new Date(appointment.startAt))} - ${time.format(new Date(appointment.endAt))} (UK time, Europe/London)`,
+      `Meeting type: ${meetingType}`,
+      ...(appointment.location ? [`Location or video link: ${appointment.location}`] : []),
+      "",
+      "Please reply to this email to let us know if these arrangements work for you, or if you need to rearrange. We will be happy to help.",
+      "",
+      "Kind regards,",
+      "The RentSimple team",
+    ].join("\n"),
+  }
+}
+
 export function validateMeetingEmail(value: unknown): MeetingEmailInput | null {
   if (!isRecord(value) || typeof value.id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.id) ||
       typeof value.subject !== "string" || typeof value.text !== "string") return null

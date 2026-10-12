@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { isRecord, validateMeetingRequestUpdate } from "@/lib/meeting-requests"
 import { getSessionUser } from "@/lib/server/session"
+import { canDelete } from "@/lib/auth"
 import { canManageMeetingRequests, deleteMeetingRequest, updateMeetingRequest } from "@/lib/server/meeting-requests"
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -40,6 +41,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getSessionUser()
+    if (user && !canDelete(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     if (!canManageMeetingRequests(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     const origin = request.headers.get("origin")

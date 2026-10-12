@@ -33,7 +33,7 @@ export default async function PublicPropertyPage({ params }: PublicPropertyPageP
   )
   const sessionRole = sessionUser ? getUserRole(sessionUser) : null
   const canReportMaintenance =
-    sessionUser && (sessionRole === "admin" || sessionRole === "agent" || sessionRole === "landlord")
+    sessionUser && (sessionRole === "admin" || sessionRole === "user" || sessionRole === "agent" || sessionRole === "landlord")
       ? (await listPropertiesForUser(sessionUser)).some((accessibleProperty) => accessibleProperty.id === property.id)
       : false
 

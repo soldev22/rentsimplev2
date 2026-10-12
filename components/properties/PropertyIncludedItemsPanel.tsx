@@ -7,12 +7,14 @@ import type { PropertyIncludedItem, PropertyRecord } from "@/lib/auth"
 type PropertyIncludedItemsPanelProps = {
   property: PropertyRecord
   canManage: boolean
+  allowDeletion?: boolean
   onPropertyUpdate: (updated: PropertyRecord) => void
 }
 
 export default function PropertyIncludedItemsPanel({
   property,
   canManage,
+  allowDeletion = true,
   onPropertyUpdate,
 }: PropertyIncludedItemsPanelProps) {
   const [items, setItems] = useState<PropertyIncludedItem[]>(property.includedItems ?? [])
@@ -74,7 +76,7 @@ export default function PropertyIncludedItemsPanel({
               <span className="font-medium text-slate-800">{item.name}</span>
               <div className="flex items-center gap-3">
                 {item.isElectrical ? <span className="text-xs font-semibold text-amber-800">Electrical</span> : null}
-                {canManage ? (
+                {canManage && allowDeletion ? (
                   <button type="button" onClick={() => removeItem(item.id)} disabled={isPending} className="text-xs font-semibold text-red-700 hover:underline">
                     Remove
                   </button>

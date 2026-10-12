@@ -2,7 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 
 import AdminUserManager from "@/components/forms/AdminUserManager"
-import { getUserRole, isPendingApproval } from "@/lib/auth"
+import { canManagePlatform, isPendingApproval } from "@/lib/auth"
 import { getSessionUser } from "@/lib/server/session"
 import { listAgentsForAdmin, listUsersForAdminPage } from "@/lib/server/users"
 
@@ -41,7 +41,7 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
     redirect("/waiting")
   }
 
-  if (getUserRole(user) !== "admin") {
+  if (!canManagePlatform(user)) {
     redirect("/dashboard")
   }
 
@@ -107,7 +107,7 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
           </div>
         </div>
       </section>
-      <AdminUserManager initialUsers={pagedUsers.items} initialAgents={agents} currentUserEmail={user.email} />
+      <AdminUserManager initialUsers={pagedUsers.items} initialAgents={agents} currentUserEmail={user.email} currentUserRole={user.role} />
     </div>
   )
 }

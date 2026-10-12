@@ -1,13 +1,17 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
-import { isRecord, MEETING_STATUSES, validateMeetingRequestUpdate, type MeetingRequest } from "@/lib/meeting-requests"
+import { useRef, useState, type FormEvent } from "react"
+import { isRecord, meetingEmailDraft, MEETING_STATUSES, validateMeetingRequestUpdate, type MeetingRequest } from "@/lib/meeting-requests"
 import { useRouter } from "next/navigation"
 import MeetingEmailThread from "@/components/dashboard/MeetingEmailThread"
-import { appointmentFields } from "@/lib/diary"
+import { appointmentFields, validateAppointment } from "@/lib/diary"
+import { MeetingResponseError, readMeetingResponse } from "@/lib/meeting-api"
 
-function MeetingRequestCard({ request, emailConfigurationError, expanded }: { request: MeetingRequest; emailConfigurationError?: string | null; expanded?: boolean }) {
+function MeetingRequestCard({ request: initialRequest, emailConfigurationError, expanded, allowDeletion }: { request: MeetingRequest; emailConfigurationError?: string | null; expanded?: boolean; allowDeletion: boolean }) {
   const router = useRouter()
+  const formRef = useRef<HTMLFormElement>(null)
+  const [savedRequest, setSavedRequest] = useState(initialRequest)
+  const request = savedRequest.updatedAt > initialRequest.updatedAt ? savedRequest : initialRequest
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState("")
   const [failed, setFailed] = useState(false)
@@ -16,6 +20,23 @@ function MeetingRequestCard({ request, emailConfigurationError, expanded }: { re
   const status = statusSelection.savedStatus === request.status ? statusSelection.value : request.status
   const start = request.appointment ? appointmentFields(request.appointment.startAt) : undefined
   const end = request.appointment ? appointmentFields(request.appointment.endAt) : undefined
+
+  function prepareEmail() {
+    if (!formRef.current || saving) return null
+    const values = new FormData(formRef.current)
+    const appointment = validateAppointment({
+      date: values.get("date"), startTime: values.get("startTime"),
+      endTime: values.get("endTime"), location: values.get("location"),
+    })
+    if (!appointment) {
+      setFailed(true)
+      setFeedback("Enter a valid meeting date and start/end times above before preparing the email. All times use Europe/London; end must be after start.")
+      return null
+    }
+    setFailed(false)
+    setFeedback("")
+    return meetingEmailDraft(request, appointment)
+  }
 
   async function remove() {
     if (saving || !window.confirm(`Permanently delete the meeting request from ${request.firstName} ${request.lastName}? This cannot be undone.`)) return
@@ -26,8 +47,7 @@ function MeetingRequestCard({ request, emailConfigurationError, expanded }: { re
         method: "DELETE", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ expectedUpdatedAt: request.updatedAt }),
       })
-      const payload: unknown = await response.json()
-      if (!isRecord(payload)) throw new Error("Invalid server response")
+      const payload = await readMeetingResponse(response)
       if (!response.ok) {
         setFailed(true)
         setFeedback(typeof payload.error === "string" ? payload.error : "Unable to delete the meeting request.")
@@ -37,9 +57,9 @@ function MeetingRequestCard({ request, emailConfigurationError, expanded }: { re
       setDeleted(true)
       router.refresh()
     } catch (error) {
-      console.error("Meeting request admin deletion failed.", { errorName: error instanceof Error ? error.name : "UnknownError" })
+      console.error("Meeting request admin deletion failed.", { errorName: error instanceof Error ? error.name : "UnknownError", status: error instanceof MeetingResponseError ? error.status : undefined })
       setFailed(true)
-      setFeedback("Unable to confirm deletion. Refresh to check the request before trying again.")
+      setFeedback(error instanceof MeetingResponseError ? error.message : "Unable to confirm deletion. Refresh to check the request before trying again.")
     } finally {
       setSaving(false)
     }
@@ -58,7 +78,8 @@ function MeetingRequestCard({ request, emailConfigurationError, expanded }: { re
       ? { date, startTime, endTime, location }
       : undefined
     const body = { status: values.get("status"), note: values.get("note"), expectedUpdatedAt: request.updatedAt, appointment }
-    if (!validateMeetingRequestUpdate(body) || (body.status === "confirmed" && !appointment)) {
+    const input = validateMeetingRequestUpdate(body)
+    if (!input || (body.status === "confirmed" && !appointment)) {
       setFailed(true)
       setFeedback("Enter a valid meeting date and start/end times (Europe/London), with end after start. Avoid clock-change times that occur twice or do not exist. Keep internal notes to 2000 characters.")
       return
@@ -69,12 +90,17 @@ function MeetingRequestCard({ request, emailConfigurationError, expanded }: { re
       const response = await fetch(`/api/admin/meeting-requests/${request.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       })
-      const payload: unknown = await response.json()
-      if (!isRecord(payload)) throw new Error("Invalid server response")
+      const payload = await readMeetingResponse(response)
       setFailed(!response.ok)
       if (!response.ok) {
         setFeedback(typeof payload.error === "string" ? payload.error : "Unable to save changes.")
       } else {
+        if (!isRecord(payload.request) || payload.request.id !== request.id || typeof payload.request.updatedAt !== "string" ||
+            !Number.isFinite(Date.parse(payload.request.updatedAt))) throw new Error("Update was not confirmed")
+        setSavedRequest({
+          ...request, status: input.status, updatedAt: payload.request.updatedAt,
+          ...(input.appointment ? { appointment: input.appointment } : {}),
+        })
         const note = form.elements.namedItem("note")
         if (note instanceof HTMLTextAreaElement) note.value = ""
         const savedMessage = body.status === "confirmed" ? "Changes saved. The meeting is now in the diary."
@@ -84,9 +110,9 @@ function MeetingRequestCard({ request, emailConfigurationError, expanded }: { re
         router.refresh()
       }
     } catch (error) {
-      console.error("Meeting request admin save failed.", { errorName: error instanceof Error ? error.name : "UnknownError" })
+      console.error("Meeting request admin save failed.", { errorName: error instanceof Error ? error.name : "UnknownError", status: error instanceof MeetingResponseError ? error.status : undefined })
       setFailed(true)
-      setFeedback("Unable to confirm the update. Refresh to check the request before trying again.")
+      setFeedback(error instanceof MeetingResponseError ? error.message : "Unable to confirm the update. Refresh to check the request before trying again.")
     } finally {
       setSaving(false)
     }
@@ -114,7 +140,7 @@ function MeetingRequestCard({ request, emailConfigurationError, expanded }: { re
           <p>{note.text}</p><p className="text-xs text-slate-500">{note.performedBy} &middot; {new Date(note.createdAt).toLocaleString("en-GB", { timeZone: "Europe/London" })}</p>
         </li>)}
       </ul> : null}
-      <form onSubmit={save} className="mt-5 space-y-3">
+      <form ref={formRef} onSubmit={save} className="mt-5 space-y-3">
         <fieldset disabled={saving} className="space-y-3">
           <div>
             <label htmlFor={`${request.id}-status`} className="text-sm font-semibold">Status</label>
@@ -127,7 +153,7 @@ function MeetingRequestCard({ request, emailConfigurationError, expanded }: { re
           </div>
           <div key={`appointment-${request.updatedAt}`} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <h3 className="font-semibold">Meeting appointment</h3>
-            <p className="mt-1 text-sm text-slate-600">Required to confirm. All times are UK time (Europe/London). Confirmed meetings appear in the shared diary; cancelled meetings are removed. Saving does not send an email invitation.</p>
+            <p className="mt-1 text-sm text-slate-600">Required to confirm. All times are UK time (Europe/London). Confirmed meetings appear in the shared diary; cancelled meetings are removed. Saving does not send an email invitation. Use meeting details in the email composer below to prepare a message, review it, then send.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <label className="text-sm font-semibold" htmlFor={`${request.id}-date`}>Date
                 <input id={`${request.id}-date`} name="date" type="date" min="2000-01-01" max="2099-12-31" defaultValue={start?.date ?? ""} required={status === "confirmed"} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2" />
@@ -148,7 +174,7 @@ function MeetingRequestCard({ request, emailConfigurationError, expanded }: { re
             <textarea id={`${request.id}-note`} name="note" maxLength={2000} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 p-2" />
           </div>
           <button type="submit" className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800">{saving ? "Saving..." : "Save changes"}</button>
-          <button type="button" onClick={remove} className="ml-3 rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 hover:bg-red-50">Delete meeting</button>
+          {allowDeletion ? <button type="button" onClick={remove} className="ml-3 rounded-lg border border-red-300 px-4 py-2 font-semibold text-red-700 hover:bg-red-50">Delete meeting</button> : null}
         </fieldset>
         {feedback ? <p role={failed ? "alert" : "status"} className={`text-sm ${failed ? "text-red-700" : "text-slate-700"}`}>{feedback}</p> : null}
       </form>
@@ -158,12 +184,12 @@ function MeetingRequestCard({ request, emailConfigurationError, expanded }: { re
           {event.fieldPath === "appointment" ? `Meeting appointment ${event.oldValue ? "rescheduled" : "set"}` : `${String(event.oldValue)} to ${String(event.newValue)}`} by {event.performedBy} &middot; {new Date(event.timestamp).toLocaleString("en-GB", { timeZone: "Europe/London" })}
         </li>)}</ul>
       </details> : null}
-      <MeetingEmailThread request={request} configurationError={emailConfigurationError} />
+      <MeetingEmailThread request={request} configurationError={emailConfigurationError} prepareMeetingEmail={prepareEmail} preparingDisabled={saving} />
       </div>
     </details>
   )
 }
 
-export default function MeetingRequestManager({ requests, emailConfigurationError, expanded = false }: { requests: MeetingRequest[]; emailConfigurationError?: string | null; expanded?: boolean }) {
-  return <div className="space-y-4">{requests.map((request) => <MeetingRequestCard key={request.id} request={request} emailConfigurationError={emailConfigurationError} expanded={expanded} />)}</div>
+export default function MeetingRequestManager({ requests, emailConfigurationError, expanded = false, allowDeletion = true }: { requests: MeetingRequest[]; emailConfigurationError?: string | null; expanded?: boolean; allowDeletion?: boolean }) {
+  return <div className="space-y-4">{requests.map((request) => <MeetingRequestCard key={request.id} request={request} emailConfigurationError={emailConfigurationError} expanded={expanded} allowDeletion={allowDeletion} />)}</div>
 }

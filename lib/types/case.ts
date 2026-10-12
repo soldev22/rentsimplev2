@@ -6,7 +6,7 @@ export type StageStatus = "pending" | "in_progress" | "completed" | "overdue"
 
 export type EscalationLevel = "alert_24h" | "alert_72h" | "alert_5d"
 
-export type CaseMessageSenderRole = "tenant" | "landlord" | "contractor" | "advisor" | "system"
+export type CaseMessageSenderRole = "tenant" | "landlord" | "contractor" | "advisor" | "system" | "user"
 
 export type LegalTimerRequirement = {
   id: string

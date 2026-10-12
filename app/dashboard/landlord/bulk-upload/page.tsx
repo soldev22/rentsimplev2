@@ -26,12 +26,12 @@ export default async function PropertyBulkUploadPage({ searchParams }: PropertyB
   }
 
   const role = getUserRole(user)
-  if (!["landlord", "agent", "admin"].includes(role)) {
+  if (!["landlord", "agent", "admin", "user"].includes(role)) {
     redirect("/dashboard")
   }
 
   const { landlordId } = await searchParams
-  const landlords = role === "admin" || role === "agent" ? await listLandlordDirectoryForUser(user) : []
+  const landlords = role === "admin" || role === "user" || role === "agent" ? await listLandlordDirectoryForUser(user) : []
   const selectedLandlord = landlordId ? landlords.find((landlord) => landlord.id === landlordId) : null
   const targetLabel = selectedLandlord
     ? `${selectedLandlord.fullName || "Landlord"} (${selectedLandlord.email})`
@@ -58,7 +58,7 @@ export default async function PropertyBulkUploadPage({ searchParams }: PropertyB
           <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-900">
             <span className="font-semibold">Upload target:</span> {targetLabel}
           </div>
-          {(role === "admin" || role === "agent") && !landlordId ? (
+          {(role === "admin" || role === "user" || role === "agent") && !landlordId ? (
             <p className="text-xs text-amber-700 mb-4">
               Select a landlord scope from the Properties page before uploading to ensure properties link to the correct landlord.
             </p>

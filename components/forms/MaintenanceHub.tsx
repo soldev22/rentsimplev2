@@ -494,7 +494,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, in
         </div>
       ) : null}
 
-      {role === "tenant" || role === "admin" || role === "agent" || role === "landlord" ? (
+      {role === "tenant" || role === "admin" || role === "user" || role === "agent" || role === "landlord" ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
@@ -611,6 +611,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, in
           const canPostUpdate =
             role === "tenant"
             || role === "admin"
+            || role === "user"
             || role === "agent"
             || role === "landlord"
             || (role === "builder" && issue.selectedBuilderId === currentUser.id)
@@ -665,7 +666,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, in
                   {issue.photoUrls && issue.photoUrls.length > 0 && (
                     <PhotoGallery 
                       photos={issue.photoUrls}
-                      onDeletePhoto={(photoId) => deletePhoto(issue.id, photoId)}
+                      onDeletePhoto={role !== "user" ? (photoId) => deletePhoto(issue.id, photoId) : undefined}
                       isLoading={isPending}
                     />
                   )}
@@ -762,7 +763,7 @@ export default function MaintenanceHub({ initialIssues, reportableProperties, in
                     </form>
                   ) : null}
 
-                  {role === "admin" || role === "agent" || role === "landlord" ? (
+                  {role === "admin" || role === "user" || role === "agent" || role === "landlord" ? (
                     <div className="grid gap-6 xl:grid-cols-2">
                       <section className="rounded-xl border border-slate-200 p-4">
                         <h3 className="text-lg font-semibold text-slate-900">Triage and delivery</h3>

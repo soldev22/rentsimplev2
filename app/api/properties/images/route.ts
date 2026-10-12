@@ -5,6 +5,7 @@ import { deletePropertyImageAssets, uploadPropertyImage } from "@/lib/server/blo
 import { moderatePropertyImageUpload } from "@/lib/server/image-moderation"
 import { addPropertyImage, getPropertyForUser, removePropertyImage, setPropertyCoverImage } from "@/lib/server/properties"
 import { getSessionUser } from "@/lib/server/session"
+import { canDelete } from "@/lib/auth"
 
 export async function POST(request: Request) {
   const user = await getSessionUser()
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   const user = await getSessionUser()
+  if (user && !canDelete(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

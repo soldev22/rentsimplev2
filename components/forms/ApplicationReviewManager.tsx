@@ -25,6 +25,7 @@ type ApplicationReviewManagerProps = {
   initialAuditEventsByApplicationId: Record<string, AuditEventRecord[]>
   currentUserDisplayName: string
   isAdmin?: boolean
+  allowDeletion?: boolean
   screeningScoreConfig?: ApplicantScreeningScoreConfig
   canRequestCreditReport?: boolean
 }
@@ -199,6 +200,7 @@ export default function ApplicationReviewManager({
   initialAuditEventsByApplicationId,
   currentUserDisplayName,
   isAdmin = false,
+  allowDeletion = true,
   screeningScoreConfig,
   canRequestCreditReport = false,
 }: ApplicationReviewManagerProps) {
@@ -1206,7 +1208,7 @@ export default function ApplicationReviewManager({
                                 }
                               >
                                 {statusOptions.map((option) => (
-                                  <option key={option.value} value={option.value}>
+                                  <option key={option.value} value={option.value} disabled={!allowDeletion && option.value === "active_tenant" && application.status !== "active_tenant"}>
                                     {option.label}
                                   </option>
                                 ))}
@@ -1450,7 +1452,7 @@ export default function ApplicationReviewManager({
                                     type="button"
                                     className="text-xs font-semibold text-sky-700 hover:underline disabled:opacity-60"
                                     onClick={() => verificationFileInputRefs.current[replaceSlot]?.click()}
-                                    disabled={isPending || isReplacing}
+                                    disabled={isPending || isReplacing || !allowDeletion}
                                   >
                                     {isReplacing ? "Replacing..." : "Replace"}
                                   </button>
@@ -1458,7 +1460,7 @@ export default function ApplicationReviewManager({
                                     type="button"
                                     className="text-xs font-semibold text-rose-700 hover:underline disabled:opacity-60"
                                     onClick={() => deleteVerificationDocument(application.id, document.id)}
-                                    disabled={isPending}
+                                    disabled={isPending || !allowDeletion}
                                   >
                                     Delete
                                   </button>
@@ -1925,7 +1927,7 @@ export default function ApplicationReviewManager({
                                 type="button"
                                 className="text-xs font-semibold text-rose-700 hover:underline"
                                 onClick={() => removeRefereeContact(application.id, referee.id)}
-                                disabled={isPending}
+                                disabled={isPending || !allowDeletion}
                               >
                                 Remove contact
                               </button>

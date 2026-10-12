@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { canManagePlatform, type UserRole } from "@/lib/auth";
 
 type DashboardShellProps = {
   children: React.ReactNode
@@ -18,12 +19,15 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [displayName] = useState(initialUser.displayName);
   const [displayRole] = useState(initialUser.displayRole);
+  const isPlatformManager = canManagePlatform({ role: displayRole as UserRole, approval_status: "approved" });
   const isApplicantRole = displayRole === "applicant";
 
   function getDesignationLabel(role: string) {
     switch (role) {
       case "admin":
-        return "Administrator";
+        return "Global admin";
+      case "user":
+        return "User";
       case "agent":
         return "Agent";
       case "landlord":
@@ -53,22 +57,23 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
             { name: "Settings", href: "/dashboard/settings" },
           ]
       : [
-          ...(displayRole === "admin" ? [{ name: "Platform", href: "/dashboard/platform" }] : []),
+          ...(isPlatformManager ? [{ name: "Platform", href: "/dashboard/platform" }] : []),
           { name: "Properties", href: "/dashboard/properties" },
           { name: "Cases", href: "/dashboard/cases" },
-          ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
+          ...(isPlatformManager || displayRole === "agent" || displayRole === "landlord"
             ? [{ name: "Applications", href: "/dashboard/applications" }]
             : []),
-          ...(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord"
+          ...(isPlatformManager || displayRole === "agent" || displayRole === "landlord"
             ? [{ name: "Application Documents", href: "/dashboard/documents" }]
             : []),
           { name: "Tenants", href: "/dashboard/tenants" },
           { name: "Maintenance", href: "/dashboard/maintenance" },
           { name: "Settings", href: "/dashboard/settings" },
-          ...(displayRole === "admin"
+          ...(isPlatformManager
             ? [
                 { name: "Users", href: "/dashboard/users" },
                 { name: "Meeting Requests", href: "/dashboard/meeting-requests" },
+                { name: "CRM", href: "/dashboard/crm" },
                 { name: "Diary", href: "/dashboard/diary" },
                 { name: "Audit Log", href: "/dashboard/audit" },
               ]
@@ -254,12 +259,12 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
               <Link href="/dashboard/settings" className="hover:text-white">
                 Settings
               </Link>
-              {(displayRole === "tenant" || displayRole === "builder" || displayRole === "admin" || displayRole === "agent" || displayRole === "landlord") ? (
+              {(displayRole === "tenant" || displayRole === "builder" || isPlatformManager || displayRole === "agent" || displayRole === "landlord") ? (
                 <Link href="/dashboard/maintenance" className="hover:text-white">
                   Maintenance
                 </Link>
               ) : null}
-              {displayRole === "admin" ? (
+              {isPlatformManager ? (
                 <>
                   <Link href="/dashboard/platform" className="hover:text-white">
                     Platform
@@ -286,7 +291,7 @@ export default function DashboardShell({ children, initialUser }: DashboardShell
                   <Link href="/dashboard/applications" className="hover:text-white">
                     Applications
                   </Link>
-                  {(displayRole === "admin" || displayRole === "agent" || displayRole === "landlord") ? (
+                  {(isPlatformManager || displayRole === "agent" || displayRole === "landlord") ? (
                     <Link href="/dashboard/documents" className="hover:text-white">
                       Application Documents
                     </Link>

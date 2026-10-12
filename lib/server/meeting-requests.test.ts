@@ -67,6 +67,18 @@ describe("meeting request storage and access", () => {
     expect(result).toEqual({ requests: [stored], totalPages: 2 })
     expect(mocks.query).toHaveBeenCalledWith(expect.objectContaining({ query: expect.stringContaining("ORDER BY c.createdAt DESC OFFSET 50 LIMIT 50") }))
   })
+  it("lets a User read and manage meetings but forbids deletion before storage access", async () => {
+    const user = { ...admin, role: "user" as const }
+    expect(canManageMeetingRequests(user)).toBe(true)
+    expect(await getMeetingRequest(user, stored.id)).toMatchObject({ id: stored.id })
+    const result = await updateMeetingRequest(user, stored.id, { status: "done", note: "Followed up", expectedUpdatedAt: stored.updatedAt })
+    expect(result.kind).toBe("updated")
+    expect(mocks.replace).toHaveBeenCalledWith(expect.objectContaining({ adminNotes: [expect.objectContaining({ text: "Followed up", performedBy: user.email })] }), expect.anything())
+    mocks.read.mockClear()
+    await expect(deleteMeetingRequest(user, stored.id, stored.updatedAt)).rejects.toThrow("Forbidden")
+    expect(mocks.read).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
   it("saves status, note and durable audit entry in one conditional write", async () => {
     const result = await updateMeetingRequest(admin, stored.id, { status: "confirmed", note: "Call agreed", expectedUpdatedAt: stored.updatedAt, appointment })
     expect(result.kind).toBe("updated")

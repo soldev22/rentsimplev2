@@ -76,9 +76,9 @@ export default async function Page({ searchParams }: DocumentsPageProps) {
     ? Math.min(100, Math.max(10, Math.floor(Number(pageSizeParam))))
     : 25
 
-  const landlords = role === "admin" || role === "agent" ? await listLandlordDirectoryForUser(user) : []
+  const landlords = role === "admin" || role === "user" || role === "agent" ? await listLandlordDirectoryForUser(user) : []
   const effectiveLandlordId =
-    role === "admin" || role === "agent"
+    role === "admin" || role === "user" || role === "agent"
       ? landlordId && landlords.some((landlord) => landlord.id === landlordId)
         ? landlordId
         : undefined
@@ -134,11 +134,11 @@ export default async function Page({ searchParams }: DocumentsPageProps) {
 
   return (
     <div className="space-y-6">
-      {role === "admin" || role === "agent" ? (
+      {role === "admin" || role === "user" || role === "agent" ? (
         <LandlordScopePicker
           landlords={landlords}
           selectedLandlordId={effectiveLandlordId}
-          allLabel={role === "admin" ? "All landlords" : "All managed landlords"}
+          allLabel={role === "admin" || role === "user" ? "All landlords" : "All managed landlords"}
         />
       ) : null}
 

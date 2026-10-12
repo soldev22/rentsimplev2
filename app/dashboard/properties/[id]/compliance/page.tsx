@@ -47,6 +47,7 @@ export default async function PropertyCompliancePage({ params }: PageContext) {
       <PropertyCompliancePageClient
         initialProperty={property}
         canManage={canManageProperties(user)}
+        allowDeletion={user.role !== "user"}
         canViewTenant={canReviewTenancyApplications(user)}
       />
     </div>
